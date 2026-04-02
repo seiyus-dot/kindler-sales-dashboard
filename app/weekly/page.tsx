@@ -55,100 +55,117 @@ export default function WeeklyPage() {
   }
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-sm font-bold text-gray-500 uppercase tracking-widest">週次ログ</h2>
+    <div className="space-y-8 pb-12">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-3xl font-black tracking-tight text-white">Weekly Insights</h1>
+        <p className="text-white/40 text-sm">Historical performance and strategic logs across all segments.</p>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[10px] font-bold uppercase tracking-widest text-white/40">History</div>
+          <div className="text-sm font-mono text-white/20">{logs.length} Records</div>
+        </div>
         <button
           onClick={() => setShowForm(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition"
+          className="bg-white text-black px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest hover:bg-white/90 transition shadow-lg shadow-white/5 active:scale-95 flex items-center gap-2"
         >
-          + 今週のログを記録
+          <span className="text-lg">+</span> Log Current Week
         </button>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="text-left px-4 py-3 text-xs text-gray-400 font-semibold uppercase tracking-wider">日付</th>
-              <th className="text-right px-4 py-3 text-xs text-gray-400 font-semibold uppercase tracking-wider">toB件数</th>
-              <th className="text-right px-4 py-3 text-xs text-gray-400 font-semibold uppercase tracking-wider">toC件数</th>
-              <th className="text-right px-4 py-3 text-xs text-gray-400 font-semibold uppercase tracking-wider">toB見込み(万)</th>
-              <th className="text-right px-4 py-3 text-xs text-gray-400 font-semibold uppercase tracking-wider">toC見込み(万)</th>
-              <th className="text-right px-4 py-3 text-xs text-gray-400 font-semibold uppercase tracking-wider">加重合計(万)</th>
-              <th className="text-right px-4 py-3 text-xs text-gray-400 font-semibold uppercase tracking-wider">受注数(累計)</th>
-              <th className="text-left px-4 py-3 text-xs text-gray-400 font-semibold uppercase tracking-wider">メモ</th>
-              <th className="px-4 py-3"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {logs.length === 0 ? (
-              <tr><td colSpan={9} className="text-center py-12 text-gray-400">ログがありません</td></tr>
-            ) : logs.map((log, i) => (
-              <tr key={log.id} className={`border-b border-gray-100 hover:bg-gray-50 ${i === 0 ? 'font-semibold' : ''}`}>
-                <td className="px-4 py-3 text-blue-600">{log.log_date}</td>
-                <td className="px-4 py-3 text-right font-mono">{log.tob_count}</td>
-                <td className="px-4 py-3 text-right font-mono">{log.toc_count}</td>
-                <td className="px-4 py-3 text-right font-mono">{log.tob_amount.toLocaleString()}</td>
-                <td className="px-4 py-3 text-right font-mono">{log.toc_amount.toLocaleString()}</td>
-                <td className="px-4 py-3 text-right font-mono text-green-600">{log.weighted_total.toLocaleString()}</td>
-                <td className="px-4 py-3 text-right font-mono">{log.cumulative_orders}</td>
-                <td className="px-4 py-3 text-gray-500 text-xs max-w-xs">{log.memo ?? '-'}</td>
-                <td className="px-4 py-3">
-                  <button onClick={() => deleteLog(log.id)} className="text-xs text-red-400 hover:underline">削除</button>
-                </td>
+      <div className="glass-card overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="border-b border-white/5 bg-white/[0.02]">
+                <th className="text-left px-6 py-4 text-[10px] text-white/30 font-black uppercase tracking-[0.2em]">Date</th>
+                <th className="text-right px-6 py-4 text-[10px] text-white/30 font-black uppercase tracking-[0.2em]">toB Qty</th>
+                <th className="text-right px-6 py-4 text-[10px] text-white/30 font-black uppercase tracking-[0.2em]">toC Qty</th>
+                <th className="text-right px-6 py-4 text-[10px] text-white/30 font-black uppercase tracking-[0.2em]">toB Value</th>
+                <th className="text-right px-6 py-4 text-[10px] text-white/30 font-black uppercase tracking-[0.2em]">toC Value</th>
+                <th className="text-right px-6 py-4 text-[10px] text-white/30 font-black uppercase tracking-[0.2em]">Weighted</th>
+                <th className="text-right px-6 py-4 text-[10px] text-white/30 font-black uppercase tracking-[0.2em]">Orders</th>
+                <th className="text-left px-6 py-4 text-[10px] text-white/30 font-black uppercase tracking-[0.2em]">Note</th>
+                <th className="px-6 py-4"></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-white/[0.03]">
+              {logs.length === 0 ? (
+                <tr><td colSpan={9} className="text-center py-20 text-white/20 uppercase tracking-widest text-[10px] font-bold">No historical data available</td></tr>
+              ) : logs.map((log, i) => (
+                <tr key={log.id} className={`hover:bg-white/[0.02] transition-colors group ${i === 0 ? 'bg-blue-500/[0.03]' : ''}`}>
+                  <td className="px-6 py-4 font-mono text-blue-400 font-bold">{log.log_date}</td>
+                  <td className="px-6 py-4 text-right font-mono text-white/60">{log.tob_count}</td>
+                  <td className="px-6 py-4 text-right font-mono text-white/60">{log.toc_count}</td>
+                  <td className="px-6 py-4 text-right font-mono text-white/80 font-bold italic">{log.tob_amount.toLocaleString()}</td>
+                  <td className="px-6 py-4 text-right font-mono text-white/80 font-bold italic">{log.toc_amount.toLocaleString()}</td>
+                  <td className="px-6 py-4 text-right font-mono text-green-400 font-black tracking-tighter">{log.weighted_total.toLocaleString()}</td>
+                  <td className="px-6 py-4 text-right font-mono text-amber-400 font-bold">{log.cumulative_orders}</td>
+                  <td className="px-6 py-4 text-[10px] text-white/30 max-w-xs truncate italic" title={log.memo ?? ''}>{log.memo ?? '-'}</td>
+                  <td className="px-6 py-4">
+                    <button onClick={() => deleteLog(log.id)} className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-black uppercase tracking-widest text-red-400 hover:text-red-300">Delete</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl">
-            <div className="flex items-center justify-between p-6 border-b border-gray-100">
-              <h2 className="text-base font-bold">週次ログ記録</h2>
-              <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-600 text-xl">x</button>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in">
+          <div className="glass-card w-full max-w-lg border-white/20 overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b border-white/10 bg-white/5">
+              <div className="flex flex-col">
+                <h2 className="text-lg font-black tracking-tight text-white uppercase">New Weekly Log</h2>
+                <span className="text-[10px] text-white/40 font-bold tracking-[0.2em] uppercase">Metrics Input</span>
+              </div>
+              <button onClick={() => setShowForm(false)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-white/40 hover:text-white transition-colors">✕</button>
             </div>
-            <div className="p-6 grid grid-cols-2 gap-4">
+            <div className="p-6 grid grid-cols-2 gap-6 bg-black/40">
               <div className="col-span-2">
-                <label className="block text-xs text-gray-500 font-medium mb-1">会議日 *</label>
-                <input type="date" value={form.log_date} onChange={e => set('log_date', e.target.value)} className="input w-full" />
+                <label className="block text-[10px] text-white/40 font-black uppercase tracking-widest mb-2">Meeting Date *</label>
+                <input type="date" value={form.log_date} onChange={e => set('log_date', e.target.value)} className="input" />
               </div>
               {[
-                { key: 'tob_count', label: 'toB案件数' },
-                { key: 'toc_count', label: 'toC案件数' },
-                { key: 'tob_amount', label: 'toB見込み（万円）' },
-                { key: 'toc_amount', label: 'toC見込み（万円）' },
-                { key: 'weighted_total', label: '加重合計（万円）' },
-                { key: 'cumulative_orders', label: '受注数（累計）' },
-              ].map(({ key, label }) => (
+                { key: 'tob_count', label: 'toB Count', icon: '🏢' },
+                { key: 'toc_count', label: 'toC Count', icon: '👤' },
+                { key: 'tob_amount', label: 'toB Value (万)', icon: '💰' },
+                { key: 'toc_amount', label: 'toC Value (万)', icon: '💵' },
+                { key: 'weighted_total', label: 'Weighted Sum', icon: '⚖️' },
+                { key: 'cumulative_orders', label: 'Total Orders', icon: '🎯' },
+              ].map(({ key, label, icon }) => (
                 <div key={key}>
-                  <label className="block text-xs text-gray-500 font-medium mb-1">{label}</label>
+                  <label className="block text-[10px] text-white/40 font-black uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                    <span>{icon}</span> {label}
+                  </label>
                   <input
                     type="number"
                     value={(form as any)[key]}
                     onChange={e => set(key, e.target.value)}
-                    className="input w-full"
+                    className="input font-mono"
                     placeholder="0"
                   />
                 </div>
               ))}
               <div className="col-span-2">
-                <label className="block text-xs text-gray-500 font-medium mb-1">会議メモ</label>
-                <textarea value={form.memo} onChange={e => set('memo', e.target.value)} className="input w-full h-20 resize-none" />
+                <label className="block text-[10px] text-white/40 font-black uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                  <span>📝</span> Strategy Note
+                </label>
+                <textarea value={form.memo} onChange={e => set('memo', e.target.value)} className="input h-24 resize-none" placeholder="Enter key meeting takeaways..." />
               </div>
             </div>
-            {error && <p className="text-red-500 text-sm px-6 pb-2">{error}</p>}
-            <div className="flex justify-end gap-3 p-6 pt-2 border-t border-gray-100">
-              <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-gray-500">キャンセル</button>
+            {error && <p className="bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] font-bold mx-6 px-3 py-2 rounded-lg">{error}</p>}
+            <div className="flex justify-end gap-3 p-6 bg-white/5 border-t border-white/10">
+              <button onClick={() => setShowForm(false)} className="px-6 py-2 text-xs font-bold text-white/40 uppercase tracking-widest hover:text-white transition-colors">Cancel</button>
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
+                className="px-8 py-2 bg-blue-600 text-white text-xs font-black uppercase tracking-widest rounded-full hover:bg-blue-500 disabled:opacity-50 transition shadow-lg shadow-blue-600/20 shadow-inner active:scale-95"
               >
-                {saving ? '保存中...' : '記録する'}
+                {saving ? 'Saving...' : 'Confirm Log'}
               </button>
             </div>
           </div>
