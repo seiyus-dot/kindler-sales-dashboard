@@ -57,21 +57,15 @@ export default function DashboardPage() {
   )
 
   return (
-    <div className="space-y-8 pb-12">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-3xl font-black tracking-tight text-white">Sales Analytics</h1>
-        <p className="text-white/40 text-sm">Real-time overview of your sales pipeline and performance.</p>
-      </div>
-
+    <div className="space-y-6">
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-4 gap-4">
         <KpiCard
           label="toB 見込み金額"
           value={latest?.tob_amount}
           unit="万円"
           delta={delta(latest?.tob_amount, prev?.tob_amount)}
           color="blue"
-          icon="🏢"
         />
         <KpiCard
           label="toC 見込み金額"
@@ -79,15 +73,13 @@ export default function DashboardPage() {
           unit="万円"
           delta={delta(latest?.toc_amount, prev?.toc_amount)}
           color="cyan"
-          icon="👤"
         />
         <KpiCard
           label="加重パイプライン"
           value={latest?.weighted_total}
           unit="万円"
           delta={delta(latest?.weighted_total, prev?.weighted_total)}
-          color="violet"
-          icon="⚖️"
+          color="green"
         />
         <KpiCard
           label="累計受注数"
@@ -95,99 +87,43 @@ export default function DashboardPage() {
           unit="件"
           delta={delta(latest?.cumulative_orders, prev?.cumulative_orders)}
           color="amber"
-          icon="🎯"
         />
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 glass-card p-6 flex flex-col">
-          <div className="flex items-center justify-between mb-8">
-            <h3 className="text-sm font-bold text-white/50 uppercase tracking-widest">週次 見込み金額推移（万円）</h3>
-            <div className="flex gap-2">
-              <span className="flex items-center gap-1.5 text-[10px] text-white/40"><span className="w-2 h-2 rounded-full bg-blue-500" /> toB</span>
-              <span className="flex items-center gap-1.5 text-[10px] text-white/40"><span className="w-2 h-2 rounded-full bg-cyan-400" /> toC</span>
-              <span className="flex items-center gap-1.5 text-[10px] text-white/40"><span className="w-2 h-2 rounded-full bg-violet-500" /> 加重</span>
-            </div>
-          </div>
-          <div className="flex-1 min-h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                <XAxis 
-                  dataKey="date" 
-                  tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.3)' }} 
-                  axisLine={false}
-                  tickLine={false}
-                  dy={10}
-                />
-                <YAxis 
-                  tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.3)' }} 
-                  axisLine={false}
-                  tickLine={false}
-                  tickFormatter={(v: number) => `${v}`}
-                />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'rgba(0,0,0,0.8)', 
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    borderRadius: '12px',
-                    fontSize: '12px',
-                    backdropFilter: 'blur(10px)'
-                  }}
-                  itemStyle={{ color: '#fff' }}
-                  formatter={(v: number) => [`${v.toLocaleString()}万円`]} 
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="toB見込み" 
-                  stroke="#3b82f6" 
-                  strokeWidth={3} 
-                  dot={{ r: 4, fill: '#3b82f6', strokeWidth: 2, stroke: '#000' }} 
-                  activeDot={{ r: 6, strokeWidth: 0 }}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="toC見込み" 
-                  stroke="#22d3ee" 
-                  strokeWidth={3} 
-                  dot={{ r: 4, fill: '#22d3ee', strokeWidth: 2, stroke: '#000' }} 
-                  activeDot={{ r: 6, strokeWidth: 0 }}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="加重合計" 
-                  stroke="#8b5cf6" 
-                  strokeWidth={3} 
-                  dot={{ r: 4, fill: '#8b5cf6', strokeWidth: 2, stroke: '#000' }} 
-                  activeDot={{ r: 6, strokeWidth: 0 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">週次 見込み金額推移（万円）</h3>
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 11 }} />
+              <Tooltip formatter={(v: number) => `${v.toLocaleString()}万円`} />
+              <Legend />
+              <Line type="monotone" dataKey="toB見込み" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="toC見込み" stroke="#06b6d4" strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="加重合計" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
 
-        <div className="glass-card p-6">
-          <h3 className="text-sm font-bold text-white/50 uppercase tracking-widest mb-6">担当別 案件数</h3>
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">担当別 案件数</h3>
           {memberStats.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-48 text-white/20">
-              <span className="text-4xl mb-2">📁</span>
-              <p className="text-xs uppercase tracking-tighter">No Data Available</p>
-            </div>
+            <p className="text-sm text-gray-400 mt-8 text-center">案件データがありません</p>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-3 mt-2">
               {memberStats.map(m => (
-                <div key={m.name} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-bold text-white/80">{m.name}</span>
-                    <span className="text-[10px] text-white/40 font-mono italic">toB:{m.tob} / toC:{m.toc}</span>
-                  </div>
-                  <div className="relative h-2 bg-white/5 rounded-full overflow-hidden">
+                <div key={m.name} className="flex items-center gap-3">
+                  <span className="w-14 text-sm text-gray-600 text-right">{m.name}</span>
+                  <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
                     <div
-                      className="absolute h-full left-0 bg-gradient-to-r from-blue-500 to-violet-500 rounded-full transition-all duration-1000"
+                      className="h-full bg-blue-500 rounded-full"
                       style={{ width: `${Math.min(100, (m.tob + m.toc) * 10)}%` }}
                     />
                   </div>
+                  <span className="text-xs text-gray-400 w-24">toB:{m.tob} / toC:{m.toc}</span>
                 </div>
               ))}
             </div>
@@ -197,70 +133,47 @@ export default function DashboardPage() {
 
       {/* Latest memo */}
       {latest?.memo && (
-        <div className="glass-card p-6 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <span className="text-6xl">📝</span>
-          </div>
-          <h3 className="text-sm font-bold text-white/50 uppercase tracking-widest mb-4 flex items-center gap-2">
-            Recent Note <span className="text-[10px] font-mono text-white/20">({latest.log_date})</span>
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">
+            最新メモ（{latest.log_date}）
           </h3>
-          <p className="text-base text-white/80 leading-relaxed max-w-3xl border-l-2 border-blue-500/30 pl-4">
-            {latest.memo}
-          </p>
+          <p className="text-sm text-gray-700">{latest.memo}</p>
         </div>
       )}
     </div>
   )
 }
 
-function KpiCard({ label, value, unit, delta, color, icon }: {
+function KpiCard({ label, value, unit, delta, color }: {
   label: string
   value?: number
   unit: string
   delta: string | null
-  color: 'blue' | 'cyan' | 'violet' | 'amber'
-  icon: string
+  color: 'blue' | 'cyan' | 'green' | 'amber'
 }) {
-  const colorStyles = {
-    blue: 'from-blue-500/20 to-transparent text-blue-400 border-blue-500/20 shadow-blue-500/5',
-    cyan: 'from-cyan-400/20 to-transparent text-cyan-300 border-cyan-400/20 shadow-cyan-400/5',
-    violet: 'from-violet-500/20 to-transparent text-violet-400 border-violet-500/20 shadow-violet-500/5',
-    amber: 'from-amber-400/20 to-transparent text-amber-300 border-amber-400/20 shadow-amber-400/5',
+  const colors = {
+    blue: 'text-blue-600',
+    cyan: 'text-cyan-600',
+    green: 'text-green-600',
+    amber: 'text-amber-600',
   }
-
-  const iconBg = {
-    blue: 'bg-blue-500/10 text-blue-500',
-    cyan: 'bg-cyan-400/10 text-cyan-400',
-    violet: 'bg-violet-500/10 text-violet-500',
-    amber: 'bg-amber-400/10 text-amber-400',
+  const borders = {
+    blue: 'border-t-blue-500',
+    cyan: 'border-t-cyan-500',
+    green: 'border-t-green-500',
+    amber: 'border-t-amber-500',
   }
 
   return (
-    <div className={`glass-card p-6 overflow-hidden relative group hover:border-white/20 transition-all duration-300 shadow-xl ${colorStyles[color]}`}>
-      <div className="flex items-start justify-between mb-4">
-        <div className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em]">{label}</div>
-        <div className={`w-8 h-8 rounded-lg ${iconBg[color]} flex items-center justify-center text-sm shadow-inner group-hover:scale-110 transition-transform`}>
-          {icon}
-        </div>
+    <div className={`bg-white border border-gray-200 border-t-2 ${borders[color]} rounded-xl p-5`}>
+      <div className="text-xs text-gray-400 uppercase tracking-widest mb-2">{label}</div>
+      <div className={`text-3xl font-black font-mono ${colors[color]}`}>
+        {value?.toLocaleString() ?? '-'}
+        <span className="text-sm font-normal text-gray-400 ml-1">{unit}</span>
       </div>
-      <div className="flex items-baseline gap-1">
-        <div className="text-4xl font-black tracking-tighter text-white font-mono leading-none">
-          {value?.toLocaleString() ?? '-'}
-        </div>
-        <div className="text-xs font-bold text-white/30 uppercase tracking-widest">{unit}</div>
-      </div>
-      
       {delta && (
-        <div className="mt-4 flex items-center gap-2">
-          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 flex items-center gap-0.5`}>
-            {delta.startsWith('+') ? '↑' : '↓'} {delta.replace('+', '')}
-          </span>
-          <span className="text-[10px] text-white/20 font-bold uppercase tracking-widest">vs Last Week</span>
-        </div>
+        <div className="text-xs text-green-500 mt-1 font-mono">{delta} <span className="text-gray-400">前週比</span></div>
       )}
-
-      {/* Decorative gradient */}
-      <div className={`absolute -bottom-10 -right-10 w-32 h-32 bg-gradient-to-br opacity-10 blur-3xl rounded-full ${colorStyles[color]}`} />
     </div>
   )
 }
