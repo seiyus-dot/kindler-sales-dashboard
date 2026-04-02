@@ -64,89 +64,89 @@ export default function DealToCForm({ members, initial, onClose, onSaved }: Prop
   }
 
   return (
-    <div className="bg-white rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh] border border-gray-200">
-      <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-gray-50/50 text-[#1a1a1a]">
+    <div className="glass-card border-white/20 overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+      <div className="flex items-center justify-between p-6 border-b border-white/10 bg-white/5">
         <div className="flex flex-col">
-          <h2 className="text-lg font-bold tracking-tight uppercase">{initial ? 'Edit Personal Deal' : 'New Personal Deal'}</h2>
-          <span className="text-[10px] text-gray-400 font-bold tracking-widest uppercase">Individual Opportunity</span>
+          <h2 className="text-lg font-black tracking-tight text-white uppercase">{initial ? 'Edit Personal Deal' : 'New Personal Deal'}</h2>
+          <span className="text-[10px] text-white/40 font-bold tracking-[0.2em] uppercase">Individual Opportunity</span>
         </div>
-        <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-300 hover:text-gray-600 transition-colors">✕</button>
+        <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-white/40 hover:text-white transition-colors">✕</button>
       </div>
 
-      <div className="p-8 grid grid-cols-2 gap-6 overflow-y-auto bg-white">
-        <Field label="Staff Member" required>
-          <select value={form.member_id} onChange={e => set('member_id', e.target.value)} className="input bg-white text-gray-900">
+      <div className="p-8 grid grid-cols-2 gap-6 overflow-y-auto bg-black/40 custom-scrollbar">
+        <Field label="Staff Member" required icon="👤">
+          <select value={form.member_id} onChange={e => set('member_id', e.target.value)} className="input bg-black">
             <option value="">Select Member</option>
-            {members.map(m => <option key={m.id} value={m.id} className="text-gray-900">{m.name}</option>)}
+            {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
         </Field>
-        <Field label="Customer Name" required>
-          <input value={form.name} onChange={e => set('name', e.target.value)} className="input bg-white text-gray-900" placeholder="e.g. Taro Yamada" />
+        <Field label="Customer Name" required icon="👤">
+          <input value={form.name} onChange={e => set('name', e.target.value)} className="input" placeholder="e.g. Taro Yamada" />
         </Field>
 
-        <Field label="Contact Info">
-          <input value={form.contact} onChange={e => set('contact', e.target.value)} className="input bg-white text-gray-900" placeholder="LINE / Phone / Email" />
+        <Field label="Contact Info" icon="📱">
+          <input value={form.contact} onChange={e => set('contact', e.target.value)} className="input" placeholder="LINE / Phone / Email" />
         </Field>
-        <Field label="Lead Source">
-          <input value={form.source} onChange={e => set('source', e.target.value)} className="input bg-white text-gray-900" placeholder="e.g. Ads / SNS" />
+        <Field label="Lead Source" icon="📍">
+          <input value={form.source} onChange={e => set('source', e.target.value)} className="input" placeholder="e.g. Ads / SNS" />
         </Field>
 
-        <Field label="Deal Status">
-          <select value={form.status} onChange={e => set('status', e.target.value)} className="input bg-white text-gray-900">
+        <Field label="Deal Status" icon="🔄">
+          <select value={form.status} onChange={e => set('status', e.target.value)} className="input bg-black">
             <option value="">Select Status</option>
             {['相談予約','ヒアリング','提案中','クロージング','受注','失注','保留'].map(s => (
-              <option key={s} className="text-gray-900">{s}</option>
+              <option key={s}>{s}</option>
             ))}
           </select>
         </Field>
-        <Field label="Priority Level">
-          <select value={form.priority} onChange={e => set('priority', e.target.value)} className="input bg-white text-gray-900">
+        <Field label="Priority Level" icon="⚡">
+          <select value={form.priority} onChange={e => set('priority', e.target.value)} className="input bg-black">
             <option value="">Select Priority</option>
-            {['高','中','低'].map(p => <option key={p} className="text-gray-900">{p}</option>)}
+            {['高','中','低'].map(p => <option key={p}>{p}</option>)}
           </select>
         </Field>
 
-        <Field label="First Contact">
-          <input type="date" value={form.first_contact_date} onChange={e => set('first_contact_date', e.target.value)} className="input bg-white text-gray-900" />
+        <Field label="First Contact" icon="📅">
+          <input type="date" value={form.first_contact_date} onChange={e => set('first_contact_date', e.target.value)} className="input" />
         </Field>
-        <Field label="Last Activity">
-          <input type="date" value={form.last_contact_date} onChange={e => set('last_contact_date', e.target.value)} className="input bg-white text-gray-900" />
-        </Field>
-
-        <Field label="Interested Service">
-          <input value={form.service} onChange={e => set('service', e.target.value)} className="input bg-white text-gray-900" placeholder="e.g. AI CAMP" />
-        </Field>
-        <Field label="Expected Value (10k JPY)">
-          <input type="number" value={form.expected_amount} onChange={e => set('expected_amount', e.target.value)} className="input bg-white text-gray-900 font-bold" placeholder="30" />
+        <Field label="Last Activity" icon="⏳">
+          <input type="date" value={form.last_contact_date} onChange={e => set('last_contact_date', e.target.value)} className="input" />
         </Field>
 
-        <Field label="Win Probability (%)">
-          <input type="number" min="0" max="100" value={form.win_probability} onChange={e => set('win_probability', e.target.value)} className="input bg-white text-gray-900 font-bold" placeholder="60" />
+        <Field label="Interested Service" icon="🛠️">
+          <input value={form.service} onChange={e => set('service', e.target.value)} className="input" placeholder="e.g. AI CAMP" />
         </Field>
-        <Field label="Next Schedule">
-          <input type="date" value={form.next_action_date} onChange={e => set('next_action_date', e.target.value)} className="input bg-white text-gray-900" />
+        <Field label="Expected Value (10k JPY)" icon="💰">
+          <input type="number" value={form.expected_amount} onChange={e => set('expected_amount', e.target.value)} className="input font-mono" placeholder="30" />
+        </Field>
+
+        <Field label="Win Probability (%)" icon="📈">
+          <input type="number" min="0" max="100" value={form.win_probability} onChange={e => set('win_probability', e.target.value)} className="input font-mono" placeholder="60" />
+        </Field>
+        <Field label="Next Schedule" icon="🎯">
+          <input type="date" value={form.next_action_date} onChange={e => set('next_action_date', e.target.value)} className="input" />
         </Field>
 
         <div className="col-span-2">
-          <Field label="Next Strategic Action">
-            <input value={form.next_action} onChange={e => set('next_action', e.target.value)} className="input bg-white text-gray-900" placeholder="e.g. Send Consultation Link" />
+          <Field label="Next Strategic Action" icon="🚀">
+            <input value={form.next_action} onChange={e => set('next_action', e.target.value)} className="input" placeholder="e.g. Send Consultation Link" />
           </Field>
         </div>
         <div className="col-span-2">
-          <Field label="Personal Notes">
-            <textarea value={form.notes} onChange={e => set('notes', e.target.value)} className="input h-24 resize-none bg-white text-gray-900" placeholder="Enter specific customer details..." />
+          <Field label="Personal Notes" icon="📄">
+            <textarea value={form.notes} onChange={e => set('notes', e.target.value)} className="input h-24 resize-none" placeholder="Enter specific customer details..." />
           </Field>
         </div>
       </div>
 
-      {error && <p className="bg-red-50 border border-red-100 text-red-600 text-[10px] font-bold mx-8 px-3 py-2 rounded-lg my-2">{error}</p>}
+      {error && <p className="bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] font-bold mx-8 px-3 py-2 rounded-lg my-2">{error}</p>}
 
-      <div className="flex justify-end gap-3 p-6 bg-gray-50 border-t border-gray-100">
-        <button onClick={onClose} className="px-6 py-2 text-xs font-bold text-gray-400 uppercase tracking-widest hover:text-gray-600 transition-colors">Cancel</button>
+      <div className="flex justify-end gap-3 p-6 bg-white/5 border-t border-white/10">
+        <button onClick={onClose} className="px-6 py-2 text-xs font-bold text-white/40 uppercase tracking-widest hover:text-white transition-colors">Cancel</button>
         <button
           onClick={handleSubmit}
           disabled={saving}
-          className="px-8 py-2 bg-[#0055ff] text-white text-xs font-bold uppercase tracking-widest rounded-full hover:bg-blue-600 disabled:opacity-50 transition shadow-lg shadow-blue-500/10 active:scale-95"
+          className="px-8 py-2 bg-blue-600 text-white text-xs font-black uppercase tracking-widest rounded-full hover:bg-blue-500 disabled:opacity-50 transition shadow-lg shadow-blue-600/20 shadow-inner active:scale-95"
         >
           {saving ? 'Processing...' : (initial ? 'Sync Updates' : 'Confirm Entry')}
         </button>
@@ -155,15 +155,15 @@ export default function DealToCForm({ members, initial, onClose, onSaved }: Prop
   )
 }
 
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+function Field({ label, required, icon, children }: { label: string; required?: boolean; icon?: string; children: React.ReactNode }) {
   return (
     <div className="space-y-2">
-      <label className="block text-[10px] text-gray-400 font-bold uppercase tracking-widest flex items-center gap-1.5">
+      <label className="block text-[10px] text-white/40 font-black uppercase tracking-[0.1em] flex items-center gap-1.5">
+        {icon && <span>{icon}</span>}
         {label}
-        {required && <span className="text-red-500 ml-0.5">*</span>}
+        {required && <span className="text-red-500 ml-0.5">★</span>}
       </label>
       {children}
     </div>
   )
 }
-
