@@ -72,13 +72,13 @@ export default function DealToCForm({ members, initial, onClose, onSaved }: Prop
         </div>
 
         <div className="p-6 grid grid-cols-2 gap-4">
-          <Field label="担当者 *">
+          <Field label="担当者" required>
             <select value={form.member_id} onChange={e => set('member_id', e.target.value)} className="input">
               <option value="">選択</option>
               {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
             </select>
           </Field>
-          <Field label="氏名 *">
+          <Field label="氏名" required>
             <input value={form.name} onChange={e => set('name', e.target.value)} className="input" placeholder="山田 太郎" />
           </Field>
 
@@ -154,10 +154,13 @@ export default function DealToCForm({ members, initial, onClose, onSaved }: Prop
   )
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-xs text-gray-500 font-medium mb-1">{label}</label>
+      <label className="block text-xs text-gray-500 font-medium mb-1">
+        {label}
+        {required && <span className="text-red-500 ml-1">★</span>}
+      </label>
       {children}
     </div>
   )
