@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 
 type View = 'all' | 'tob' | 'toc'
+type Period = 'month' | 'all'
 
 function StatCard({
   title, value, sub, icon: Icon, colorClass, change, isPositive
@@ -57,6 +58,8 @@ export default function DashboardPage() {
   const [tocDeals, setTocDeals] = useState<DealToC[]>([])
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState<View>('all')
+  const [period, setPeriod] = useState<Period>('month')
+  const currentMonth = new Date().toISOString().slice(0, 7)
 
   useEffect(() => {
     async function fetchAll() {
@@ -80,8 +83,10 @@ export default function DashboardPage() {
   const activeToc = view === 'tob' ? [] : tocDeals
   const allDeals = [...activeTob, ...activeToc]
 
-  // KPI
-  const paidDeals = allDeals.filter(d => d.payment_date)
+  // KPI（着金は period でフィルタ）
+  const paidDeals = allDeals.filter(d =>
+    d.payment_date && (period === 'all' || d.payment_date.startsWith(currentMonth))
+  )
   const paidTotal = paidDeals.reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0)
   const paidCount = paidDeals.length
 
@@ -126,10 +131,12 @@ export default function DashboardPage() {
     })).sort((a, b) => b.金額 - a.金額)
   }, [paidDeals])
 
-  // パイチャート: 法人/個人 着金比率
-  const paidTobTotal = tobDeals.filter(d => d.payment_date)
+  // パイチャート: 法人/個人 着金比率（period でフィルタ）
+  const paidTobTotal = tobDeals
+    .filter(d => d.payment_date && (period === 'all' || d.payment_date.startsWith(currentMonth)))
     .reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0)
-  const paidTocTotal = tocDeals.filter(d => d.payment_date)
+  const paidTocTotal = tocDeals
+    .filter(d => d.payment_date && (period === 'all' || d.payment_date.startsWith(currentMonth)))
     .reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0)
   const pieData = view === 'all'
     ? [{ name: '法人', value: paidTobTotal }, { name: '個人', value: paidTocTotal }]
@@ -158,31 +165,51 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6 pb-8">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">ダッシュボード</h1>
           <p className="text-slate-400 text-sm mt-0.5">表示中: {viewLabel}　最終更新: {latest?.log_date ?? '-'}</p>
         </div>
-        <div className="flex gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 w-fit">
-          {([
-            { key: 'all', label: '全社' },
-            { key: 'tob', label: '法人' },
-            { key: 'toc', label: '個人' },
-          ] as { key: View; label: string }[]).map(v => (
-            <button
-              key={v.key}
-              onClick={() => setView(v.key)}
-              className={`px-4 py-1.5 text-sm font-bold rounded-lg transition-all ${
-                view === v.key
-                  ? v.key === 'tob' ? 'bg-white text-blue-600 shadow-sm'
-                    : v.key === 'toc' ? 'bg-white text-pink-600 shadow-sm'
-                    : 'bg-white text-indigo-600 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              {v.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-3">
+          {/* 期間切り替え */}
+          <div className="flex gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+            {([
+              { key: 'month', label: '当月' },
+              { key: 'all',   label: '全体' },
+            ] as { key: Period; label: string }[]).map(p => (
+              <button
+                key={p.key}
+                onClick={() => setPeriod(p.key)}
+                className={`px-4 py-1.5 text-sm font-bold rounded-lg transition-all ${
+                  period === p.key ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+          {/* 部門切り替え */}
+          <div className="flex gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+            {([
+              { key: 'all', label: '全社' },
+              { key: 'tob', label: '法人' },
+              { key: 'toc', label: '個人' },
+            ] as { key: View; label: string }[]).map(v => (
+              <button
+                key={v.key}
+                onClick={() => setView(v.key)}
+                className={`px-4 py-1.5 text-sm font-bold rounded-lg transition-all ${
+                  view === v.key
+                    ? v.key === 'tob' ? 'bg-white text-blue-600 shadow-sm'
+                      : v.key === 'toc' ? 'bg-white text-pink-600 shadow-sm'
+                      : 'bg-white text-indigo-600 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {v.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -243,7 +270,9 @@ export default function DashboardPage() {
         {/* パイ: 法人/個人比率 */}
         <div className="lg:col-span-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
           <h3 className="font-bold text-slate-900 mb-6">
-            {view === 'all' ? '着金 法人/個人比率' : 'ステータス内訳'}
+            {view === 'all'
+              ? `着金比率（${period === 'month' ? '当月' : '全体'}）`
+              : 'ステータス内訳'}
           </h3>
           <ResponsiveContainer width="100%" height={240}>
             <PieChart>

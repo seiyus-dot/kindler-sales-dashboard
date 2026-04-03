@@ -28,6 +28,10 @@ export default function DealsPage() {
   const [draft, setDraft] = useState<Record<string, string>>({})
   const [showConfirm, setShowConfirm] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [search, setSearch] = useState('')
+  const [filterMember, setFilterMember] = useState('')
+  const [filterStatus, setFilterStatus] = useState('')
+  const [filterPriority, setFilterPriority] = useState('')
 
   useEffect(() => { fetchAll() }, [])
 
@@ -232,7 +236,17 @@ export default function DealsPage() {
   }
 
   const activeCols = tab === 'tob' ? tobCols : tocCols
-  const activeDeals = tab === 'tob' ? tobDeals : tocDeals
+  const baseDeals = tab === 'tob' ? tobDeals : tocDeals
+  const activeDeals = baseDeals.filter(deal => {
+    const d = deal as any
+    const label = tab === 'tob' ? d.company_name : d.name
+    if (search && !label?.toLowerCase().includes(search.toLowerCase())) return false
+    if (filterMember && d.member_id !== filterMember) return false
+    if (filterStatus && d.status !== filterStatus) return false
+    if (filterPriority && d.priority !== filterPriority) return false
+    return true
+  })
+  const hasFilter = search || filterMember || filterStatus || filterPriority
 
   return (
     <div>
@@ -260,6 +274,50 @@ export default function DealsPage() {
             + 新規追加
           </button>
         </div>
+      </div>
+
+      {/* フィルターバー */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder={tab === 'tob' ? '企業名で検索...' : '氏名で検索...'}
+          className="border border-gray-200 rounded-sm px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 w-44"
+        />
+        <select
+          value={filterMember}
+          onChange={e => setFilterMember(e.target.value)}
+          className="border border-gray-200 rounded-sm px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+        >
+          <option value="">担当者: 全員</option>
+          {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+        </select>
+        <select
+          value={filterStatus}
+          onChange={e => setFilterStatus(e.target.value)}
+          className="border border-gray-200 rounded-sm px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+        >
+          <option value="">ステータス: 全て</option>
+          {(tab === 'tob' ? TOB_STATUSES : TOC_STATUSES).map(s => <option key={s}>{s}</option>)}
+        </select>
+        <select
+          value={filterPriority}
+          onChange={e => setFilterPriority(e.target.value)}
+          className="border border-gray-200 rounded-sm px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+        >
+          <option value="">優先度: 全て</option>
+          {PRIORITIES.map(p => <option key={p}>{p}</option>)}
+        </select>
+        {hasFilter && (
+          <button
+            onClick={() => { setSearch(''); setFilterMember(''); setFilterStatus(''); setFilterPriority('') }}
+            className="text-sm text-gray-400 hover:text-gray-600 px-2 py-1.5 transition"
+          >
+            ✕ リセット
+          </button>
+        )}
+        <span className="ml-auto text-sm text-gray-400">{activeDeals.length}件</span>
       </div>
 
       <div className="bg-white border border-gray-200 rounded overflow-x-auto">
