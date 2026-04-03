@@ -78,7 +78,7 @@ export default function MembersPage() {
         <p className="text-sm text-gray-400 mt-0.5">担当者ごとの案件状況・KPI</p>
       </div>
 
-      <div className="grid grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-5">
         {stats.map(s => (
           <Link key={s.member.id} href={`/members/${s.member.id}`}>
             <div className="bg-white rounded border border-gray-100 shadow-sm p-6 hover:shadow-md hover:border-blue-100 transition-all cursor-pointer">

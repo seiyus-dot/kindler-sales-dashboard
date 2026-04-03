@@ -88,7 +88,7 @@ export default function MemberDetailPage() {
       </div>
 
       {/* KPI */}
-      <div className="grid grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 lg:gap-4">
         {[
           { label: '進行中（法人）', value: tobActive, unit: '件', accent: 'text-blue-600', bg: 'bg-blue-50' },
           { label: '進行中（個人）', value: tocActive, unit: '件', accent: 'text-cyan-600', bg: 'bg-cyan-50' },
@@ -128,7 +128,7 @@ export default function MemberDetailPage() {
       )}
 
       {/* ステータス内訳 */}
-      <div className="grid grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-5">
         <div className="bg-white rounded border border-gray-100 shadow-sm p-7">
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-5">法人 ステータス内訳</h3>
           {tobStatusCounts.length === 0 ? (

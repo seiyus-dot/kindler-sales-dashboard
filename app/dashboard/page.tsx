@@ -170,7 +170,7 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold text-slate-900">ダッシュボード</h1>
           <p className="text-slate-400 text-sm mt-0.5">表示中: {viewLabel}　最終更新: {latest?.log_date ?? '-'}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 lg:gap-3">
           {/* 期間切り替え */}
           <div className="flex gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
             {([
@@ -214,7 +214,7 @@ export default function DashboardPage() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-5">
         <StatCard
           title="着金済み売上"
           value={`${paidTotal.toLocaleString()}万円`}
@@ -252,7 +252,7 @@ export default function DashboardPage() {
       {/* Charts Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* 月次着金推移 */}
-        <div className="lg:col-span-8 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+        <div className="col-span-1 lg:col-span-8 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
           <h3 className="font-bold text-slate-900 mb-6">月次 着金額推移（万円）</h3>
           <ResponsiveContainer width="100%" height={280}>
             <AreaChart data={monthlyData}>
@@ -268,7 +268,7 @@ export default function DashboardPage() {
         </div>
 
         {/* パイ: 法人/個人比率 */}
-        <div className="lg:col-span-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+        <div className="col-span-1 lg:col-span-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
           <h3 className="font-bold text-slate-900 mb-6">
             {view === 'all'
               ? `着金比率（${period === 'month' ? '当月' : '全体'}）`
@@ -289,7 +289,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Charts Row 2 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
         {/* サービス別 or 担当別着金 */}
         <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
           <h3 className="font-bold text-slate-900 mb-6">
