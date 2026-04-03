@@ -17,13 +17,17 @@ export default function DealToBForm({ members, initial, onClose, onSaved }: Prop
   const [sources, setSources] = useState<MasterOption[]>([])
   const [services, setServices] = useState<MasterOption[]>([])
 
+  const [industries, setIndustries] = useState<MasterOption[]>([])
+
   useEffect(() => {
     Promise.all([
       supabase.from('master_options').select('*').eq('type', 'source').order('sort_order'),
       supabase.from('master_options').select('*').eq('type', 'service').order('sort_order'),
-    ]).then(([srcRes, svcRes]) => {
+      supabase.from('master_options').select('*').eq('type', 'industry').order('sort_order'),
+    ]).then(([srcRes, svcRes, indRes]) => {
       if (srcRes.data) setSources(srcRes.data)
       if (svcRes.data) setServices(svcRes.data)
+      if (indRes.data) setIndustries(indRes.data)
     })
   }, [])
 
@@ -108,7 +112,10 @@ export default function DealToBForm({ members, initial, onClose, onSaved }: Prop
             <input value={form.contact_name} onChange={e => set('contact_name', e.target.value)} className="input" placeholder="例：田中 一郎" />
           </Field>
           <Field label="業種">
-            <input value={form.industry} onChange={e => set('industry', e.target.value)} className="input" placeholder="例：製造、IT" />
+            <select value={form.industry} onChange={e => set('industry', e.target.value)} className="input">
+              <option value="">-</option>
+              {industries.map(i => <option key={i.id}>{i.value}</option>)}
+            </select>
           </Field>
 
           <Field label="商品名">

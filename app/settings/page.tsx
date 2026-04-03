@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase, Member, MasterOption, ColumnConfig } from '@/lib/supabase'
 
-type Section = 'members' | 'source' | 'service' | 'columns'
+type Section = 'members' | 'source' | 'service' | 'industry' | 'columns'
 type ColTab = 'tob' | 'toc'
 
 export default function SettingsPage() {
@@ -111,6 +111,7 @@ export default function SettingsPage() {
     { key: 'members', label: '担当者' },
     { key: 'source', label: '流入経路' },
     { key: 'service', label: '検討サービス' },
+    { key: 'industry', label: '業種' },
     { key: 'columns', label: '列設定' },
   ]
 
@@ -220,7 +221,7 @@ export default function SettingsPage() {
               value={newValue}
               onChange={e => setNewValue(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && (section === 'members' ? addMember() : addOption())}
-              placeholder={section === 'members' ? '担当者名を入力' : section === 'source' ? '流入経路を入力' : 'サービス名を入力'}
+              placeholder={section === 'members' ? '担当者名を入力' : section === 'source' ? '流入経路を入力' : section === 'industry' ? '業種を入力' : 'サービス名を入力'}
               className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
             <button

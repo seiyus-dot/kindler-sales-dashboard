@@ -21,6 +21,7 @@ export default function DealsPage() {
   const [tocCols, setTocCols] = useState<ColumnConfig[]>([])
   const [sources, setSources] = useState<MasterOption[]>([])
   const [services, setServices] = useState<MasterOption[]>([])
+  const [industries, setIndustries] = useState<MasterOption[]>([])
   const [showForm, setShowForm] = useState(false)
   const [editTarget, setEditTarget] = useState<DealToB | DealToC | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -31,13 +32,14 @@ export default function DealsPage() {
   useEffect(() => { fetchAll() }, [])
 
   async function fetchAll() {
-    const [tobRes, tocRes, membersRes, colRes, srcRes, svcRes] = await Promise.all([
+    const [tobRes, tocRes, membersRes, colRes, srcRes, svcRes, indRes] = await Promise.all([
       supabase.from('deals_tob').select('*, members(name)').order('created_at', { ascending: false }),
       supabase.from('deals_toc').select('*, members(name)').order('created_at', { ascending: false }),
       supabase.from('members').select('*').order('sort_order'),
       supabase.from('column_config').select('*').order('sort_order'),
       supabase.from('master_options').select('*').eq('type', 'source').order('sort_order'),
       supabase.from('master_options').select('*').eq('type', 'service').order('sort_order'),
+      supabase.from('master_options').select('*').eq('type', 'industry').order('sort_order'),
     ])
     if (tobRes.data) setTobDeals(tobRes.data)
     if (tocRes.data) setTocDeals(tocRes.data)
@@ -48,6 +50,7 @@ export default function DealsPage() {
     }
     if (srcRes.data) setSources(srcRes.data)
     if (svcRes.data) setServices(svcRes.data)
+    if (indRes.data) setIndustries(indRes.data)
   }
 
   function startEdit(deal: DealToB | DealToC, type: Tab) {
@@ -208,7 +211,7 @@ export default function DealsPage() {
       case 'company_name':    return cellInput('company_name')
       case 'name':            return cellInput('name')
       case 'contact_name':    return cellInput('contact_name')
-      case 'industry':        return cellInput('industry')
+      case 'industry':        return cellSelect('industry', industries.map(i => i.value))
       case 'contact':         return cellInput('contact')
       case 'next_action':     return cellInput('next_action')
       case 'notes':           return cellInput('notes')
