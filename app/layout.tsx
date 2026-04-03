@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import Link from 'next/link'
-import { LayoutDashboard, BriefcaseBusiness, ClipboardList, Settings } from 'lucide-react'
+import { LayoutDashboard, BriefcaseBusiness, ClipboardList, Settings, Users } from 'lucide-react'
 
 export const metadata: Metadata = {
   title: 'KINDLER 営業管理',
@@ -15,10 +15,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <aside className="w-56 bg-white border-r border-gray-200 flex flex-col">
             <div className="p-5 border-b border-gray-100">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-black text-sm">K</div>
+                <div className="w-8 h-8 bg-blue-600 rounded-sm flex items-center justify-center text-white font-black text-base">K</div>
                 <div>
-                  <div className="text-sm font-bold">KINDLER</div>
-                  <div className="text-xs text-gray-400">営業管理</div>
+                  <div className="text-base font-bold">KINDLER</div>
+                  <div className="text-sm text-gray-400">営業管理</div>
                 </div>
               </div>
             </div>
@@ -26,6 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <NavItem href="/dashboard" label="ダッシュボード" icon={<LayoutDashboard size={16} />} />
               <NavItem href="/deals"     label="案件管理"       icon={<BriefcaseBusiness size={16} />} />
               <NavItem href="/weekly"    label="週次ログ"       icon={<ClipboardList size={16} />} />
+              <NavItem href="/members"   label="メンバー"       icon={<Users size={16} />} />
               <NavItem href="/settings"  label="マスタ設定"     icon={<Settings size={16} />} />
             </nav>
           </aside>
@@ -45,7 +46,7 @@ function NavItem({ href, label, icon }: { href: string; label: string; icon: Rea
   return (
     <Link
       href={href}
-      className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+      className="flex items-center gap-2.5 px-3 py-2 rounded-sm text-base text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
     >
       <span className="text-gray-400">{icon}</span>
       {label}

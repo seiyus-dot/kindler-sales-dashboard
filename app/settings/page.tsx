@@ -118,16 +118,16 @@ export default function SettingsPage() {
   return (
     <div className="max-w-xl space-y-6">
       <div>
-        <h1 className="text-xl font-black text-gray-900 tracking-tight">マスタ設定</h1>
-        <p className="text-xs text-gray-400 mt-0.5">プルダウンの選択肢・表示列を管理します</p>
+        <h1 className="text-2xl font-black text-gray-900 tracking-tight">マスタ設定</h1>
+        <p className="text-sm text-gray-400 mt-0.5">プルダウンの選択肢・表示列を管理します</p>
       </div>
 
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit">
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-sm w-fit">
         {tabs.map(t => (
           <button
             key={t.key}
             onClick={() => { setSection(t.key); setEditingId(null); setNewValue('') }}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${section === t.key ? 'bg-white shadow text-gray-900' : 'text-gray-500'}`}
+            className={`px-4 py-2 rounded-md text-base font-medium transition-all ${section === t.key ? 'bg-white shadow text-gray-900' : 'text-gray-500'}`}
           >
             {t.label}
           </button>
@@ -135,31 +135,31 @@ export default function SettingsPage() {
       </div>
 
       {loading ? (
-        <div className="text-sm text-gray-400 py-8 text-center">読み込み中...</div>
+        <div className="text-base text-gray-400 py-8 text-center">読み込み中...</div>
       ) : section === 'columns' ? (
         <div className="space-y-4">
-          <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit">
+          <div className="flex gap-1 bg-gray-100 p-1 rounded-sm w-fit">
             {(['tob', 'toc'] as ColTab[]).map(ct => (
               <button
                 key={ct}
                 onClick={() => setColTab(ct)}
-                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${colTab === ct ? 'bg-white shadow text-gray-900' : 'text-gray-500'}`}
+                className={`px-4 py-1.5 rounded-md text-base font-medium transition-all ${colTab === ct ? 'bg-white shadow text-gray-900' : 'text-gray-500'}`}
               >
                 {ct === 'tob' ? '法人案件' : '個人案件'}
               </button>
             ))}
           </div>
 
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <div className="bg-white border border-gray-200 rounded overflow-hidden">
             <ul className="divide-y divide-gray-100">
               {activeCols.map((col, idx) => (
                 <li key={col.id} className="flex items-center gap-3 px-5 py-3">
-                  <span className={`flex-1 text-sm font-medium ${col.visible ? 'text-gray-700' : 'text-gray-300'}`}>
+                  <span className={`flex-1 text-base font-medium ${col.visible ? 'text-gray-700' : 'text-gray-300'}`}>
                     {col.label}
                   </span>
                   <button
                     onClick={() => toggleCol(col.id, col.visible)}
-                    className={`px-3 py-1 rounded-full text-xs font-bold transition ${
+                    className={`px-3 py-1 rounded text-sm font-bold transition ${
                       col.visible ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
                     }`}
                   >
@@ -169,27 +169,27 @@ export default function SettingsPage() {
                     <button
                       onClick={() => moveCol(col.id, 'up')}
                       disabled={idx === 0}
-                      className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:bg-gray-100 disabled:opacity-20 text-sm"
+                      className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:bg-gray-100 disabled:opacity-20 text-base"
                     >↑</button>
                     <button
                       onClick={() => moveCol(col.id, 'down')}
                       disabled={idx === activeCols.length - 1}
-                      className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:bg-gray-100 disabled:opacity-20 text-sm"
+                      className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:bg-gray-100 disabled:opacity-20 text-base"
                     >↓</button>
                   </div>
                 </li>
               ))}
             </ul>
-            <p className="px-5 py-3 text-xs text-gray-400 bg-gray-50 border-t border-gray-100">
+            <p className="px-5 py-3 text-sm text-gray-400 bg-gray-50 border-t border-gray-100">
               変更はすぐに案件管理の表示列に反映されます
             </p>
           </div>
         </div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="bg-white border border-gray-200 rounded overflow-hidden">
           <ul className="divide-y divide-gray-100">
             {(section === 'members' ? members : filteredOptions).length === 0 ? (
-              <li className="px-5 py-6 text-sm text-gray-400 text-center">データがありません</li>
+              <li className="px-5 py-6 text-base text-gray-400 text-center">データがありません</li>
             ) : (section === 'members' ? members : filteredOptions).map(item => (
               <li key={item.id} className="flex items-center gap-3 px-5 py-3">
                 {editingId === item.id ? (
@@ -199,18 +199,18 @@ export default function SettingsPage() {
                       onChange={e => setEditValue(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && (section === 'members' ? saveMemberName(item.id) : saveOptionValue(item.id))}
                       autoFocus
-                      className="flex-1 border border-blue-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      className="flex-1 border border-blue-300 rounded px-3 py-1.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-400"
                     />
-                    <button onClick={() => section === 'members' ? saveMemberName(item.id) : saveOptionValue(item.id)} className="text-xs text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded transition">保存</button>
-                    <button onClick={() => setEditingId(null)} className="text-xs text-gray-400 hover:text-gray-600">取消</button>
+                    <button onClick={() => section === 'members' ? saveMemberName(item.id) : saveOptionValue(item.id)} className="text-sm text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded transition">保存</button>
+                    <button onClick={() => setEditingId(null)} className="text-sm text-gray-400 hover:text-gray-600">取消</button>
                   </>
                 ) : (
                   <>
-                    <span className="flex-1 text-sm text-gray-700 font-medium">
+                    <span className="flex-1 text-base text-gray-700 font-medium">
                       {'name' in item ? item.name : item.value}
                     </span>
-                    <button onClick={() => startEdit(item.id, 'name' in item ? item.name : item.value)} className="text-xs text-blue-500 hover:underline">編集</button>
-                    <button onClick={() => section === 'members' ? deleteMember(item.id) : deleteOption(item.id)} className="text-xs text-red-400 hover:underline">削除</button>
+                    <button onClick={() => startEdit(item.id, 'name' in item ? item.name : item.value)} className="text-sm text-blue-500 hover:underline">編集</button>
+                    <button onClick={() => section === 'members' ? deleteMember(item.id) : deleteOption(item.id)} className="text-sm text-red-400 hover:underline">削除</button>
                   </>
                 )}
               </li>
@@ -222,12 +222,12 @@ export default function SettingsPage() {
               onChange={e => setNewValue(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && (section === 'members' ? addMember() : addOption())}
               placeholder={section === 'members' ? '担当者名を入力' : section === 'source' ? '流入経路を入力' : section === 'industry' ? '業種を入力' : 'サービス名を入力'}
-              className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="flex-1 border border-gray-200 rounded-sm px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
             <button
               onClick={section === 'members' ? addMember : addOption}
               disabled={adding || !newValue.trim()}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-40 transition"
+              className="px-4 py-2 text-base font-medium text-white bg-blue-600 rounded-sm hover:bg-blue-700 disabled:opacity-40 transition"
             >
               追加
             </button>

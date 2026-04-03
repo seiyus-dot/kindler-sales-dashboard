@@ -147,7 +147,7 @@ export default function DealsPage() {
       type={type}
       value={draft[k] ?? ''}
       onChange={e => set(k, e.target.value)}
-      className="w-full border border-blue-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-blue-50"
+      className="w-full border border-blue-300 rounded px-2 py-1 text-base focus:outline-none focus:ring-2 focus:ring-blue-400 bg-blue-50"
     />
   )
 
@@ -155,7 +155,7 @@ export default function DealsPage() {
     <select
       value={draft[k] ?? ''}
       onChange={e => set(k, e.target.value)}
-      className="w-full border border-blue-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-blue-50"
+      className="w-full border border-blue-300 rounded px-2 py-1 text-base focus:outline-none focus:ring-2 focus:ring-blue-400 bg-blue-50"
     >
       <option value="">-</option>
       {options.map(o => <option key={o}>{o}</option>)}
@@ -166,7 +166,7 @@ export default function DealsPage() {
     <select
       value={draft.member_id ?? ''}
       onChange={e => set('member_id', e.target.value)}
-      className="w-full border border-blue-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-blue-50"
+      className="w-full border border-blue-300 rounded px-2 py-1 text-base focus:outline-none focus:ring-2 focus:ring-blue-400 bg-blue-50"
     >
       <option value="">-</option>
       {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
@@ -178,14 +178,14 @@ export default function DealsPage() {
     const d = deal as any
     switch (col) {
       case 'member':        return <span className="font-medium">{d.members?.name ?? '-'}</span>
-      case 'status':        return <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColor(d.status)}`}>{d.status ?? '-'}</span>
+      case 'status':        return <span className={`px-2 py-0.5 rounded text-sm font-medium ${statusColor(d.status)}`}>{d.status ?? '-'}</span>
       case 'priority':      return <span className={priorityColor(d.priority)}>{d.priority ?? '-'}</span>
       case 'expected_amount': return <span className="text-right block font-mono">{d.expected_amount?.toLocaleString() ?? '-'}</span>
       case 'win_probability': return <span className="text-right block font-mono">{d.win_probability ?? '-'}</span>
       case 'next_action_date': return <span className="text-gray-500">{d.next_action_date ?? '-'}</span>
-      case 'next_action':   return <span className="text-gray-500 text-xs">{d.next_action ?? '-'}</span>
+      case 'next_action':   return <span className="text-gray-500 text-sm">{d.next_action ?? '-'}</span>
       case 'source':        return <span className="text-gray-500">{d.source ?? '-'}</span>
-      case 'notes':         return <span className="text-gray-400 text-xs truncate max-w-[200px] block">{d.notes ?? '-'}</span>
+      case 'notes':         return <span className="text-gray-400 text-sm truncate max-w-[200px] block">{d.notes ?? '-'}</span>
       case 'service':       return <span className="text-gray-500">{d.service ?? '-'}</span>
       case 'company_name':  return <span className="font-medium">{d.company_name ?? '-'}</span>
       case 'contact_name':  return <span className="text-gray-500">{d.contact_name ?? '-'}</span>
@@ -225,16 +225,16 @@ export default function DealsPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-sm">
           <button
             onClick={() => { setTab('tob'); cancelEdit() }}
-            className={`px-5 py-2 rounded-md text-sm font-medium transition-all ${tab === 'tob' ? 'bg-white shadow text-gray-900' : 'text-gray-500'}`}
+            className={`px-5 py-2 rounded-md text-base font-medium transition-all ${tab === 'tob' ? 'bg-white shadow text-gray-900' : 'text-gray-500'}`}
           >
             法人案件 ({tobDeals.length})
           </button>
           <button
             onClick={() => { setTab('toc'); cancelEdit() }}
-            className={`px-5 py-2 rounded-md text-sm font-medium transition-all ${tab === 'toc' ? 'bg-white shadow text-gray-900' : 'text-gray-500'}`}
+            className={`px-5 py-2 rounded-md text-base font-medium transition-all ${tab === 'toc' ? 'bg-white shadow text-gray-900' : 'text-gray-500'}`}
           >
             個人案件 ({tocDeals.length})
           </button>
@@ -243,19 +243,19 @@ export default function DealsPage() {
           <CSVImport tab={tab} members={members} sources={sources} onImported={fetchAll} />
           <button
             onClick={() => { setEditTarget(null); setShowForm(true) }}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition"
+            className="bg-blue-600 text-white px-4 py-2 rounded-sm text-base font-medium hover:bg-blue-700 transition"
           >
             + 新規追加
           </button>
         </div>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
-        <table className="w-full text-sm">
+      <div className="bg-white border border-gray-200 rounded overflow-x-auto">
+        <table className="w-full text-base">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
               {activeCols.map(col => (
-                <th key={col.column_key} className="text-left px-4 py-3 text-xs text-gray-400 font-semibold uppercase tracking-wider whitespace-nowrap">
+                <th key={col.column_key} className="text-left px-4 py-3 text-sm text-gray-400 font-semibold uppercase tracking-wider whitespace-nowrap">
                   {col.label}
                 </th>
               ))}
@@ -278,14 +278,14 @@ export default function DealsPage() {
                     <div className="flex gap-2 justify-end whitespace-nowrap">
                       {editing ? (
                         <>
-                          <button onClick={() => setShowConfirm(true)} className="text-xs text-white bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded transition">保存</button>
-                          <button onClick={cancelEdit} className="text-xs text-gray-500 hover:text-gray-700">取消</button>
+                          <button onClick={() => setShowConfirm(true)} className="text-sm text-white bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded transition">保存</button>
+                          <button onClick={cancelEdit} className="text-sm text-gray-500 hover:text-gray-700">取消</button>
                         </>
                       ) : (
                         <>
-                          <button onClick={() => startEdit(deal, tab)} className="text-xs text-blue-500 hover:underline">編集</button>
-                          <button onClick={() => { setEditTarget(deal); setShowForm(true) }} className="text-xs text-gray-400 hover:underline">詳細</button>
-                          <button onClick={() => deleteDeal(deal.id, tab)} className="text-xs text-red-400 hover:underline">削除</button>
+                          <button onClick={() => startEdit(deal, tab)} className="text-sm text-blue-500 hover:underline">編集</button>
+                          <button onClick={() => { setEditTarget(deal); setShowForm(true) }} className="text-sm text-gray-400 hover:underline">詳細</button>
+                          <button onClick={() => deleteDeal(deal.id, tab)} className="text-sm text-red-400 hover:underline">削除</button>
                         </>
                       )}
                     </div>
@@ -299,14 +299,14 @@ export default function DealsPage() {
 
       {showConfirm && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-xl p-8 w-80 text-center">
-            <p className="font-bold text-gray-800 text-base mb-1">変更を保存しますか？</p>
-            <p className="text-xs text-gray-400 mb-6">この操作はすぐにデータベースに反映されます</p>
+          <div className="bg-white rounded shadow-xl p-8 w-80 text-center">
+            <p className="font-bold text-gray-800 text-lg mb-1">変更を保存しますか？</p>
+            <p className="text-sm text-gray-400 mb-6">この操作はすぐにデータベースに反映されます</p>
             <div className="flex gap-3">
-              <button onClick={() => setShowConfirm(false)} className="flex-1 px-4 py-2 text-sm text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
+              <button onClick={() => setShowConfirm(false)} className="flex-1 px-4 py-2 text-base text-gray-500 border border-gray-200 rounded-sm hover:bg-gray-50 transition">
                 キャンセル
               </button>
-              <button onClick={confirmSave} disabled={saving} className="flex-1 px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition">
+              <button onClick={confirmSave} disabled={saving} className="flex-1 px-4 py-2 text-base text-white bg-blue-600 rounded-sm hover:bg-blue-700 disabled:opacity-50 transition">
                 {saving ? '保存中...' : '保存する'}
               </button>
             </div>

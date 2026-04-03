@@ -91,10 +91,10 @@ export default function DealToBForm({ members, initial, onClose, onSaved }: Prop
 
   return (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+      <div className="bg-white rounded shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="text-base font-bold text-gray-900">{initial ? '法人案件を編集' : '法人案件を追加'}</h2>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors text-lg">✕</button>
+          <h2 className="text-lg font-bold text-gray-900">{initial ? '法人案件を編集' : '法人案件を追加'}</h2>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors text-lg">✕</button>
         </div>
 
         <div className="p-6 grid grid-cols-2 gap-4 overflow-y-auto">
@@ -172,7 +172,7 @@ export default function DealToBForm({ members, initial, onClose, onSaved }: Prop
           </div>
 
           <div className="col-span-2 border-t border-green-100 pt-4 mt-1">
-            <p className="text-xs font-bold text-green-600 mb-3">着金情報</p>
+            <p className="text-sm font-bold text-green-600 mb-3">着金情報</p>
             <div className="grid grid-cols-2 gap-4">
               <Field label="着金日">
                 <input type="date" value={form.payment_date} onChange={e => set('payment_date', e.target.value)} className="input" />
@@ -184,14 +184,14 @@ export default function DealToBForm({ members, initial, onClose, onSaved }: Prop
           </div>
         </div>
 
-        {error && <p className="mx-6 mb-2 text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+        {error && <p className="mx-6 mb-2 text-sm text-red-500 bg-red-50 border border-red-200 rounded-sm px-3 py-2">{error}</p>}
 
         <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 transition">キャンセル</button>
+          <button onClick={onClose} className="px-4 py-2 text-base text-gray-500 hover:text-gray-700 transition">キャンセル</button>
           <button
             onClick={handleSubmit}
             disabled={saving}
-            className="px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
+            className="px-6 py-2 text-base font-medium text-white bg-blue-600 rounded-sm hover:bg-blue-700 disabled:opacity-50 transition"
           >
             {saving ? '保存中...' : (initial ? '更新する' : '追加する')}
           </button>
@@ -204,9 +204,9 @@ export default function DealToBForm({ members, initial, onClose, onSaved }: Prop
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <label className="block text-xs font-semibold text-gray-500">
+      <label className="block text-sm font-semibold text-gray-500">
         {label}
-        {required && <span className="text-red-500 ml-0.5">★</span>}
+        {required && <span className="text-red-500 ml-0.5">*</span>}
       </label>
       {children}
     </div>
