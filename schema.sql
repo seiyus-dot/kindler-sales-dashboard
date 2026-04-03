@@ -25,7 +25,7 @@ create table deals_tob (
   company_name text not null,
   contact_name text,
   industry text,
-  status text check (status in ('初回接触', 'ヒアリング', '提案中', '見積提出', 'クロージング', '受注', '失注', '保留')),
+  status text,
   priority text check (priority in ('高', '中', '低')),
   first_contact_date date,
   last_contact_date date,
@@ -46,7 +46,7 @@ create table deals_toc (
   name text not null,
   contact text,
   source text, -- 流入経路
-  status text check (status in ('相談予約', 'ヒアリング', '提案中', 'クロージング', '受注', '失注', '保留')),
+  status text,
   priority text check (priority in ('高', '中', '低')),
   first_contact_date date,
   last_contact_date date,

@@ -41,6 +41,7 @@ export type DealToB = {
   expected_amount?: number
   win_probability?: number
   source?: string
+  service?: string
   next_action?: string
   next_action_date?: string
   notes?: string
@@ -68,6 +69,22 @@ export type DealToC = {
   created_at: string
   updated_at: string
   members?: Member
+}
+
+export type MasterOption = {
+  id: string
+  type: string
+  value: string
+  sort_order: number
+}
+
+export type ColumnConfig = {
+  id: string
+  table_type: 'tob' | 'toc'
+  column_key: string
+  label: string
+  visible: boolean
+  sort_order: number
 }
 
 export type WeeklyLog = {

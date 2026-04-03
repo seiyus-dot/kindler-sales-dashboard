@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { supabase, DealToC, Member } from '@/lib/supabase'
+import { useState, useEffect } from 'react'
+import { supabase, DealToC, Member, MasterOption } from '@/lib/supabase'
 
 type Props = {
   members: Member[]
@@ -11,6 +11,19 @@ type Props = {
 }
 
 export default function DealToCForm({ members, initial, onClose, onSaved }: Props) {
+  const [sources, setSources] = useState<MasterOption[]>([])
+  const [services, setServices] = useState<MasterOption[]>([])
+
+  useEffect(() => {
+    Promise.all([
+      supabase.from('master_options').select('*').eq('type', 'source').order('sort_order'),
+      supabase.from('master_options').select('*').eq('type', 'service').order('sort_order'),
+    ]).then(([srcRes, svcRes]) => {
+      if (srcRes.data) setSources(srcRes.data)
+      if (svcRes.data) setServices(svcRes.data)
+    })
+  }, [])
+
   const [form, setForm] = useState({
     member_id: initial?.member_id ?? '',
     name: initial?.name ?? '',
@@ -88,13 +101,16 @@ export default function DealToCForm({ members, initial, onClose, onSaved }: Prop
           <input value={form.contact} onChange={e => set('contact', e.target.value)} className="input" placeholder="LINE / Phone / Email" />
         </Field>
         <Field label="Lead Source" icon="📍">
-          <input value={form.source} onChange={e => set('source', e.target.value)} className="input" placeholder="e.g. Ads / SNS" />
+          <select value={form.source} onChange={e => set('source', e.target.value)} className="input bg-black">
+            <option value="">-</option>
+            {sources.map(s => <option key={s.id}>{s.value}</option>)}
+          </select>
         </Field>
 
         <Field label="Deal Status" icon="🔄">
           <select value={form.status} onChange={e => set('status', e.target.value)} className="input bg-black">
             <option value="">Select Status</option>
-            {['相談予約','ヒアリング','提案中','クロージング','受注','失注','保留'].map(s => (
+            {['相談予約','ヒアリング','提案中','クロージング','相談済','受注','失注','保留'].map(s => (
               <option key={s}>{s}</option>
             ))}
           </select>
@@ -114,7 +130,10 @@ export default function DealToCForm({ members, initial, onClose, onSaved }: Prop
         </Field>
 
         <Field label="Interested Service" icon="🛠️">
-          <input value={form.service} onChange={e => set('service', e.target.value)} className="input" placeholder="e.g. AI CAMP" />
+          <select value={form.service} onChange={e => set('service', e.target.value)} className="input bg-black">
+            <option value="">-</option>
+            {services.map(s => <option key={s.id}>{s.value}</option>)}
+          </select>
         </Field>
         <Field label="Expected Value (10k JPY)" icon="💰">
           <input type="number" value={form.expected_amount} onChange={e => set('expected_amount', e.target.value)} className="input font-mono" placeholder="30" />
