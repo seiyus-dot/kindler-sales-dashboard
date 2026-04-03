@@ -71,12 +71,12 @@ export default function WeeklyPage() {
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
               <th className="text-left px-4 py-3 text-xs text-gray-400 font-semibold uppercase tracking-wider">日付</th>
-              <th className="text-right px-4 py-3 text-xs text-gray-400 font-semibold uppercase tracking-wider">toB件数</th>
-              <th className="text-right px-4 py-3 text-xs text-gray-400 font-semibold uppercase tracking-wider">toC件数</th>
-              <th className="text-right px-4 py-3 text-xs text-gray-400 font-semibold uppercase tracking-wider">toB見込み(万)</th>
-              <th className="text-right px-4 py-3 text-xs text-gray-400 font-semibold uppercase tracking-wider">toC見込み(万)</th>
-              <th className="text-right px-4 py-3 text-xs text-gray-400 font-semibold uppercase tracking-wider">加重合計(万)</th>
-              <th className="text-right px-4 py-3 text-xs text-gray-400 font-semibold uppercase tracking-wider">受注数(累計)</th>
+              <th className="text-right px-4 py-3 text-xs text-gray-400 font-semibold uppercase tracking-wider">法人 件数</th>
+              <th className="text-right px-4 py-3 text-xs text-gray-400 font-semibold uppercase tracking-wider">個人 件数</th>
+              <th className="text-right px-4 py-3 text-xs text-gray-400 font-semibold uppercase tracking-wider">法人 見込み(万)</th>
+              <th className="text-right px-4 py-3 text-xs text-gray-400 font-semibold uppercase tracking-wider">個人 見込み(万)</th>
+              <th className="text-right px-4 py-3 text-xs text-gray-400 font-semibold uppercase tracking-wider">期待売上見込み(万)</th>
+              <th className="text-right px-4 py-3 text-xs text-gray-400 font-semibold uppercase tracking-wider">累計受注数</th>
               <th className="text-left px-4 py-3 text-xs text-gray-400 font-semibold uppercase tracking-wider">メモ</th>
               <th className="px-4 py-3"></th>
             </tr>
@@ -117,12 +117,12 @@ export default function WeeklyPage() {
                 <input type="date" value={form.log_date} onChange={e => set('log_date', e.target.value)} className="input w-full" />
               </div>
               {[
-                { key: 'tob_count', label: 'toB案件数' },
-                { key: 'toc_count', label: 'toC案件数' },
-                { key: 'tob_amount', label: 'toB見込み（万円）' },
-                { key: 'toc_amount', label: 'toC見込み（万円）' },
-                { key: 'weighted_total', label: '加重合計（万円）' },
-                { key: 'cumulative_orders', label: '受注数（累計）' },
+                { key: 'tob_count', label: '法人 件数' },
+                { key: 'toc_count', label: '個人 件数' },
+                { key: 'tob_amount', label: '法人 見込み（万円）' },
+                { key: 'toc_amount', label: '個人 見込み（万円）' },
+                { key: 'weighted_total', label: '期待売上見込み（万円）' },
+                { key: 'cumulative_orders', label: '累計受注数' },
               ].map(({ key, label }) => (
                 <div key={key}>
                   <label className="block text-xs text-gray-500 font-medium mb-1">{label}</label>
