@@ -61,6 +61,22 @@ export default function DashboardPage() {
     + tocDeals.filter(d => d.status === 'クロージング').length
   const won = tobDeals.filter(d => d.status === '受注').length + tocDeals.filter(d => d.status === '受注').length
 
+  // 着金済み集計
+  const paidTob = tobDeals.filter(d => d.payment_date)
+  const paidToc = tocDeals.filter(d => d.payment_date)
+  const paidTotal = [...paidTob, ...paidToc]
+    .reduce((sum, d) => sum + (d.actual_amount ?? d.expected_amount ?? 0), 0)
+  const paidCount = paidTob.length + paidToc.length
+
+  // 担当別着金集計
+  const memberPaid = Array.from(new Set([...paidTob, ...paidToc].map(d => d.members?.name)))
+    .filter(Boolean).map(name => ({
+      name,
+      amount: [...paidTob, ...paidToc]
+        .filter(d => d.members?.name === name)
+        .reduce((sum, d) => sum + (d.actual_amount ?? d.expected_amount ?? 0), 0),
+    })).sort((a, b) => b.amount - a.amount)
+
   // 期日アラート（7日以内）
   const today = new Date().toISOString().slice(0, 10)
   const in7 = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10)
@@ -192,6 +208,36 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* 着金済み売上 */}
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-7">
+        <div className="flex items-baseline justify-between mb-6">
+          <h3 className="text-[11px] font-black text-gray-400 uppercase tracking-widest">着金済み売上</h3>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-black font-mono text-green-600">{paidTotal.toLocaleString()}</span>
+            <span className="text-xs text-gray-400 font-bold">万円</span>
+            <span className="text-xs text-gray-300 ml-2">{paidCount}件</span>
+          </div>
+        </div>
+        {memberPaid.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-4">着金データがありません（案件詳細から着金日を入力してください）</p>
+        ) : (
+          <div className="space-y-3">
+            {memberPaid.map(m => (
+              <div key={m.name} className="flex items-center gap-4">
+                <span className="text-sm font-bold text-gray-600 w-16">{m.name}</span>
+                <div className="flex-1 bg-gray-100 h-2 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-green-400 rounded-full"
+                    style={{ width: `${Math.round((m.amount / (memberPaid[0].amount || 1)) * 100)}%` }}
+                  />
+                </div>
+                <span className="text-sm font-mono font-bold text-gray-700 w-24 text-right">{m.amount.toLocaleString()} 万円</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* 最新メモ */}
       {latest?.memo && (

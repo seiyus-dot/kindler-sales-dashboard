@@ -43,6 +43,8 @@ export default function DealToBForm({ members, initial, onClose, onSaved }: Prop
     next_action: initial?.next_action ?? '',
     next_action_date: initial?.next_action_date ?? '',
     notes: initial?.notes ?? '',
+    payment_date: initial?.payment_date ?? '',
+    actual_amount: initial?.actual_amount?.toString() ?? '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -71,6 +73,8 @@ export default function DealToBForm({ members, initial, onClose, onSaved }: Prop
       next_action: form.next_action || null,
       next_action_date: form.next_action_date || null,
       notes: form.notes || null,
+      payment_date: form.payment_date || null,
+      actual_amount: form.actual_amount ? parseInt(form.actual_amount) : null,
     }
     const { error: err } = initial
       ? await supabase.from('deals_tob').update(payload).eq('id', initial.id)
@@ -158,6 +162,18 @@ export default function DealToBForm({ members, initial, onClose, onSaved }: Prop
             <Field label="備考">
               <textarea value={form.notes} onChange={e => set('notes', e.target.value)} className="input h-20 resize-none" placeholder="メモを入力" />
             </Field>
+          </div>
+
+          <div className="col-span-2 border-t border-green-100 pt-4 mt-1">
+            <p className="text-xs font-bold text-green-600 mb-3">着金情報</p>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="着金日">
+                <input type="date" value={form.payment_date} onChange={e => set('payment_date', e.target.value)} className="input" />
+              </Field>
+              <Field label="着金額（万円）">
+                <input type="number" value={form.actual_amount} onChange={e => set('actual_amount', e.target.value)} className="input font-mono" placeholder="実際の入金額" />
+              </Field>
+            </div>
           </div>
         </div>
 

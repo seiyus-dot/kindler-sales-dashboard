@@ -45,6 +45,8 @@ export type DealToB = {
   next_action?: string
   next_action_date?: string
   notes?: string
+  payment_date?: string
+  actual_amount?: number
   created_at: string
   updated_at: string
   members?: Member
@@ -66,6 +68,8 @@ export type DealToC = {
   next_action?: string
   next_action_date?: string
   notes?: string
+  payment_date?: string
+  actual_amount?: number
   created_at: string
   updated_at: string
   members?: Member
