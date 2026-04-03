@@ -181,7 +181,19 @@ export default function DealsPage() {
       case 'status':        return <span className={`px-2 py-0.5 rounded text-sm font-medium ${statusColor(d.status)}`}>{d.status ?? '-'}</span>
       case 'priority':      return <span className={priorityColor(d.priority)}>{d.priority ?? '-'}</span>
       case 'expected_amount': return <span className="text-right block font-mono">{d.expected_amount?.toLocaleString() ?? '-'}</span>
-      case 'win_probability': return <span className="text-right block font-mono">{d.win_probability ?? '-'}</span>
+      case 'win_probability': {
+        const pct = d.win_probability ?? null
+        if (pct === null) return <span className="text-gray-300">-</span>
+        const color = pct >= 70 ? 'bg-green-500' : pct >= 40 ? 'bg-blue-500' : 'bg-gray-300'
+        return (
+          <div className="flex items-center gap-2">
+            <div className="w-14 bg-gray-100 h-1.5 rounded overflow-hidden flex-shrink-0">
+              <div className={`h-full ${color}`} style={{ width: `${pct}%` }} />
+            </div>
+            <span className="text-sm font-mono text-gray-600 tabular-nums">{pct}%</span>
+          </div>
+        )
+      }
       case 'next_action_date': return <span className="text-gray-500">{d.next_action_date ?? '-'}</span>
       case 'next_action':   return <span className="text-gray-500 text-sm">{d.next_action ?? '-'}</span>
       case 'source':        return <span className="text-gray-500">{d.source ?? '-'}</span>

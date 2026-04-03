@@ -197,8 +197,7 @@ export default function SettingsPage() {
                     <input
                       value={editValue}
                       onChange={e => setEditValue(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && (section === 'members' ? saveMemberName(item.id) : saveOptionValue(item.id))}
-                      autoFocus
+                              autoFocus
                       className="flex-1 border border-blue-300 rounded px-3 py-1.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-400"
                     />
                     <button onClick={() => section === 'members' ? saveMemberName(item.id) : saveOptionValue(item.id)} className="text-sm text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded transition">保存</button>
@@ -220,7 +219,6 @@ export default function SettingsPage() {
             <input
               value={newValue}
               onChange={e => setNewValue(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && (section === 'members' ? addMember() : addOption())}
               placeholder={section === 'members' ? '担当者名を入力' : section === 'source' ? '流入経路を入力' : section === 'industry' ? '業種を入力' : 'サービス名を入力'}
               className="flex-1 border border-gray-200 rounded-sm px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-blue-400"
             />

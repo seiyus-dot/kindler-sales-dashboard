@@ -1,17 +1,62 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { supabase, WeeklyLog, DealToB, DealToC } from '@/lib/supabase'
 import {
-  ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer
+  AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, PieChart, Pie, Cell, Legend, LabelList
 } from 'recharts'
+import {
+  TrendingUp, Briefcase, User, CreditCard, ArrowUpRight, ArrowDownRight, Target
+} from 'lucide-react'
+
+type View = 'all' | 'tob' | 'toc'
+
+function StatCard({
+  title, value, sub, icon: Icon, colorClass, change, isPositive
+}: {
+  title: string; value: string; sub?: string; icon: React.ElementType
+  colorClass: string; change?: string; isPositive?: boolean
+}) {
+  return (
+    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all">
+      <div className="flex justify-between items-start mb-4">
+        <div className={`p-2 rounded-xl ${colorClass}`}>
+          <Icon size={20} />
+        </div>
+        {change && (
+          <div className={`flex items-center text-xs font-bold ${isPositive ? 'text-emerald-600' : 'text-rose-500'}`}>
+            {isPositive
+              ? <ArrowUpRight size={14} className="mr-0.5" />
+              : <ArrowDownRight size={14} className="mr-0.5" />}
+            {change}
+          </div>
+        )}
+      </div>
+      <p className="text-slate-400 text-sm font-medium">{title}</p>
+      <h3 className="text-2xl font-bold text-slate-900 mt-1 font-mono">{value}</h3>
+      {sub && <p className="text-xs text-slate-300 mt-0.5">{sub}</p>}
+    </div>
+  )
+}
+
+// 直近N月のYYYY-MMリストを生成
+function recentMonths(n: number): string[] {
+  const months: string[] = []
+  const now = new Date()
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+  }
+  return months
+}
 
 export default function DashboardPage() {
   const [logs, setLogs] = useState<WeeklyLog[]>([])
   const [tobDeals, setTobDeals] = useState<DealToB[]>([])
   const [tocDeals, setTocDeals] = useState<DealToC[]>([])
   const [loading, setLoading] = useState(true)
+  const [view, setView] = useState<View>('all')
 
   useEffect(() => {
     async function fetchAll() {
@@ -29,225 +74,276 @@ export default function DashboardPage() {
   }, [])
 
   const latest = logs[logs.length - 1]
-  const prev = logs[logs.length - 2]
 
-  const pct = (curr?: number, prev?: number) => {
-    if (!curr || !prev) return null
-    const d = Math.round(((curr - prev) / prev) * 100)
-    return { label: `${d > 0 ? '+' : ''}${d}%`, positive: d >= 0 }
-  }
+  // ビューでフィルタ
+  const activeTob = view === 'toc' ? [] : tobDeals
+  const activeToc = view === 'tob' ? [] : tocDeals
+  const allDeals = [...activeTob, ...activeToc]
 
-  const chartData = logs.map(l => ({
-    date: l.log_date.slice(5).replace('-', '/'),
-    法人: l.tob_amount,
-    個人: l.toc_amount,
-    期待売上: l.weighted_total,
-  }))
+  // KPI
+  const paidDeals = allDeals.filter(d => d.payment_date)
+  const paidTotal = paidDeals.reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0)
+  const paidCount = paidDeals.length
 
-  // 担当別集計
-  const memberStats = Array.from(
-    new Set([...tobDeals.map(d => d.members?.name), ...tocDeals.map(d => d.members?.name)])
-  ).filter(Boolean).map(name => ({
-    name,
-    tob: tobDeals.filter(d => d.members?.name === name).length,
-    toc: tocDeals.filter(d => d.members?.name === name).length,
-  })).sort((a, b) => (b.tob + b.toc) - (a.tob + a.toc))
-  const maxDeals = Math.max(...memberStats.map(m => m.tob + m.toc), 1)
+  const activeDeals = allDeals.filter(d => !['受注', '失注'].includes(d.status ?? ''))
+  const pipeline = activeDeals.reduce((s, d) => s + (d.expected_amount ?? 0), 0)
 
-  // ステータス集計
-  const tobActive = tobDeals.filter(d => !['受注', '失注'].includes(d.status ?? '')).length
-  const tocActive = tocDeals.filter(d => !['受注', '失注'].includes(d.status ?? '')).length
-  const closing = tobDeals.filter(d => ['クロージング', '見積提出'].includes(d.status ?? '')).length
-    + tocDeals.filter(d => d.status === 'クロージング').length
-  const won = tobDeals.filter(d => d.status === '受注').length + tocDeals.filter(d => d.status === '受注').length
+  const wonCount = allDeals.filter(d => d.status === '受注').length
+  const winRate = allDeals.length > 0 ? Math.round((wonCount / allDeals.length) * 100) : 0
 
-  // 着金済み集計
-  const paidTob = tobDeals.filter(d => d.payment_date)
-  const paidToc = tocDeals.filter(d => d.payment_date)
-  const paidTotal = [...paidTob, ...paidToc]
-    .reduce((sum, d) => sum + (d.actual_amount ?? d.expected_amount ?? 0), 0)
-  const paidCount = paidTob.length + paidToc.length
+  // 月次着金チャート
+  const months6 = useMemo(() => recentMonths(6), [])
+  const monthlyData = useMemo(() => {
+    return months6.map(m => {
+      const label = m.slice(5) + '月'
+      const tob = (view !== 'toc' ? tobDeals : [])
+        .filter(d => d.payment_date?.startsWith(m))
+        .reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0)
+      const toc = (view !== 'tob' ? tocDeals : [])
+        .filter(d => d.payment_date?.startsWith(m))
+        .reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0)
+      return { name: label, 法人: tob, 個人: toc }
+    })
+  }, [tobDeals, tocDeals, months6, view])
 
-  // 担当別着金集計
-  const memberPaid = Array.from(new Set([...paidTob, ...paidToc].map(d => d.members?.name)))
-    .filter(Boolean).map(name => ({
+  // 担当別着金
+  const memberPaid = useMemo(() => {
+    const names = Array.from(new Set(paidDeals.map(d => d.members?.name))).filter(Boolean)
+    return names.map(name => ({
       name,
-      amount: [...paidTob, ...paidToc]
-        .filter(d => d.members?.name === name)
-        .reduce((sum, d) => sum + (d.actual_amount ?? d.expected_amount ?? 0), 0),
-    })).sort((a, b) => b.amount - a.amount)
+      金額: paidDeals.filter(d => d.members?.name === name)
+        .reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0),
+    })).sort((a, b) => b.金額 - a.金額)
+  }, [paidDeals])
 
-  // 期日アラート（7日以内）
+  // サービス別着金
+  const servicePaid = useMemo(() => {
+    const services = Array.from(new Set(paidDeals.map(d => d.service ?? 'その他'))).filter(Boolean)
+    return services.map(name => ({
+      name,
+      金額: paidDeals.filter(d => (d.service ?? 'その他') === name)
+        .reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0),
+    })).sort((a, b) => b.金額 - a.金額)
+  }, [paidDeals])
+
+  // パイチャート: 法人/個人 着金比率
+  const paidTobTotal = tobDeals.filter(d => d.payment_date)
+    .reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0)
+  const paidTocTotal = tocDeals.filter(d => d.payment_date)
+    .reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0)
+  const pieData = view === 'all'
+    ? [{ name: '法人', value: paidTobTotal }, { name: '個人', value: paidTocTotal }]
+    : view === 'tob'
+      ? tobDeals.filter(d => d.status === '受注').length > 0
+        ? [{ name: '受注', value: wonCount }, { name: '進行中', value: activeDeals.length }]
+        : [{ name: 'データなし', value: 1 }]
+      : [{ name: '受注', value: wonCount }, { name: '進行中', value: activeDeals.length }]
+
+  // 期日アラート
   const today = new Date().toISOString().slice(0, 10)
   const in7 = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10)
-  const upcomingDeals = [
+  const alerts = [
     ...tobDeals.filter(d => d.next_action_date && d.next_action_date >= today && d.next_action_date <= in7)
-      .map(d => ({ id: d.id, label: d.company_name, action: d.next_action, date: d.next_action_date!, member: d.members?.name, type: '法人' })),
+      .map(d => ({ id: d.id, label: d.company_name, action: d.next_action, date: d.next_action_date!, member: d.members?.name, type: '法人' as const })),
     ...tocDeals.filter(d => d.next_action_date && d.next_action_date >= today && d.next_action_date <= in7)
-      .map(d => ({ id: d.id, label: d.name, action: d.next_action, date: d.next_action_date!, member: d.members?.name, type: '個人' })),
+      .map(d => ({ id: d.id, label: d.name, action: d.next_action, date: d.next_action_date!, member: d.members?.name, type: '個人' as const })),
   ].sort((a, b) => a.date.localeCompare(b.date))
 
   if (loading) return (
-    <div className="flex items-center justify-center h-64 text-gray-400 text-base">読み込み中...</div>
+    <div className="flex items-center justify-center h-64 text-slate-400 text-base">読み込み中...</div>
   )
 
+  const viewLabel = view === 'all' ? '全社合算' : view === 'tob' ? '法人案件のみ' : '個人案件のみ'
+
   return (
-    <div className="space-y-8 pb-8">
-      <div>
-        <h1 className="text-2xl font-black text-gray-900 tracking-tight">ダッシュボード</h1>
-        <p className="text-sm text-gray-400 mt-0.5">最終更新：{latest?.log_date ?? '-'}</p>
+    <div className="space-y-6 pb-8">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">ダッシュボード</h1>
+          <p className="text-slate-400 text-sm mt-0.5">表示中: {viewLabel}　最終更新: {latest?.log_date ?? '-'}</p>
+        </div>
+        <div className="flex gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 w-fit">
+          {([
+            { key: 'all', label: '全社' },
+            { key: 'tob', label: '法人' },
+            { key: 'toc', label: '個人' },
+          ] as { key: View; label: string }[]).map(v => (
+            <button
+              key={v.key}
+              onClick={() => setView(v.key)}
+              className={`px-4 py-1.5 text-sm font-bold rounded-lg transition-all ${
+                view === v.key
+                  ? v.key === 'tob' ? 'bg-white text-blue-600 shadow-sm'
+                    : v.key === 'toc' ? 'bg-white text-pink-600 shadow-sm'
+                    : 'bg-white text-indigo-600 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-4 gap-5">
-        {[
-          { label: '法人 見込み金額', value: latest?.tob_amount, unit: '万円', trend: pct(latest?.tob_amount, prev?.tob_amount), accent: 'text-blue-600' },
-          { label: '個人 見込み金額', value: latest?.toc_amount, unit: '万円', trend: pct(latest?.toc_amount, prev?.toc_amount), accent: 'text-cyan-600' },
-          { label: '期待売上見込み', value: latest?.weighted_total, unit: '万円', trend: pct(latest?.weighted_total, prev?.weighted_total), accent: 'text-green-600' },
-          { label: '累計受注数', value: latest?.cumulative_orders, unit: '件', trend: pct(latest?.cumulative_orders, prev?.cumulative_orders), accent: 'text-amber-600' },
-        ].map(k => (
-          <div key={k.label} className="bg-white rounded border border-gray-100 shadow-sm p-5">
-            <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-3">{k.label}</p>
-            <div className="flex items-baseline justify-between">
-              <div className="flex items-baseline gap-1">
-                <span className={`text-3xl font-black font-mono ${k.accent}`}>{k.value?.toLocaleString() ?? '-'}</span>
-                <span className="text-sm font-bold text-gray-400">{k.unit}</span>
-              </div>
-              {k.trend && (
-                <span className={`text-xs font-black ${k.trend.positive ? 'text-green-500' : 'text-red-400'}`}>
-                  {k.trend.positive ? '↑' : '↓'} {k.trend.label.replace('+', '').replace('-', '')}
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-gray-300 mt-1">前週比</p>
-          </div>
-        ))}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
+        <StatCard
+          title="着金済み売上"
+          value={`${paidTotal.toLocaleString()}万円`}
+          sub={`${paidCount}件`}
+          icon={CreditCard}
+          colorClass="bg-emerald-50 text-emerald-600"
+          change="+実績"
+          isPositive={true}
+        />
+        <StatCard
+          title="見込みパイプライン"
+          value={`${pipeline.toLocaleString()}万円`}
+          sub={`進行中 ${activeDeals.length}件`}
+          icon={TrendingUp}
+          colorClass="bg-indigo-50 text-indigo-600"
+        />
+        <StatCard
+          title={view === 'toc' ? '個人 進行中' : '法人 進行中'}
+          value={`${view === 'toc' ? activeToc.filter(d => !['受注','失注'].includes(d.status??'')).length : activeTob.filter(d => !['受注','失注'].includes(d.status??'')).length}件`}
+          sub="受注・失注除く"
+          icon={view === 'toc' ? User : Briefcase}
+          colorClass={view === 'toc' ? 'bg-pink-50 text-pink-600' : 'bg-blue-50 text-blue-600'}
+        />
+        <StatCard
+          title="受注率"
+          value={`${winRate}%`}
+          sub={`受注 ${wonCount}件 / 全 ${allDeals.length}件`}
+          icon={Target}
+          colorClass="bg-amber-50 text-amber-600"
+          change={wonCount > 0 ? `受注${wonCount}件` : undefined}
+          isPositive={true}
+        />
       </div>
 
-      {/* ステータスサマリー */}
-      <div className="grid grid-cols-4 gap-4">
-        {[
-          { label: '進行中（法人）', value: tobActive, sub: '受注・失注除く', color: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: '進行中（個人）', value: tocActive, sub: '受注・失注除く', color: 'text-cyan-600', bg: 'bg-cyan-50' },
-          { label: 'クロージング中', value: closing, sub: '法人＋個人', color: 'text-violet-600', bg: 'bg-violet-50' },
-          { label: '受注済み', value: won, sub: '法人＋個人 合計', color: 'text-green-600', bg: 'bg-green-50' },
-        ].map(s => (
-          <div key={s.label} className={`${s.bg} rounded border border-gray-100 px-5 py-4`}>
-            <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2">{s.label}</p>
-            <div className="flex items-baseline gap-1">
-              <span className={`text-3xl font-black font-mono ${s.color}`}>{s.value}</span>
-              <span className="text-sm text-gray-400 font-bold">件</span>
-            </div>
-            <p className="text-xs text-gray-400 mt-0.5">{s.sub}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Charts */}
-      <div className="grid grid-cols-3 gap-5">
-        {/* 見込み金額推移 */}
-        <div className="col-span-2 bg-white rounded border border-gray-100 shadow-sm p-7">
-          <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-6">週次 見込み金額推移（万円）</h3>
-          <ResponsiveContainer width="100%" height={240}>
-            <ComposedChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-              <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#94A3B8', fontSize: 11, fontWeight: 700 }} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94A3B8', fontSize: 11, fontWeight: 700 }} unit="万" />
+      {/* Charts Row 1 */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* 月次着金推移 */}
+        <div className="lg:col-span-8 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+          <h3 className="font-bold text-slate-900 mb-6">月次 着金額推移（万円）</h3>
+          <ResponsiveContainer width="100%" height={280}>
+            <AreaChart data={monthlyData}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 13, fill: '#94a3b8', fontWeight: 700 }} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 13, fill: '#94a3b8', fontWeight: 700 }} tickFormatter={v => `${v}万`} />
               <Tooltip formatter={(v: number) => `${v.toLocaleString()}万円`} />
-              <Bar dataKey="法人" fill="#DBEAFE" radius={[4, 4, 0, 0]} barSize={28} />
-              <Bar dataKey="個人" fill="#CFFAFE" radius={[4, 4, 0, 0]} barSize={28} />
-              <Line type="monotone" dataKey="期待売上" stroke="#2563EB" strokeWidth={3} dot={{ r: 4, fill: '#2563EB' }} activeDot={{ r: 6 }} />
-            </ComposedChart>
+              <Legend verticalAlign="top" align="right" height={36} />
+              <Area type="monotone" name="法人" dataKey="法人" stackId="1" stroke="#6366f1" fill="#6366f1" fillOpacity={0.5} />
+              <Area type="monotone" name="個人" dataKey="個人" stackId="1" stroke="#ec4899" fill="#ec4899" fillOpacity={0.4} />
+            </AreaChart>
           </ResponsiveContainer>
         </div>
 
-        {/* 担当別案件数 */}
-        <div className="bg-white rounded border border-gray-100 shadow-sm p-7">
-          <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-6">担当別 案件数</h3>
-          {memberStats.length === 0 ? (
-            <p className="text-base text-gray-400 mt-8 text-center">案件データがありません</p>
+        {/* パイ: 法人/個人比率 */}
+        <div className="lg:col-span-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+          <h3 className="font-bold text-slate-900 mb-6">
+            {view === 'all' ? '着金 法人/個人比率' : 'ステータス内訳'}
+          </h3>
+          <ResponsiveContainer width="100%" height={240}>
+            <PieChart>
+              <Pie data={pieData} innerRadius={60} outerRadius={85} paddingAngle={4} dataKey="value">
+                {pieData.map((_, i) => (
+                  <Cell key={i} fill={['#6366f1', '#ec4899'][i % 2]} />
+                ))}
+              </Pie>
+              <Tooltip formatter={(v: number) => view === 'all' ? `${v.toLocaleString()}万円` : `${v}件`} />
+              <Legend verticalAlign="bottom" />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Charts Row 2 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* サービス別 or 担当別着金 */}
+        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+          <h3 className="font-bold text-slate-900 mb-6">
+            {view === 'all' ? 'サービス別 着金額（万円）' : '担当者別 着金額（万円）'}
+          </h3>
+          {(view === 'all' ? servicePaid : memberPaid).length === 0 ? (
+            <p className="text-slate-400 text-sm text-center py-12">着金データがありません</p>
           ) : (
-            <div className="space-y-4">
-              {memberStats.map(m => (
-                <div key={m.name}>
-                  <div className="flex justify-between text-xs font-bold mb-1.5">
-                    <span className="text-gray-600">{m.name}</span>
-                    <span className="text-gray-400 font-mono">法人:{m.tob} / 個人:{m.toc}</span>
-                  </div>
-                  <div className="w-full bg-gray-100 h-2 rounded overflow-hidden">
-                    <div
-                      className="h-full bg-blue-500 rounded transition-all duration-500"
-                      style={{ width: `${Math.round(((m.tob + m.toc) / maxDeals) * 100)}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart
+                data={view === 'all' ? servicePaid : memberPaid}
+                layout="vertical"
+                margin={{ right: 60 }}
+              >
+                <XAxis
+                  type="number"
+                  hide
+                  domain={[0, (dataMax: number) => Math.ceil(dataMax * 1.4)]}
+                />
+                <YAxis
+                  dataKey="name"
+                  type="category"
+                  axisLine={false}
+                  tickLine={false}
+                  width={110}
+                  tick={{ fontSize: 12, fill: '#64748b', fontWeight: 700 }}
+                />
+                <Tooltip formatter={(v: number) => `${v.toLocaleString()}万円`} />
+                <Bar dataKey="金額" radius={[0, 4, 4, 0]} barSize={20} fill={view === 'all' ? '#ec4899' : '#6366f1'}>
+                  <LabelList
+                    dataKey="金額"
+                    position="right"
+                    formatter={(v: number) => `${v.toLocaleString()}万`}
+                    style={{ fontSize: 12, fill: '#64748b', fontWeight: 700 }}
+                  />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* 期日アラート or 最新メモ */}
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+          <div className="p-6 border-b border-slate-100">
+            <h3 className="font-bold text-slate-900">
+              {alerts.length > 0 ? `期日アラート（${alerts.length}件）` : '直近アクション'}
+            </h3>
+          </div>
+          {alerts.length === 0 ? (
+            <div className="p-6 text-slate-400 text-sm text-center py-12">
+              7日以内のアクション予定はありません
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50 text-slate-400 text-xs uppercase font-bold">
+                  <tr>
+                    <th className="px-5 py-3">案件</th>
+                    <th className="px-5 py-3">アクション</th>
+                    <th className="px-5 py-3 text-right">期日</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {alerts.map(a => (
+                    <tr key={a.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs px-1.5 py-0.5 rounded font-bold ${a.type === '法人' ? 'bg-blue-50 text-blue-600' : 'bg-pink-50 text-pink-600'}`}>
+                            {a.type}
+                          </span>
+                          <span className="font-medium text-slate-700 text-xs">{a.label}</span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3 text-slate-400 text-xs">{a.action ?? '-'}</td>
+                      <td className="px-5 py-3 font-mono font-bold text-amber-500 text-xs text-right">{a.date}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
       </div>
-
-      {/* 期日アラート */}
-      {upcomingDeals.length > 0 && (
-        <div className="bg-white rounded border border-amber-100 shadow-sm p-7">
-          <h3 className="text-xs font-black text-amber-500 uppercase tracking-widest mb-5">
-            期日アラート — 7日以内にアクションが必要な案件
-          </h3>
-          <div className="space-y-3">
-            {upcomingDeals.map(deal => (
-              <div key={deal.id} className="flex items-center gap-4 text-base bg-amber-50 rounded px-4 py-3">
-                <span className={`px-2 py-0.5 rounded text-xs font-bold ${deal.type === '法人' ? 'bg-blue-100 text-blue-700' : 'bg-cyan-100 text-cyan-700'}`}>
-                  {deal.type}
-                </span>
-                <span className="font-bold text-gray-800">{deal.label}</span>
-                <span className="text-gray-400 text-sm">{deal.action}</span>
-                <span className="ml-auto font-mono font-bold text-amber-600 text-sm">{deal.date}</span>
-                <span className="text-gray-400 text-sm">{deal.member}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 着金済み売上 */}
-      <div className="bg-white rounded border border-gray-100 shadow-sm p-7">
-        <div className="flex items-baseline justify-between mb-6">
-          <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">着金済み売上</h3>
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-black font-mono text-green-600">{paidTotal.toLocaleString()}</span>
-            <span className="text-sm text-gray-400 font-bold">万円</span>
-            <span className="text-sm text-gray-300 ml-2">{paidCount}件</span>
-          </div>
-        </div>
-        {memberPaid.length === 0 ? (
-          <p className="text-base text-gray-400 text-center py-4">着金データがありません（案件詳細から着金日を入力してください）</p>
-        ) : (
-          <div className="space-y-3">
-            {memberPaid.map(m => (
-              <div key={m.name} className="flex items-center gap-4">
-                <span className="text-base font-bold text-gray-600 w-16">{m.name}</span>
-                <div className="flex-1 bg-gray-100 h-2 rounded overflow-hidden">
-                  <div
-                    className="h-full bg-green-400 rounded"
-                    style={{ width: `${Math.round((m.amount / (memberPaid[0].amount || 1)) * 100)}%` }}
-                  />
-                </div>
-                <span className="text-base font-mono font-bold text-gray-700 w-24 text-right">{m.amount.toLocaleString()} 万円</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* 最新メモ */}
-      {latest?.memo && (
-        <div className="bg-white rounded border border-gray-100 shadow-sm p-7">
-          <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">
-            最新メモ — {latest.log_date}
-          </h3>
-          <p className="text-base text-gray-700 leading-relaxed border-l-2 border-blue-200 pl-4">{latest.memo}</p>
-        </div>
-      )}
     </div>
   )
 }
