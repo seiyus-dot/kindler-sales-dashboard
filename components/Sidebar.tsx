@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, BriefcaseBusiness, ClipboardList, Settings, Users, Menu, X } from 'lucide-react'
+import { LayoutDashboard, BriefcaseBusiness, ClipboardList, Settings, Users, Menu, X, BookOpen } from 'lucide-react'
 
 const navItems = [
   { href: '/dashboard', label: 'ダッシュボード', icon: LayoutDashboard },
@@ -11,6 +11,7 @@ const navItems = [
   { href: '/weekly',    label: '週次ログ',       icon: ClipboardList },
   { href: '/members',   label: 'メンバー',       icon: Users },
   { href: '/settings',  label: 'マスタ設定',     icon: Settings },
+  { href: '/knowledge', label: '営業ナレッジ',   icon: BookOpen },
 ]
 
 function NavLink({ href, label, icon: Icon, onClick }: { href: string; label: string; icon: React.ElementType; onClick?: () => void }) {

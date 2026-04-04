@@ -5,6 +5,7 @@ import { supabase, DealToB, DealToC, Member, MasterOption, ColumnConfig } from '
 import DealToBForm from '@/components/DealToBForm'
 import DealToCForm from '@/components/DealToCForm'
 import CSVImport from '@/components/CSVImport'
+import StripeCSVImport from '@/components/StripeCSVImport'
 
 type Tab = 'tob' | 'toc'
 
@@ -37,8 +38,8 @@ export default function DealsPage() {
 
   async function fetchAll() {
     const [tobRes, tocRes, membersRes, colRes, srcRes, svcRes, indRes] = await Promise.all([
-      supabase.from('deals_tob').select('*, members(name)').order('created_at', { ascending: false }),
-      supabase.from('deals_toc').select('*, members(name)').order('created_at', { ascending: false }),
+      supabase.from('deals_tob').select('*, member:members!member_id(name), sub_member:members!sub_member_id(name)').order('created_at', { ascending: false }),
+      supabase.from('deals_toc').select('*, member:members!member_id(name), sub_member:members!sub_member_id(name)').order('created_at', { ascending: false }),
       supabase.from('members').select('*').order('sort_order'),
       supabase.from('column_config').select('*').order('sort_order'),
       supabase.from('master_options').select('*').eq('type', 'source').order('sort_order'),
@@ -181,10 +182,18 @@ export default function DealsPage() {
   function renderViewCell(col: string, deal: DealToB | DealToC) {
     const d = deal as any
     switch (col) {
-      case 'member':        return <span className="font-medium">{d.members?.name ?? '-'}</span>
+      case 'member':        return <span className="font-medium">{d.member?.name ?? '-'}</span>
+      case 'sub_member':    return <span className="text-gray-500">{d.sub_member?.name ?? '-'}</span>
       case 'status':        return <span className={`px-2 py-0.5 rounded text-sm font-medium ${statusColor(d.status)}`}>{d.status ?? '-'}</span>
       case 'priority':      return <span className={priorityColor(d.priority)}>{d.priority ?? '-'}</span>
       case 'expected_amount': return <span className="text-right block font-mono">{d.expected_amount?.toLocaleString() ?? '-'}</span>
+      case 'weighted_amount': {
+        const amt = d.expected_amount ?? null
+        const prob = d.win_probability ?? null
+        if (amt === null || prob === null) return <span className="text-gray-300">-</span>
+        const val = Math.round(amt * prob / 100)
+        return <span className="text-right block font-mono text-blue-600 font-medium">{val.toLocaleString()}</span>
+      }
       case 'win_probability': {
         const pct = d.win_probability ?? null
         if (pct === null) return <span className="text-gray-300">-</span>
@@ -267,6 +276,7 @@ export default function DealsPage() {
         </div>
         <div className="flex gap-2">
           <CSVImport tab={tab} members={members} sources={sources} onImported={fetchAll} />
+          <StripeCSVImport tab={tab} members={members} onImported={fetchAll} />
           <button
             onClick={() => { setEditTarget(null); setShowForm(true) }}
             className="bg-blue-600 text-white px-4 py-2 rounded-sm text-base font-medium hover:bg-blue-700 transition"

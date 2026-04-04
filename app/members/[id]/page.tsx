@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { supabase, Member, DealToB, DealToC } from '@/lib/supabase'
+import { supabase, Member, DealToB, DealToC, DealAction, ACTION_TYPES } from '@/lib/supabase'
 import Link from 'next/link'
 
 const TOB_STATUSES = ['アポ取得', '商談中', '提案済', '交渉中', '見積提出', 'リード', '受注', '失注', '保留']
@@ -22,6 +22,7 @@ export default function MemberDetailPage() {
   const [member, setMember] = useState<Member | null>(null)
   const [tobDeals, setTobDeals] = useState<DealToB[]>([])
   const [tocDeals, setTocDeals] = useState<DealToC[]>([])
+  const [actions, setActions] = useState<DealAction[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -32,8 +33,22 @@ export default function MemberDetailPage() {
         supabase.from('deals_toc').select('*').eq('member_id', id).order('created_at', { ascending: false }),
       ])
       if (memberRes.data) setMember(memberRes.data)
-      if (tobRes.data) setTobDeals(tobRes.data)
-      if (tocRes.data) setTocDeals(tocRes.data)
+      const tob: DealToB[] = tobRes.data ?? []
+      const toc: DealToC[] = tocRes.data ?? []
+      setTobDeals(tob)
+      setTocDeals(toc)
+
+      // アクション履歴：このメンバーの全案件IDで検索
+      const dealIds = [...tob.map(d => d.id), ...toc.map(d => d.id)]
+      if (dealIds.length > 0) {
+        const { data: actionsData } = await supabase
+          .from('deal_actions')
+          .select('*')
+          .in('deal_id', dealIds)
+          .order('action_date', { ascending: false })
+        if (actionsData) setActions(actionsData)
+      }
+
       setLoading(false)
     }
     fetchAll()
@@ -48,6 +63,7 @@ export default function MemberDetailPage() {
 
   const today = new Date().toISOString().slice(0, 10)
   const in7 = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10)
+  const currentMonth = new Date().toISOString().slice(0, 7)
 
   const tobActive = tobDeals.filter(d => !['受注', '失注'].includes(d.status ?? '')).length
   const tocActive = tocDeals.filter(d => !['受注', '失注'].includes(d.status ?? '')).length
@@ -70,9 +86,31 @@ export default function MemberDetailPage() {
       .map(d => ({ id: d.id, label: d.name, action: d.next_action, date: d.next_action_date!, type: '個人' as const })),
   ].sort((a, b) => a.date.localeCompare(b.date))
 
-  // ステータス別集計
   const tobStatusCounts = TOB_STATUSES.map(s => ({ status: s, count: tobDeals.filter(d => d.status === s).length })).filter(x => x.count > 0)
   const tocStatusCounts = TOC_STATUSES.map(s => ({ status: s, count: tocDeals.filter(d => d.status === s).length })).filter(x => x.count > 0)
+
+  // 行動KPI
+  const totalActions = actions.length
+  const thisMonthActions = actions.filter(a => a.action_date.startsWith(currentMonth)).length
+  const activeDealsCount = tobActive + tocActive
+  const actionsPerDeal = activeDealsCount > 0 ? (totalActions / activeDealsCount).toFixed(1) : '-'
+
+  // アクション種別内訳
+  const actionTypeCounts = ACTION_TYPES.map(t => ({
+    type: t,
+    count: actions.filter(a => a.action_type === t).length,
+  })).filter(x => x.count > 0).sort((a, b) => b.count - a.count)
+
+  // 直近アクション（5件）
+  const recentActions = actions.slice(0, 5)
+
+  // ファネル（このメンバーのステージ分布）
+  const allMemberDeals = [...tobDeals, ...tocDeals]
+  const stageDistribution = [
+    '初回接触', 'アポ取得', '商談中', '提案済', '交渉中', '見積提出', 'クロージング',
+    '相談予約', 'ヒアリング', '提案中', '相談済'
+  ].map(s => ({ stage: s, count: allMemberDeals.filter(d => d.status === s).length }))
+    .filter(d => d.count > 0)
 
   return (
     <div className="space-y-8 pb-8">
@@ -87,7 +125,7 @@ export default function MemberDetailPage() {
         </div>
       </div>
 
-      {/* KPI */}
+      {/* 結果KPI */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 lg:gap-4">
         {[
           { label: '進行中（法人）', value: tobActive, unit: '件', accent: 'text-blue-600', bg: 'bg-blue-50' },
@@ -105,6 +143,100 @@ export default function MemberDetailPage() {
           </div>
         ))}
       </div>
+
+      {/* 行動KPI */}
+      <div className="bg-white rounded border border-gray-100 shadow-sm p-7">
+        <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-5">行動KPI</h3>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          {[
+            { label: '総アクション数', value: totalActions, unit: '件', color: 'text-blue-600' },
+            { label: '今月のアクション', value: thisMonthActions, unit: '件', color: 'text-indigo-600' },
+            { label: '1案件あたり平均', value: actionsPerDeal, unit: 'アクション', color: 'text-purple-600' },
+            { label: '進行中案件数', value: activeDealsCount, unit: '件', color: 'text-gray-700' },
+          ].map(k => (
+            <div key={k.label} className="bg-gray-50 rounded px-4 py-3">
+              <p className="text-xs font-black text-gray-400 mb-1">{k.label}</p>
+              <div className="flex items-baseline gap-1">
+                <span className={`text-2xl font-black font-mono ${k.color}`}>{k.value}</span>
+                <span className="text-xs text-gray-400">{k.unit}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* アクション種別内訳 */}
+        {actionTypeCounts.length > 0 && (
+          <div>
+            <p className="text-xs font-bold text-gray-400 mb-3">アクション種別内訳</p>
+            <div className="space-y-2">
+              {actionTypeCounts.map(({ type, count }) => {
+                const pct = totalActions > 0 ? Math.round((count / totalActions) * 100) : 0
+                return (
+                  <div key={type} className="flex items-center gap-3">
+                    <span className="text-xs text-gray-600 font-medium w-20 flex-shrink-0">{type}</span>
+                    <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
+                      <div className="h-full bg-blue-500 rounded-full" style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="text-xs font-mono text-gray-500 w-12 text-right">{count}件</span>
+                    <span className="text-xs text-gray-400 w-8">{pct}%</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {totalActions === 0 && (
+          <p className="text-sm text-gray-400 text-center py-4">アクション記録がありません。案件詳細からアクションを記録してください。</p>
+        )}
+      </div>
+
+      {/* 直近アクション */}
+      {recentActions.length > 0 && (
+        <div className="bg-white rounded border border-gray-100 shadow-sm p-7">
+          <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-5">直近のアクション</h3>
+          <div className="space-y-3">
+            {recentActions.map(a => {
+              const deal = [...tobDeals, ...tocDeals].find(d => d.id === a.deal_id)
+              const dealLabel = deal ? ('company_name' in deal ? deal.company_name : deal.name) : '-'
+              return (
+                <div key={a.id} className="flex items-start gap-3 text-sm">
+                  <span className="text-xs font-mono text-gray-400 w-20 flex-shrink-0 pt-0.5">{a.action_date}</span>
+                  <span className="bg-blue-50 text-blue-700 text-xs font-bold px-2 py-0.5 rounded flex-shrink-0">{a.action_type}</span>
+                  <span className="text-gray-600 text-xs font-medium">{dealLabel}</span>
+                  {a.notes && <span className="text-gray-400 text-xs truncate max-w-xs">{a.notes}</span>}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ファネル（このメンバーのステージ分布） */}
+      {stageDistribution.length > 0 && (
+        <div className="bg-white rounded border border-gray-100 shadow-sm p-7">
+          <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-5">ステージ分布</h3>
+          <div className="space-y-2">
+            {stageDistribution.map(({ stage, count }) => {
+              const maxCount = Math.max(...stageDistribution.map(d => d.count), 1)
+              const pct = Math.max((count / maxCount) * 100, 8)
+              return (
+                <div key={stage} className="flex items-center gap-3">
+                  <span className="text-xs text-gray-500 font-medium w-20 flex-shrink-0 text-right">{stage}</span>
+                  <div className="flex-1 bg-gray-50 rounded-full h-6 overflow-hidden">
+                    <div
+                      className="h-full bg-blue-500 rounded-full flex items-center justify-end pr-2"
+                      style={{ width: `${pct}%` }}
+                    >
+                      <span className="text-xs font-bold text-white">{count}</span>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* アラート */}
       {alerts.length > 0 && (

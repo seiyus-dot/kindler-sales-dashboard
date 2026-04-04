@@ -30,7 +30,7 @@ export type Priority = '高' | '中' | '低'
 
 export type DealToB = {
   id: string
-  member_id: string
+  member_id?: string
   company_name: string
   contact_name?: string
   industry?: string
@@ -47,14 +47,26 @@ export type DealToB = {
   notes?: string
   payment_date?: string
   actual_amount?: number
+  loss_reason?: string
+  loss_detail?: string
+  sub_member_id?: string
+  deal_type?: 'spot' | 'subscription'
+  monthly_amount?: number
+  contract_start?: string
+  contract_end?: string
+  payment_status?: string
+  payment_error_date?: string
+  stripe_subscription_id?: string
+  stripe_customer_id?: string
   created_at: string
   updated_at: string
-  members?: Member
+  member?: Member
+  sub_member?: Member
 }
 
 export type DealToC = {
   id: string
-  member_id: string
+  member_id?: string
   name: string
   contact?: string
   source?: string
@@ -70,10 +82,37 @@ export type DealToC = {
   notes?: string
   payment_date?: string
   actual_amount?: number
+  loss_reason?: string
+  loss_detail?: string
+  sub_member_id?: string
+  deal_type?: 'spot' | 'subscription'
+  monthly_amount?: number
+  contract_start?: string
+  contract_end?: string
+  payment_status?: string
+  payment_error_date?: string
+  stripe_subscription_id?: string
+  stripe_customer_id?: string
   created_at: string
   updated_at: string
-  members?: Member
+  member?: Member
+  sub_member?: Member
 }
+
+export type DealAction = {
+  id: string
+  deal_id: string
+  deal_type: 'tob' | 'toc'
+  member_id?: string
+  action_type: string
+  action_date: string
+  notes?: string
+  created_at: string
+  member?: Member
+}
+
+export const ACTION_TYPES = ['初回接触', '電話・メール', '商談', '提案', '見積提出', 'クロージング', 'フォロー', 'その他'] as const
+export const LOSS_REASONS = ['価格', '競合他社', 'タイミング', 'ニーズ不一致', '予算不足', '社内決裁', 'その他'] as const
 
 export type MasterOption = {
   id: string
