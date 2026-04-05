@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase, AICampConsultation, AICampMonthlyGoal, AICampAdMetrics, Member, CONSULTATION_STATUSES } from '@/lib/supabase'
+import { supabase, AICampConsultation, AICampMonthlyGoal, AICampAdWeekly, Member, CONSULTATION_STATUSES } from '@/lib/supabase'
 import AICampConsultationForm from '@/components/AICampConsultationForm'
 import AIImport from '@/components/AIImport'
 import SourceMasterModal from '@/components/SourceMasterModal'
@@ -38,10 +38,12 @@ export default function AICampPage() {
   const [inlineSaving, setInlineSaving] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
-  const [adMetrics, setAdMetrics] = useState<AICampAdMetrics | null>(null)
-  const [editingAd, setEditingAd] = useState(false)
-  const [adDraft, setAdDraft] = useState({ ad_spend: '', list_count: '', consultation_count: '', seated_count: '' })
+  const [adWeekly, setAdWeekly] = useState<AICampAdWeekly[]>([])
+  const [adEditId, setAdEditId] = useState<string | null>(null)
+  const [adDraft, setAdDraft] = useState<Record<string, string>>({})
   const [adSaving, setAdSaving] = useState(false)
+  const [showAddWeek, setShowAddWeek] = useState(false)
+  const [newWeek, setNewWeek] = useState({ week_label: '', ad_spend: '', list_count: '', consultation_count: '', seated_count: '' })
 
   useEffect(() => { fetchAll() }, [month])
 
@@ -55,13 +57,13 @@ export default function AICampPage() {
         .order('consultation_date', { ascending: false }),
       supabase.from('members').select('*').order('sort_order'),
       supabase.from('aicamp_monthly_goals').select('*').eq('month', month).maybeSingle(),
-      supabase.from('aicamp_ad_metrics').select('*').eq('month', month).maybeSingle(),
+      supabase.from('aicamp_ad_weekly').select('*').eq('month', month).order('sort_order').order('created_at'),
     ])
     if (consRes.data) setConsultations(consRes.data)
     if (membersRes.data) setMembers(membersRes.data)
     setGoal(goalRes.data ?? null)
     setGoalInput(goalRes.data?.contract_goal?.toString() ?? '50')
-    setAdMetrics(adRes.data ?? null)
+    setAdWeekly(adRes.data ?? [])
     setLoading(false)
   }
 
@@ -82,32 +84,53 @@ export default function AICampPage() {
     fetchAll()
   }
 
-  function startEditAd() {
+  function startAdEdit(row: AICampAdWeekly) {
+    setAdEditId(row.id)
     setAdDraft({
-      ad_spend: adMetrics?.ad_spend?.toString() ?? '',
-      list_count: adMetrics?.list_count?.toString() ?? '',
-      consultation_count: adMetrics?.consultation_count?.toString() ?? '',
-      seated_count: adMetrics?.seated_count?.toString() ?? '',
+      week_label: row.week_label,
+      ad_spend: row.ad_spend.toString(),
+      list_count: row.list_count.toString(),
+      consultation_count: row.consultation_count?.toString() ?? '',
+      seated_count: row.seated_count?.toString() ?? '',
     })
-    setEditingAd(true)
   }
 
-  async function saveAd() {
+  async function saveAdRow() {
+    if (!adEditId) return
     setAdSaving(true)
-    const payload = {
-      month,
+    await supabase.from('aicamp_ad_weekly').update({
+      week_label: adDraft.week_label,
       ad_spend: parseInt(adDraft.ad_spend) || 0,
       list_count: parseInt(adDraft.list_count) || 0,
       consultation_count: adDraft.consultation_count ? parseInt(adDraft.consultation_count) : null,
       seated_count: adDraft.seated_count ? parseInt(adDraft.seated_count) : null,
-    }
-    if (adMetrics) {
-      await supabase.from('aicamp_ad_metrics').update(payload).eq('id', adMetrics.id)
-    } else {
-      await supabase.from('aicamp_ad_metrics').insert(payload)
-    }
+    }).eq('id', adEditId)
     setAdSaving(false)
-    setEditingAd(false)
+    setAdEditId(null)
+    fetchAll()
+  }
+
+  async function addWeekRow() {
+    if (!newWeek.week_label.trim()) return
+    setAdSaving(true)
+    await supabase.from('aicamp_ad_weekly').insert({
+      month,
+      week_label: newWeek.week_label.trim(),
+      ad_spend: parseInt(newWeek.ad_spend) || 0,
+      list_count: parseInt(newWeek.list_count) || 0,
+      consultation_count: newWeek.consultation_count ? parseInt(newWeek.consultation_count) : null,
+      seated_count: newWeek.seated_count ? parseInt(newWeek.seated_count) : null,
+      sort_order: adWeekly.length,
+    })
+    setAdSaving(false)
+    setShowAddWeek(false)
+    setNewWeek({ week_label: '', ad_spend: '', list_count: '', consultation_count: '', seated_count: '' })
+    fetchAll()
+  }
+
+  async function deleteAdRow(id: string) {
+    if (!confirm('この週のデータを削除しますか？')) return
+    await supabase.from('aicamp_ad_weekly').delete().eq('id', id)
     fetchAll()
   }
 
@@ -309,71 +332,130 @@ export default function AICampPage() {
 
       {/* 広告数値 */}
       {(() => {
-        const adSpend = adMetrics?.ad_spend ?? 0
-        const listCount = adMetrics?.list_count ?? 0
-        const consultationCount = adMetrics?.consultation_count ?? 0
-        const seatedCount = adMetrics?.seated_count ?? 0
-        const cpa = listCount > 0 ? Math.round(adSpend / listCount) : null
-        const meetingCpa = consultationCount > 0 ? Math.round(adSpend / consultationCount) : null
-        const seatedCpa = seatedCount > 0 ? Math.round(adSpend / seatedCount) : null
-        const cpo = contracted.length > 0 ? Math.round(adSpend / contracted.length) : null
-        const roas = adSpend > 0 ? Math.round(totalRevenue / adSpend * 100) : null
+        const totalAdSpend = adWeekly.reduce((s, r) => s + r.ad_spend, 0)
+        const totalListCount = adWeekly.reduce((s, r) => s + r.list_count, 0)
+        const totalConsultation = adWeekly.reduce((s, r) => s + (r.consultation_count ?? 0), 0)
+        const totalSeated = adWeekly.reduce((s, r) => s + (r.seated_count ?? 0), 0)
+        const cpa = totalListCount > 0 ? Math.round(totalAdSpend / totalListCount) : null
+        const meetingCpa = totalConsultation > 0 ? Math.round(totalAdSpend / totalConsultation) : null
+        const seatedCpa = totalSeated > 0 ? Math.round(totalAdSpend / totalSeated) : null
+        const cpo = contracted.length > 0 ? Math.round(totalAdSpend / contracted.length) : null
+        const roas = totalAdSpend > 0 ? Math.round(totalRevenue / totalAdSpend * 100) : null
+
+        const adCols = ['期間', '広告費[円]', 'リスト数[人]', '面談申込数[人]', '着座数[人]', '']
 
         return (
-          <div className="bg-white border border-gray-200 rounded p-5">
-            <div className="flex items-center justify-between mb-4">
+          <div className="bg-white border border-gray-200 rounded overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
               <h2 className="text-sm font-bold text-gray-700">広告数値（{monthLabel}）</h2>
-              {editingAd ? (
-                <div className="flex gap-2">
-                  <button onClick={saveAd} disabled={adSaving} className="text-xs text-white bg-blue-600 px-3 py-1 rounded hover:bg-blue-700 disabled:opacity-50 transition">
-                    {adSaving ? '保存中...' : '保存'}
-                  </button>
-                  <button onClick={() => setEditingAd(false)} className="text-xs text-gray-400 hover:text-gray-600">取消</button>
-                </div>
-              ) : (
-                <button onClick={startEditAd} className="text-xs text-blue-500 hover:underline">編集</button>
-              )}
+              <button
+                onClick={() => setShowAddWeek(true)}
+                className="text-xs text-white bg-blue-600 px-3 py-1 rounded hover:bg-blue-700 transition"
+              >
+                + 週を追加
+              </button>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
-              {[
-                { label: '広告費', key: 'ad_spend', value: adSpend > 0 ? `¥${adSpend.toLocaleString()}` : '-' },
-                { label: 'リスト数', key: 'list_count', value: listCount > 0 ? `${listCount}人` : '-' },
-                { label: '面談申込数', key: 'consultation_count', value: consultationCount > 0 ? `${consultationCount}人` : '-' },
-                { label: '着座数', key: 'seated_count', value: seatedCount > 0 ? `${seatedCount}人` : '-' },
-              ].map(f => (
-                <div key={f.key} className="space-y-1">
-                  <p className="text-xs text-gray-400 font-bold">{f.label}</p>
-                  {editingAd ? (
-                    <input
-                      type="number"
-                      value={adDraft[f.key as keyof typeof adDraft]}
-                      onChange={e => setAdDraft(d => ({ ...d, [f.key]: e.target.value }))}
-                      className="w-full border border-blue-300 rounded px-2 py-1 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-blue-400"
-                      placeholder="0"
-                    />
-                  ) : (
-                    <p className="text-xl font-black font-mono text-gray-800">{f.value}</p>
+            {/* 週別テーブル */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    {adCols.map(h => (
+                      <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {adWeekly.length === 0 && !showAddWeek ? (
+                    <tr><td colSpan={6} className="text-center py-6 text-gray-400 text-xs">「週を追加」から入力してください</td></tr>
+                  ) : adWeekly.map(row => {
+                    const editing = adEditId === row.id
+                    return (
+                      <tr key={row.id} className={`border-b border-gray-50 ${editing ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
+                        {editing ? (
+                          <>
+                            <td className="px-4 py-2"><input value={adDraft.week_label} onChange={e => setAdDraft(d => ({ ...d, week_label: e.target.value }))} className="border border-blue-300 rounded px-2 py-1 text-xs w-28 focus:outline-none" placeholder="4/1〜4/5" /></td>
+                            <td className="px-4 py-2"><input type="number" value={adDraft.ad_spend} onChange={e => setAdDraft(d => ({ ...d, ad_spend: e.target.value }))} className="border border-blue-300 rounded px-2 py-1 text-xs font-mono w-28 focus:outline-none" /></td>
+                            <td className="px-4 py-2"><input type="number" value={adDraft.list_count} onChange={e => setAdDraft(d => ({ ...d, list_count: e.target.value }))} className="border border-blue-300 rounded px-2 py-1 text-xs font-mono w-20 focus:outline-none" /></td>
+                            <td className="px-4 py-2"><input type="number" value={adDraft.consultation_count} onChange={e => setAdDraft(d => ({ ...d, consultation_count: e.target.value }))} className="border border-blue-300 rounded px-2 py-1 text-xs font-mono w-20 focus:outline-none" /></td>
+                            <td className="px-4 py-2"><input type="number" value={adDraft.seated_count} onChange={e => setAdDraft(d => ({ ...d, seated_count: e.target.value }))} className="border border-blue-300 rounded px-2 py-1 text-xs font-mono w-20 focus:outline-none" /></td>
+                            <td className="px-4 py-2">
+                              <div className="flex gap-2 justify-end">
+                                <button onClick={saveAdRow} disabled={adSaving} className="text-xs text-white bg-blue-600 px-2 py-1 rounded disabled:opacity-50">{adSaving ? '...' : '保存'}</button>
+                                <button onClick={() => setAdEditId(null)} className="text-xs text-gray-400 hover:text-gray-600">取消</button>
+                              </div>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="px-4 py-2.5 font-medium text-gray-700">{row.week_label}</td>
+                            <td className="px-4 py-2.5 font-mono text-gray-700">¥{row.ad_spend.toLocaleString()}</td>
+                            <td className="px-4 py-2.5 font-mono text-gray-700">{row.list_count}</td>
+                            <td className="px-4 py-2.5 font-mono text-gray-500">{row.consultation_count ?? '-'}</td>
+                            <td className="px-4 py-2.5 font-mono text-gray-500">{row.seated_count ?? '-'}</td>
+                            <td className="px-4 py-2.5">
+                              <div className="flex gap-2 justify-end">
+                                <button onClick={() => startAdEdit(row)} className="text-xs text-blue-500 hover:underline">編集</button>
+                                <button onClick={() => deleteAdRow(row.id)} className="text-xs text-red-400 hover:underline">削除</button>
+                              </div>
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    )
+                  })}
+
+                  {/* 追加行 */}
+                  {showAddWeek && (
+                    <tr className="border-b border-gray-50 bg-green-50">
+                      <td className="px-4 py-2"><input value={newWeek.week_label} onChange={e => setNewWeek(w => ({ ...w, week_label: e.target.value }))} className="border border-green-300 rounded px-2 py-1 text-xs w-28 focus:outline-none" placeholder="4/1〜4/5" /></td>
+                      <td className="px-4 py-2"><input type="number" value={newWeek.ad_spend} onChange={e => setNewWeek(w => ({ ...w, ad_spend: e.target.value }))} className="border border-green-300 rounded px-2 py-1 text-xs font-mono w-28 focus:outline-none" placeholder="0" /></td>
+                      <td className="px-4 py-2"><input type="number" value={newWeek.list_count} onChange={e => setNewWeek(w => ({ ...w, list_count: e.target.value }))} className="border border-green-300 rounded px-2 py-1 text-xs font-mono w-20 focus:outline-none" placeholder="0" /></td>
+                      <td className="px-4 py-2"><input type="number" value={newWeek.consultation_count} onChange={e => setNewWeek(w => ({ ...w, consultation_count: e.target.value }))} className="border border-green-300 rounded px-2 py-1 text-xs font-mono w-20 focus:outline-none" placeholder="-" /></td>
+                      <td className="px-4 py-2"><input type="number" value={newWeek.seated_count} onChange={e => setNewWeek(w => ({ ...w, seated_count: e.target.value }))} className="border border-green-300 rounded px-2 py-1 text-xs font-mono w-20 focus:outline-none" placeholder="-" /></td>
+                      <td className="px-4 py-2">
+                        <div className="flex gap-2 justify-end">
+                          <button onClick={addWeekRow} disabled={adSaving} className="text-xs text-white bg-green-600 px-2 py-1 rounded disabled:opacity-50">{adSaving ? '...' : '追加'}</button>
+                          <button onClick={() => setShowAddWeek(false)} className="text-xs text-gray-400 hover:text-gray-600">取消</button>
+                        </div>
+                      </td>
+                    </tr>
                   )}
-                </div>
-              ))}
+
+                  {/* 合計行 */}
+                  {adWeekly.length > 0 && (
+                    <tr className="bg-gray-50 border-t border-gray-200 font-bold">
+                      <td className="px-4 py-2.5 text-gray-500 text-xs">合計</td>
+                      <td className="px-4 py-2.5 font-mono text-gray-800">¥{totalAdSpend.toLocaleString()}</td>
+                      <td className="px-4 py-2.5 font-mono text-gray-800">{totalListCount}</td>
+                      <td className="px-4 py-2.5 font-mono text-gray-800">{totalConsultation > 0 ? totalConsultation : '-'}</td>
+                      <td className="px-4 py-2.5 font-mono text-gray-800">{totalSeated > 0 ? totalSeated : '-'}</td>
+                      <td />
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
 
-            <div className="border-t border-gray-100 pt-4 grid grid-cols-2 sm:grid-cols-5 gap-4">
-              {[
-                { label: 'CPA', value: cpa ? `¥${cpa.toLocaleString()}` : '-', sub: '広告費÷リスト数' },
-                { label: '面談申込CPA', value: meetingCpa ? `¥${meetingCpa.toLocaleString()}` : '-', sub: '広告費÷面談申込数' },
-                { label: '着座単価', value: seatedCpa ? `¥${seatedCpa.toLocaleString()}` : '-', sub: '広告費÷着座数' },
-                { label: 'CPO', value: cpo ? `¥${cpo.toLocaleString()}` : '-', sub: `広告費÷成約${contracted.length}件` },
-                { label: 'ROAS', value: roas !== null ? `${roas}%` : '-', sub: `売上¥${totalRevenue.toLocaleString()}÷広告費`, color: roas !== null ? (roas >= 100 ? 'text-green-600' : roas >= 60 ? 'text-amber-500' : 'text-red-500') : 'text-gray-300' },
-              ].map(k => (
-                <div key={k.label}>
-                  <p className="text-xs text-gray-400 font-bold mb-0.5">{k.label}</p>
-                  <p className={`text-lg font-black font-mono ${k.color ?? 'text-gray-800'}`}>{k.value}</p>
-                  <p className="text-xs text-gray-300 mt-0.5">{k.sub}</p>
-                </div>
-              ))}
-            </div>
+            {/* KPI */}
+            {adWeekly.length > 0 && (
+              <div className="border-t border-gray-100 px-5 py-4 grid grid-cols-2 sm:grid-cols-5 gap-4">
+                {[
+                  { label: 'CPA', value: cpa ? `¥${cpa.toLocaleString()}` : '-', sub: '広告費÷リスト数' },
+                  { label: '面談申込CPA', value: meetingCpa ? `¥${meetingCpa.toLocaleString()}` : '-', sub: '広告費÷面談申込数' },
+                  { label: '着座単価', value: seatedCpa ? `¥${seatedCpa.toLocaleString()}` : '-', sub: '広告費÷着座数' },
+                  { label: 'CPO', value: cpo ? `¥${cpo.toLocaleString()}` : '-', sub: `広告費÷成約${contracted.length}件` },
+                  { label: 'ROAS', value: roas !== null ? `${roas}%` : '-', sub: `売上÷広告費`, color: roas !== null ? (roas >= 100 ? 'text-green-600' : roas >= 60 ? 'text-amber-500' : 'text-red-500') : 'text-gray-300' },
+                ].map(k => (
+                  <div key={k.label}>
+                    <p className="text-xs text-gray-400 font-bold mb-0.5">{k.label}</p>
+                    <p className={`text-xl font-black font-mono ${k.color ?? 'text-gray-800'}`}>{k.value}</p>
+                    <p className="text-xs text-gray-300 mt-0.5">{k.sub}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )
       })()}
