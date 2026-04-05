@@ -166,6 +166,16 @@ export type SourceMaster = {
   created_at: string
 }
 
+export type AICampAdMetrics = {
+  id: string
+  month: string
+  ad_spend: number
+  list_count: number
+  consultation_count?: number
+  seated_count?: number
+  created_at: string
+}
+
 export type AICampMonthlyGoal = {
   id: string
   month: string

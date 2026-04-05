@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase, AICampConsultation, AICampMonthlyGoal, Member, CONSULTATION_STATUSES } from '@/lib/supabase'
+import { supabase, AICampConsultation, AICampMonthlyGoal, AICampAdMetrics, Member, CONSULTATION_STATUSES } from '@/lib/supabase'
 import AICampConsultationForm from '@/components/AICampConsultationForm'
 import AIImport from '@/components/AIImport'
 import SourceMasterModal from '@/components/SourceMasterModal'
@@ -38,12 +38,16 @@ export default function AICampPage() {
   const [inlineSaving, setInlineSaving] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [adMetrics, setAdMetrics] = useState<AICampAdMetrics | null>(null)
+  const [editingAd, setEditingAd] = useState(false)
+  const [adDraft, setAdDraft] = useState({ ad_spend: '', list_count: '', consultation_count: '', seated_count: '' })
+  const [adSaving, setAdSaving] = useState(false)
 
   useEffect(() => { fetchAll() }, [month])
 
   async function fetchAll() {
     setLoading(true)
-    const [consRes, membersRes, goalRes] = await Promise.all([
+    const [consRes, membersRes, goalRes, adRes] = await Promise.all([
       supabase
         .from('aicamp_consultations')
         .select('*, member:members(name)')
@@ -51,11 +55,13 @@ export default function AICampPage() {
         .order('consultation_date', { ascending: false }),
       supabase.from('members').select('*').order('sort_order'),
       supabase.from('aicamp_monthly_goals').select('*').eq('month', month).maybeSingle(),
+      supabase.from('aicamp_ad_metrics').select('*').eq('month', month).maybeSingle(),
     ])
     if (consRes.data) setConsultations(consRes.data)
     if (membersRes.data) setMembers(membersRes.data)
     setGoal(goalRes.data ?? null)
     setGoalInput(goalRes.data?.contract_goal?.toString() ?? '50')
+    setAdMetrics(adRes.data ?? null)
     setLoading(false)
   }
 
@@ -73,6 +79,35 @@ export default function AICampPage() {
       await supabase.from('aicamp_monthly_goals').insert({ month, contract_goal: val })
     }
     setEditingGoal(false)
+    fetchAll()
+  }
+
+  function startEditAd() {
+    setAdDraft({
+      ad_spend: adMetrics?.ad_spend?.toString() ?? '',
+      list_count: adMetrics?.list_count?.toString() ?? '',
+      consultation_count: adMetrics?.consultation_count?.toString() ?? '',
+      seated_count: adMetrics?.seated_count?.toString() ?? '',
+    })
+    setEditingAd(true)
+  }
+
+  async function saveAd() {
+    setAdSaving(true)
+    const payload = {
+      month,
+      ad_spend: parseInt(adDraft.ad_spend) || 0,
+      list_count: parseInt(adDraft.list_count) || 0,
+      consultation_count: adDraft.consultation_count ? parseInt(adDraft.consultation_count) : null,
+      seated_count: adDraft.seated_count ? parseInt(adDraft.seated_count) : null,
+    }
+    if (adMetrics) {
+      await supabase.from('aicamp_ad_metrics').update(payload).eq('id', adMetrics.id)
+    } else {
+      await supabase.from('aicamp_ad_metrics').insert(payload)
+    }
+    setAdSaving(false)
+    setEditingAd(false)
     fetchAll()
   }
 
@@ -271,6 +306,77 @@ export default function AICampPage() {
           </div>
         ))}
       </div>
+
+      {/* 広告数値 */}
+      {(() => {
+        const adSpend = adMetrics?.ad_spend ?? 0
+        const listCount = adMetrics?.list_count ?? 0
+        const consultationCount = adMetrics?.consultation_count ?? 0
+        const seatedCount = adMetrics?.seated_count ?? 0
+        const cpa = listCount > 0 ? Math.round(adSpend / listCount) : null
+        const meetingCpa = consultationCount > 0 ? Math.round(adSpend / consultationCount) : null
+        const seatedCpa = seatedCount > 0 ? Math.round(adSpend / seatedCount) : null
+        const cpo = contracted.length > 0 ? Math.round(adSpend / contracted.length) : null
+        const roas = adSpend > 0 ? Math.round(totalRevenue / adSpend * 100) : null
+
+        return (
+          <div className="bg-white border border-gray-200 rounded p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-bold text-gray-700">広告数値（{monthLabel}）</h2>
+              {editingAd ? (
+                <div className="flex gap-2">
+                  <button onClick={saveAd} disabled={adSaving} className="text-xs text-white bg-blue-600 px-3 py-1 rounded hover:bg-blue-700 disabled:opacity-50 transition">
+                    {adSaving ? '保存中...' : '保存'}
+                  </button>
+                  <button onClick={() => setEditingAd(false)} className="text-xs text-gray-400 hover:text-gray-600">取消</button>
+                </div>
+              ) : (
+                <button onClick={startEditAd} className="text-xs text-blue-500 hover:underline">編集</button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+              {[
+                { label: '広告費', key: 'ad_spend', value: adSpend > 0 ? `¥${adSpend.toLocaleString()}` : '-' },
+                { label: 'リスト数', key: 'list_count', value: listCount > 0 ? `${listCount}人` : '-' },
+                { label: '面談申込数', key: 'consultation_count', value: consultationCount > 0 ? `${consultationCount}人` : '-' },
+                { label: '着座数', key: 'seated_count', value: seatedCount > 0 ? `${seatedCount}人` : '-' },
+              ].map(f => (
+                <div key={f.key} className="space-y-1">
+                  <p className="text-xs text-gray-400 font-bold">{f.label}</p>
+                  {editingAd ? (
+                    <input
+                      type="number"
+                      value={adDraft[f.key as keyof typeof adDraft]}
+                      onChange={e => setAdDraft(d => ({ ...d, [f.key]: e.target.value }))}
+                      className="w-full border border-blue-300 rounded px-2 py-1 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-blue-400"
+                      placeholder="0"
+                    />
+                  ) : (
+                    <p className="text-xl font-black font-mono text-gray-800">{f.value}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="border-t border-gray-100 pt-4 grid grid-cols-2 sm:grid-cols-5 gap-4">
+              {[
+                { label: 'CPA', value: cpa ? `¥${cpa.toLocaleString()}` : '-', sub: '広告費÷リスト数' },
+                { label: '面談申込CPA', value: meetingCpa ? `¥${meetingCpa.toLocaleString()}` : '-', sub: '広告費÷面談申込数' },
+                { label: '着座単価', value: seatedCpa ? `¥${seatedCpa.toLocaleString()}` : '-', sub: '広告費÷着座数' },
+                { label: 'CPO', value: cpo ? `¥${cpo.toLocaleString()}` : '-', sub: `広告費÷成約${contracted.length}件` },
+                { label: 'ROAS', value: roas !== null ? `${roas}%` : '-', sub: `売上¥${totalRevenue.toLocaleString()}÷広告費`, color: roas !== null ? (roas >= 100 ? 'text-green-600' : roas >= 60 ? 'text-amber-500' : 'text-red-500') : 'text-gray-300' },
+              ].map(k => (
+                <div key={k.label}>
+                  <p className="text-xs text-gray-400 font-bold mb-0.5">{k.label}</p>
+                  <p className={`text-lg font-black font-mono ${k.color ?? 'text-gray-800'}`}>{k.value}</p>
+                  <p className="text-xs text-gray-300 mt-0.5">{k.sub}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })()}
 
       {/* 担当者別KPI */}
       {memberStats.length > 0 && (
