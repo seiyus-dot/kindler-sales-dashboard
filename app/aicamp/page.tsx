@@ -221,6 +221,8 @@ export default function AICampPage() {
   const cancelRate = totalScheduled > 0 ? Math.round(cancelled.length / totalScheduled * 100) : 0
   const contractRate = conducted.length > 0 ? Math.round(contracted.length / conducted.length * 100) : 0
   const totalRevenue = contracted.reduce((s, c) => s + (c.payment_amount ?? 0), 0)
+  const metaRevenue = metaContracted.reduce((s, c) => s + (c.payment_amount ?? 0), 0)
+  const nonMetaRevenue = totalRevenue - metaRevenue
   const progressPct = Math.min(Math.round(contracted.length / contractGoal * 100), 100)
 
   // 担当者別KPI
@@ -274,6 +276,31 @@ export default function AICampPage() {
           >
             + 商談追加
           </button>
+        </div>
+      </div>
+
+      {/* 売上サマリー */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-white border border-gray-200 rounded p-5">
+          <p className="text-xs font-bold text-gray-400 mb-1">全体売上</p>
+          <p className="text-3xl font-black font-mono text-gray-900">
+            ¥{totalRevenue.toLocaleString()}
+          </p>
+          <p className="text-xs text-gray-400 mt-1">成約 {contracted.length}件</p>
+        </div>
+        <div className="bg-white border border-gray-200 rounded p-5">
+          <p className="text-xs font-bold text-gray-400 mb-1">広告リスト売上</p>
+          <p className="text-3xl font-black font-mono text-blue-600">
+            ¥{metaRevenue.toLocaleString()}
+          </p>
+          <p className="text-xs text-gray-400 mt-1">Meta広告経由 {metaContracted.length}件</p>
+        </div>
+        <div className="bg-white border border-gray-200 rounded p-5">
+          <p className="text-xs font-bold text-gray-400 mb-1">その他売上</p>
+          <p className="text-3xl font-black font-mono text-gray-600">
+            ¥{nonMetaRevenue.toLocaleString()}
+          </p>
+          <p className="text-xs text-gray-400 mt-1">広告以外 {contracted.length - metaContracted.length}件</p>
         </div>
       </div>
 
