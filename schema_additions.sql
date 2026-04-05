@@ -58,6 +58,46 @@ alter table deals_tob add column if not exists stripe_customer_id text;
 alter table deals_toc alter column member_id drop not null;
 alter table deals_tob alter column member_id drop not null;
 
+-- =============================================
+-- AI CAMP 専用テーブル
+-- =============================================
+
+-- ロードマップ作成会（商談）管理
+create table if not exists aicamp_consultations (
+  id uuid primary key default gen_random_uuid(),
+  line_name text,
+  name text,
+  age int,
+  consultation_date timestamptz,
+  member_id uuid references members(id),
+  source text,
+  registration_source text,
+  status text default '予定', -- 予定/成約/失注/保留/ドタキャン/キャンセル
+  payment_amount int,
+  payment_method text,
+  customer_attribute text,
+  motivation text,
+  reason text,
+  reply_deadline date,
+  minutes_url text,
+  occupation text,
+  monthly_income text,
+  ai_experience text,
+  ai_purpose text,
+  expectation text,
+  question text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- 月次目標管理
+create table if not exists aicamp_monthly_goals (
+  id uuid primary key default gen_random_uuid(),
+  month text not null unique, -- YYYY-MM
+  contract_goal int default 50,
+  created_at timestamptz default now()
+);
+
 -- column_config に商品名・サブ担当者・加重金額を追加
 -- ※ column_config テーブルが存在する前提で実行してください
 insert into column_config (table_type, column_key, label, visible, sort_order)

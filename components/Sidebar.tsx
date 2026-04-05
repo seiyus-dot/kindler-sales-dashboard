@@ -1,9 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { LayoutDashboard, BriefcaseBusiness, ClipboardList, Settings, Users, Menu, X, BookOpen } from 'lucide-react'
+import { usePathname, useRouter } from 'next/navigation'
+import { LayoutDashboard, BriefcaseBusiness, ClipboardList, Settings, Users, Menu, X, BookOpen, LogOut, Tent } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+import type { User } from '@supabase/supabase-js'
 
 const navItems = [
   { href: '/dashboard', label: 'ダッシュボード', icon: LayoutDashboard },
@@ -12,6 +14,7 @@ const navItems = [
   { href: '/members',   label: 'メンバー',       icon: Users },
   { href: '/settings',  label: 'マスタ設定',     icon: Settings },
   { href: '/knowledge', label: '営業ナレッジ',   icon: BookOpen },
+  { href: '/aicamp',   label: 'AI CAMP',        icon: Tent },
 ]
 
 function NavLink({ href, label, icon: Icon, onClick }: { href: string; label: string; icon: React.ElementType; onClick?: () => void }) {
@@ -28,6 +31,53 @@ function NavLink({ href, label, icon: Icon, onClick }: { href: string; label: st
       <Icon size={18} className={active ? 'text-indigo-600' : 'text-slate-400'} />
       {label}
     </Link>
+  )
+}
+
+function UserFooter({ onClose }: { onClose?: () => void }) {
+  const [user, setUser] = useState<User | null>(null)
+  const router = useRouter()
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUser(data.user))
+  }, [])
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    onClose?.()
+    router.push('/login')
+  }
+
+  if (!user) return null
+
+  return (
+    <div className="px-4 py-4 border-t border-slate-100">
+      <div className="flex items-center gap-2.5 mb-2">
+        {user.user_metadata?.avatar_url ? (
+          <img
+            src={user.user_metadata.avatar_url}
+            alt=""
+            className="w-7 h-7 rounded-full"
+          />
+        ) : (
+          <div className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center text-xs font-medium text-slate-600">
+            {user.email?.[0]?.toUpperCase()}
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="text-xs font-medium text-slate-700 truncate">
+            {user.user_metadata?.full_name || user.email}
+          </div>
+        </div>
+      </div>
+      <button
+        onClick={handleSignOut}
+        className="flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-xs text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+      >
+        <LogOut size={14} />
+        ログアウト
+      </button>
+    </div>
   )
 }
 
@@ -69,6 +119,7 @@ export default function Sidebar() {
                 <NavLink key={item.href} {...item} onClick={() => setOpen(false)} />
               ))}
             </nav>
+            <UserFooter onClose={() => setOpen(false)} />
           </aside>
         </div>
       )}
@@ -89,6 +140,7 @@ export default function Sidebar() {
             <NavLink key={item.href} {...item} />
           ))}
         </nav>
+        <UserFooter />
       </aside>
     </>
   )

@@ -130,6 +130,50 @@ export type ColumnConfig = {
   sort_order: number
 }
 
+export type AICampConsultation = {
+  id: string
+  line_name?: string
+  name?: string
+  age?: number
+  consultation_date?: string
+  member_id?: string
+  source?: string
+  registration_source?: string
+  status?: string
+  payment_amount?: number
+  payment_method?: string
+  customer_attribute?: string
+  motivation?: string
+  reason?: string
+  reply_deadline?: string
+  minutes_url?: string
+  occupation?: string
+  monthly_income?: string
+  ai_experience?: string
+  ai_purpose?: string
+  expectation?: string
+  question?: string
+  created_at: string
+  updated_at: string
+  member?: Member
+}
+
+export type AICampMonthlyGoal = {
+  id: string
+  month: string
+  contract_goal: number
+  created_at: string
+}
+
+export const CONSULTATION_STATUSES = ['予定', '成約', '失注', '保留', 'ドタキャン', 'キャンセル'] as const
+export const PAYMENT_METHODS = ['stripe(一括)', '銀行振込', 'stripe(分割)', 'その他'] as const
+export const AI_EXPERIENCES = [
+  'ほぼ未経験（名前だけ知っている）',
+  '触ったことはある（使ったことはあるが、使い道がよく分からない）',
+  '業務や日常で少し使っている（調べ物・文章作成・要約・アイデア出しなどに使ったことがある）',
+  '日常的に活用している',
+] as const
+
 export type WeeklyLog = {
   id: string
   log_date: string
