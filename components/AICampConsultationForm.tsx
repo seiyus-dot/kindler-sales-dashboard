@@ -36,6 +36,7 @@ export default function AICampConsultationForm({ members, initial, onClose, onSa
     ai_purpose: initial?.ai_purpose ?? '',
     expectation: initial?.expectation ?? '',
     question: initial?.question ?? '',
+    service_type: initial?.service_type ?? 'AI CAMP',
   })
   const [sourceMasters, setSourceMasters] = useState<SourceMaster[]>([])
   const [saving, setSaving] = useState(false)
@@ -91,6 +92,7 @@ export default function AICampConsultationForm({ members, initial, onClose, onSa
       ai_purpose: form.ai_purpose || null,
       expectation: form.expectation || null,
       question: form.question || null,
+      service_type: form.service_type,
     }
     const { error: err } = initial
       ? await supabase.from('aicamp_consultations').update(payload).eq('id', initial.id)
@@ -129,6 +131,12 @@ export default function AICampConsultationForm({ members, initial, onClose, onSa
 
           <Field label="年齢">
             <input type="number" value={form.age} onChange={e => set('age', e.target.value)} className="input font-mono" placeholder="44" />
+          </Field>
+          <Field label="サービス区分">
+            <select value={form.service_type} onChange={e => set('service_type', e.target.value)} className="input">
+              <option>AI CAMP</option>
+              <option>プロダクト AI CAMP</option>
+            </select>
           </Field>
           <Field label="ステータス">
             <select value={form.status} onChange={e => set('status', e.target.value)} className="input">

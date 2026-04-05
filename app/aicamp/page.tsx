@@ -27,6 +27,7 @@ export default function AICampPage() {
   const [goal, setGoal] = useState<AICampMonthlyGoal | null>(null)
   const [editingGoal, setEditingGoal] = useState(false)
   const [goalInput, setGoalInput] = useState('')
+  const [productGoalInput, setProductGoalInput] = useState('')
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editTarget, setEditTarget] = useState<AICampConsultation | null>(null)
@@ -62,7 +63,8 @@ export default function AICampPage() {
     if (consRes.data) setConsultations(consRes.data)
     if (membersRes.data) setMembers(membersRes.data)
     setGoal(goalRes.data ?? null)
-    setGoalInput(goalRes.data?.contract_goal?.toString() ?? '50')
+    setGoalInput(goalRes.data?.contract_goal?.toString() ?? '0')
+    setProductGoalInput(goalRes.data?.product_contract_goal?.toString() ?? '0')
     setAdWeekly(adRes.data ?? [])
     setLoading(false)
   }
@@ -73,12 +75,12 @@ export default function AICampPage() {
   }
 
   async function saveGoal() {
-    const val = parseInt(goalInput)
-    if (isNaN(val)) return
+    const val = parseInt(goalInput) || 0
+    const pval = parseInt(productGoalInput) || 0
     if (goal) {
-      await supabase.from('aicamp_monthly_goals').update({ contract_goal: val }).eq('id', goal.id)
+      await supabase.from('aicamp_monthly_goals').update({ contract_goal: val, product_contract_goal: pval }).eq('id', goal.id)
     } else {
-      await supabase.from('aicamp_monthly_goals').insert({ month, contract_goal: val })
+      await supabase.from('aicamp_monthly_goals').insert({ month, contract_goal: val, product_contract_goal: pval })
     }
     setEditingGoal(false)
     fetchAll()
@@ -204,7 +206,8 @@ export default function AICampPage() {
     fetchAll()
   }
 
-  const contractGoal = goal?.contract_goal ?? 50
+  const contractGoal = goal?.contract_goal ?? 0
+  const productContractGoal = goal?.product_contract_goal ?? 0
   const filtered = consultations.filter(c => {
     if (filterMember && c.member_id !== filterMember) return false
     if (filterStatus && c.status !== filterStatus) return false
@@ -214,6 +217,8 @@ export default function AICampPage() {
   // KPI集計（月全体）
   const contracted = consultations.filter(c => c.status === '成約')
   const metaContracted = contracted.filter(c => c.source?.toLowerCase().includes('meta'))
+  const aicampContracted = contracted.filter(c => (c.service_type ?? 'AI CAMP') === 'AI CAMP')
+  const productContracted = contracted.filter(c => c.service_type === 'プロダクト AI CAMP')
   const held = consultations.filter(c => c.status === '保留')
   const conducted = consultations.filter(c => ['成約', '失注', '保留'].includes(c.status ?? ''))
   const cancelled = consultations.filter(c => ['ドタキャン', 'キャンセル'].includes(c.status ?? ''))
@@ -223,7 +228,8 @@ export default function AICampPage() {
   const totalRevenue = contracted.reduce((s, c) => s + (c.payment_amount ?? 0), 0)
   const metaRevenue = metaContracted.reduce((s, c) => s + (c.payment_amount ?? 0), 0)
   const nonMetaRevenue = totalRevenue - metaRevenue
-  const progressPct = Math.min(Math.round(contracted.length / contractGoal * 100), 100)
+  const progressPct = contractGoal > 0 ? Math.min(Math.round(aicampContracted.length / contractGoal * 100), 100) : 0
+  const productProgressPct = productContractGoal > 0 ? Math.min(Math.round(productContracted.length / productContractGoal * 100), 100) : 0
 
   // 担当者別KPI
   const memberStats = members.map(m => {
@@ -305,40 +311,52 @@ export default function AICampPage() {
       </div>
 
       {/* 目標進捗 */}
-      <div className="bg-white border border-gray-200 rounded p-5">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-bold text-gray-500">{monthLabel} 成約目標</span>
-            {editingGoal ? (
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  value={goalInput}
-                  onChange={e => setGoalInput(e.target.value)}
-                  className="w-20 border border-blue-300 rounded px-2 py-1 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400"
-                />
-                <button onClick={saveGoal} className="text-sm text-white bg-blue-600 px-3 py-1 rounded hover:bg-blue-700 transition">保存</button>
-                <button onClick={() => setEditingGoal(false)} className="text-sm text-gray-400 hover:text-gray-600">取消</button>
+      <div className="bg-white border border-gray-200 rounded p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-bold text-gray-500">{monthLabel} 成約目標</span>
+          {editingGoal ? (
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                <span>AI CAMP</span>
+                <input type="number" value={goalInput} onChange={e => setGoalInput(e.target.value)}
+                  className="w-16 border border-blue-300 rounded px-2 py-1 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                <span>件</span>
               </div>
-            ) : (
-              <button onClick={() => setEditingGoal(true)} className="text-sm text-blue-500 hover:underline">
-                目標 {contractGoal}件 を変更
-              </button>
-            )}
+              <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                <span>プロダクト</span>
+                <input type="number" value={productGoalInput} onChange={e => setProductGoalInput(e.target.value)}
+                  className="w-16 border border-blue-300 rounded px-2 py-1 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                <span>件</span>
+              </div>
+              <button onClick={saveGoal} className="text-sm text-white bg-blue-600 px-3 py-1 rounded hover:bg-blue-700 transition">保存</button>
+              <button onClick={() => setEditingGoal(false)} className="text-sm text-gray-400 hover:text-gray-600">取消</button>
+            </div>
+          ) : (
+            <button onClick={() => setEditingGoal(true)} className="text-xs text-blue-500 hover:underline">目標を変更</button>
+          )}
+        </div>
+        {[
+          { label: 'AI CAMP', actual: aicampContracted.length, goal: contractGoal, pct: progressPct },
+          { label: 'プロダクト AI CAMP', actual: productContracted.length, goal: productContractGoal, pct: productProgressPct },
+        ].map(row => (
+          <div key={row.label}>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs text-gray-500 font-medium">{row.label}</span>
+              <span className="text-sm font-black font-mono text-gray-800">
+                {row.actual} <span className="text-xs font-bold text-gray-400">/ {row.goal}件</span>
+              </span>
+            </div>
+            <div className="w-full bg-gray-100 rounded-full h-2.5">
+              <div
+                className={`h-2.5 rounded-full transition-all ${row.pct >= 100 ? 'bg-green-500' : row.pct >= 60 ? 'bg-blue-500' : 'bg-amber-400'}`}
+                style={{ width: `${row.pct}%` }}
+              />
+            </div>
+            <p className="text-xs text-gray-400 mt-1">
+              {row.pct}% 達成{row.goal > 0 ? ` — あと ${Math.max(row.goal - row.actual, 0)}件` : ''}
+            </p>
           </div>
-          <span className="text-2xl font-black font-mono text-gray-900">
-            {contracted.length} <span className="text-base font-bold text-gray-400">/ {contractGoal}件</span>
-          </span>
-        </div>
-        <div className="w-full bg-gray-100 rounded-full h-3">
-          <div
-            className={`h-3 rounded-full transition-all ${progressPct >= 100 ? 'bg-green-500' : progressPct >= 60 ? 'bg-blue-500' : 'bg-amber-400'}`}
-            style={{ width: `${progressPct}%` }}
-          />
-        </div>
-        <p className="text-xs text-gray-400 mt-1.5">
-          {progressPct}% 達成 — あと {Math.max(contractGoal - contracted.length, 0)}件で目標達成
-        </p>
+        ))}
       </div>
 
       {/* サマリーKPI */}
@@ -620,14 +638,14 @@ export default function AICampPage() {
                     className="rounded"
                   />
                 </th>
-                {['実施日時', '担当者', '氏名', '流入経路', 'ステータス', '着金額', '返事期限', ''].map(h => (
+                {['実施日時', 'サービス', '担当者', 'LINE名', '氏名', '年齢', '流入経路', '登録経路', 'ステータス', '着金額', '着金日', '支払方法', '返事期限', '職業', '月収', 'AI経験', '顧客属性', '動機', '理由', '議事録', ''].map(h => (
                   <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={9} className="text-center py-10 text-gray-400">商談がありません</td></tr>
+                <tr><td colSpan={22} className="text-center py-10 text-gray-400">商談がありません</td></tr>
               ) : filtered.map(c => {
                 const isEditing = inlineEditId === c.id
                 return (
@@ -656,6 +674,8 @@ export default function AICampPage() {
                         </span>
                       )}
                     </td>
+                    {/* サービス区分 */}
+                    <td className="px-4 py-2.5 whitespace-nowrap text-xs text-gray-600">{c.service_type ?? 'AI CAMP'}</td>
                     <td className="px-4 py-2.5 whitespace-nowrap" onClick={e => isEditing && e.stopPropagation()}>
                       {isEditing ? (
                         <select
@@ -679,12 +699,12 @@ export default function AICampPage() {
                           placeholder="氏名"
                         />
                       ) : (
-                        <>
-                          <div className="font-medium text-gray-800">{c.name ?? c.line_name ?? '-'}</div>
-                          {c.occupation && <div className="text-xs text-gray-400">{c.occupation}</div>}
-                        </>
+                        <span className="font-medium text-gray-800">{c.name ?? '-'}</span>
                       )}
                     </td>
+                    {/* LINE名・年齢（静的） */}
+                    <td className="px-4 py-2.5 text-xs text-gray-500 whitespace-nowrap">{c.line_name ?? '-'}</td>
+                    <td className="px-4 py-2.5 text-xs text-gray-500 font-mono">{c.age ?? '-'}</td>
                     <td className="px-4 py-2.5 max-w-[160px]" onClick={e => isEditing && e.stopPropagation()}>
                       {isEditing ? (
                         <input
@@ -727,6 +747,12 @@ export default function AICampPage() {
                         </span>
                       )}
                     </td>
+                    {/* 着金日・支払方法・登録経路（静的） */}
+                    <td className="px-4 py-2.5 text-xs text-gray-500 whitespace-nowrap">{c.payment_date ?? '-'}</td>
+                    <td className="px-4 py-2.5 text-xs text-gray-500 whitespace-nowrap">{c.payment_method ?? '-'}</td>
+                    <td className="px-4 py-2.5 text-xs text-gray-500 max-w-[160px]">
+                      <span className="line-clamp-1">{c.registration_source ?? '-'}</span>
+                    </td>
                     <td className="px-4 py-2.5" onClick={e => isEditing && e.stopPropagation()}>
                       {isEditing ? (
                         <input
@@ -738,6 +764,26 @@ export default function AICampPage() {
                       ) : (
                         <span className="text-xs text-gray-500">{c.reply_deadline ?? '-'}</span>
                       )}
+                    </td>
+                    {/* 静的列（詳細情報） */}
+                    <td className="px-4 py-2.5 text-xs text-gray-500 whitespace-nowrap">{c.occupation ?? '-'}</td>
+                    <td className="px-4 py-2.5 text-xs text-gray-500 whitespace-nowrap">{c.monthly_income ?? '-'}</td>
+                    <td className="px-4 py-2.5 text-xs text-gray-400 max-w-[160px]">
+                      <span className="line-clamp-2">{c.ai_experience ?? '-'}</span>
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-gray-400 max-w-[160px]">
+                      <span className="line-clamp-2">{c.customer_attribute ?? '-'}</span>
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-gray-400 max-w-[200px]">
+                      <span className="line-clamp-2">{c.motivation ?? '-'}</span>
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-gray-400 max-w-[160px]">
+                      <span className="line-clamp-2">{c.reason ?? '-'}</span>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {c.minutes_url
+                        ? <a href={c.minutes_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline" onClick={e => e.stopPropagation()}>開く</a>
+                        : <span className="text-xs text-gray-300">-</span>}
                     </td>
                     <td className="px-4 py-2.5" onClick={e => e.stopPropagation()}>
                       <div className="flex gap-2 justify-end whitespace-nowrap">

@@ -154,6 +154,7 @@ export type AICampConsultation = {
   ai_purpose?: string
   expectation?: string
   question?: string
+  service_type?: string
   created_at: string
   updated_at: string
   member?: Member
@@ -182,6 +183,7 @@ export type AICampMonthlyGoal = {
   id: string
   month: string
   contract_goal: number
+  product_contract_goal: number
   created_at: string
 }
 
