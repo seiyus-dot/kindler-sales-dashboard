@@ -384,7 +384,7 @@ export default function AIImport({ members, onImported }: Props) {
                           {Object.entries(row).filter(([k]) => k !== '_isDuplicate').map(([k, v]) => (
                             <td key={k} className="px-3 py-1.5 text-gray-700 whitespace-nowrap max-w-[150px] truncate">{String(v ?? '-')}</td>
                           ))}
-                          {row._isDuplicate && (
+                          {!!row._isDuplicate && (
                             <td className="px-2 py-1.5 text-amber-600 text-xs font-semibold whitespace-nowrap">重複?</td>
                           )}
                         </tr>
