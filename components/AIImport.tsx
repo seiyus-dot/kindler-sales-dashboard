@@ -19,8 +19,24 @@ type PreviewResult = {
   rows: Record<string, unknown>[]
 }
 
+function parseText(text: string): Record<string, unknown>[] {
+  const lines = text.trim().split('\n').filter(l => l.trim())
+  if (lines.length < 2) return []
+  // タブ区切り or カンマ区切りを自動判定
+  const delimiter = lines[0].includes('\t') ? '\t' : ','
+  const headers = lines[0].split(delimiter).map(h => h.trim().replace(/^"|"$/g, ''))
+  return lines.slice(1).map(line => {
+    const values = line.split(delimiter).map(v => v.trim().replace(/^"|"$/g, ''))
+    const row: Record<string, unknown> = {}
+    headers.forEach((h, i) => { row[h] = values[i] ?? '' })
+    return row
+  })
+}
+
 export default function AIImport({ members, onImported }: Props) {
   const [open, setOpen] = useState(false)
+  const [inputMode, setInputMode] = useState<'file' | 'text'>('text')
+  const [pasteText, setPasteText] = useState('')
   const [memberId, setMemberId] = useState('')
   const [step, setStep] = useState<'upload' | 'preview' | 'done'>('upload')
   const [loading, setLoading] = useState(false)
@@ -34,37 +50,20 @@ export default function AIImport({ members, onImported }: Props) {
     setStep('upload')
     setResult(null)
     setImported(null)
+    setPasteText('')
     if (fileRef.current) fileRef.current.value = ''
   }
 
-  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setLoading(true)
-
-    const XLSX = await import('xlsx')
-    const buffer = await file.arrayBuffer()
-    const workbook = XLSX.read(buffer, { type: 'array', cellDates: true })
-    const sheetName = workbook.SheetNames[0]
-    const sheet = workbook.Sheets[sheetName]
-    const rawRows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(sheet, { defval: '' })
-
-    if (rawRows.length === 0) {
-      setLoading(false)
-      return
-    }
-
+  async function analyzeRows(rawRows: Record<string, unknown>[]) {
+    if (rawRows.length === 0) { setLoading(false); return }
     const headers = Object.keys(rawRows[0])
-    const sampleRows = rawRows.slice(0, 5)
-    const allRows = rawRows
-
     const res = await fetch('/api/ai-format-import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         headers,
-        sampleRows,
-        allRows,
+        sampleRows: rawRows.slice(0, 5),
+        allRows: rawRows,
         defaultMemberId: memberId || null,
         members: members.map(m => ({ id: m.id, name: m.name })),
       }),
@@ -73,6 +72,24 @@ export default function AIImport({ members, onImported }: Props) {
     setResult(data)
     setStep('preview')
     setLoading(false)
+  }
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setLoading(true)
+    const XLSX = await import('xlsx')
+    const buffer = await file.arrayBuffer()
+    const workbook = XLSX.read(buffer, { type: 'array', cellDates: true })
+    const sheet = workbook.Sheets[workbook.SheetNames[0]]
+    const rawRows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(sheet, { defval: '' })
+    await analyzeRows(rawRows)
+  }
+
+  async function handlePaste() {
+    if (!pasteText.trim()) return
+    setLoading(true)
+    await analyzeRows(parseText(pasteText))
   }
 
   async function handleImport() {
@@ -115,34 +132,64 @@ export default function AIImport({ members, onImported }: Props) {
 
         {/* ステップ: アップロード */}
         {step === 'upload' && (
-          <div className="p-6 space-y-5">
-            <div className="bg-indigo-50 border border-indigo-100 rounded p-3 text-sm text-indigo-700">
-              Excel（.xlsx）または CSV（.csv）をアップロードすると、AIが列を解析して自動でマッピングします。
-              対応テーブル：個人案件 / 法人案件 / AI CAMP商談
+          <div className="p-6 space-y-4">
+            {/* モード切り替え */}
+            <div className="flex gap-1 bg-gray-100 p-1 rounded text-sm">
+              {(['text', 'file'] as const).map(mode => (
+                <button
+                  key={mode}
+                  onClick={() => setInputMode(mode)}
+                  className={`flex-1 py-1.5 rounded font-medium transition ${inputMode === mode ? 'bg-white shadow text-gray-900' : 'text-gray-500'}`}
+                >
+                  {mode === 'text' ? 'テキスト貼り付け' : 'ファイル（Excel / CSV）'}
+                </button>
+              ))}
             </div>
 
             <div className="space-y-1.5">
               <label className="block text-xs font-semibold text-gray-500">デフォルト担当者（任意）</label>
               <select value={memberId} onChange={e => setMemberId(e.target.value)} className="input">
-                <option value="">未割り当て</option>
+                <option value="">未割り当て（データ内の担当者名を自動照合）</option>
                 {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
               </select>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-gray-500">ファイル（.xlsx / .csv）</label>
-              <input
-                ref={fileRef}
-                type="file"
-                accept=".xlsx,.xls,.csv"
-                onChange={handleFile}
-                disabled={loading}
-                className="block w-full text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 disabled:opacity-50"
-              />
-            </div>
+            {inputMode === 'text' ? (
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold text-gray-500">
+                  データを貼り付け（スプレッドシートからコピー、またはCSV/TSVテキスト）
+                </label>
+                <textarea
+                  value={pasteText}
+                  onChange={e => setPasteText(e.target.value)}
+                  className="input h-40 resize-none font-mono text-xs"
+                  placeholder={'列名1\t列名2\t列名3\n値1\t値2\t値3\n...'}
+                  disabled={loading}
+                />
+                <button
+                  onClick={handlePaste}
+                  disabled={loading || !pasteText.trim()}
+                  className="w-full py-2 text-sm font-medium text-white bg-indigo-600 rounded hover:bg-indigo-700 disabled:opacity-50 transition"
+                >
+                  {loading ? 'AIが解析中...' : '解析する'}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-gray-500">ファイル（.xlsx / .xls / .csv）</label>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={handleFile}
+                  disabled={loading}
+                  className="block w-full text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 disabled:opacity-50"
+                />
+              </div>
+            )}
 
             {loading && (
-              <div className="text-center py-6 space-y-2">
+              <div className="text-center py-4 space-y-2">
                 <div className="text-sm text-gray-500">AIが列を解析中...</div>
                 <div className="flex justify-center gap-1">
                   {[0, 1, 2].map(i => (
@@ -212,7 +259,7 @@ export default function AIImport({ members, onImported }: Props) {
             </div>
 
             <div className="flex justify-between items-center px-6 py-4 border-t border-gray-100">
-              <button onClick={() => { setStep('upload'); setResult(null); if (fileRef.current) fileRef.current.value = '' }} className="text-sm text-gray-400 hover:text-gray-600">やり直す</button>
+              <button onClick={() => { setStep('upload'); setResult(null); setPasteText(''); if (fileRef.current) fileRef.current.value = '' }} className="text-sm text-gray-400 hover:text-gray-600">やり直す</button>
               <button
                 onClick={handleImport}
                 disabled={importing}
