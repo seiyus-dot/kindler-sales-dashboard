@@ -16,6 +16,7 @@ type PreviewResult = {
   preview: Record<string, unknown>[]
   totalRows: number
   skippedCount: number
+  duplicateCount: number
   rows: Record<string, unknown>[]
 }
 
@@ -237,6 +238,11 @@ export default function AIImport({ members, onImported }: Props) {
                   {result.totalRows}件をインポート
                   {result.skippedCount > 0 && `（${result.skippedCount}件スキップ）`}
                 </p>
+                {result.duplicateCount > 0 && (
+                  <p className="text-xs font-semibold text-amber-600">
+                    重複の可能性: {result.duplicateCount}件（既存データと名前が一致）— インポートすると二重登録になります
+                  </p>
+                )}
               </div>
 
               {/* マッピング表示 */}
@@ -260,17 +266,20 @@ export default function AIImport({ members, onImported }: Props) {
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="bg-gray-50 border-b border-gray-100">
-                        {Object.keys(result.preview[0] ?? {}).map(k => (
+                        {Object.keys(result.preview[0] ?? {}).filter(k => k !== '_isDuplicate').map(k => (
                           <th key={k} className="px-3 py-2 text-left text-gray-400 font-semibold whitespace-nowrap">{k}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {result.preview.map((row, i) => (
-                        <tr key={i} className="border-b border-gray-50">
-                          {Object.values(row).map((v, j) => (
-                            <td key={j} className="px-3 py-1.5 text-gray-700 whitespace-nowrap max-w-[150px] truncate">{String(v ?? '-')}</td>
+                        <tr key={i} className={`border-b ${row._isDuplicate ? 'bg-amber-50' : 'border-gray-50'}`}>
+                          {Object.entries(row).filter(([k]) => k !== '_isDuplicate').map(([k, v]) => (
+                            <td key={k} className="px-3 py-1.5 text-gray-700 whitespace-nowrap max-w-[150px] truncate">{String(v ?? '-')}</td>
                           ))}
+                          {row._isDuplicate && (
+                            <td className="px-2 py-1.5 text-amber-600 text-xs font-semibold whitespace-nowrap">重複?</td>
+                          )}
                         </tr>
                       ))}
                     </tbody>

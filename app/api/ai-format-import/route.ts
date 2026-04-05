@@ -209,15 +209,42 @@ ${Object.entries(SCHEMAS).map(([key, s]) => `
     mappedRows.push(mapped)
   }
 
+  // 重複検知：既存データと照合
+  const dupKey = targetTable === 'deals_tob' ? 'company_name'
+    : targetTable === 'deals_toc' ? 'name'
+    : 'name' // aicamp_consultations
+  const keyValues = mappedRows.map(r => r[dupKey]).filter(Boolean) as string[]
+
+  let duplicateKeys = new Set<string>()
+  if (keyValues.length > 0) {
+    const { data: existing } = await supabase
+      .from(targetTable)
+      .select(dupKey === 'name' && targetTable === 'aicamp_consultations'
+        ? 'name, consultation_date'
+        : dupKey)
+      .in(dupKey, keyValues)
+    if (existing && existing.length > 0) {
+      duplicateKeys = new Set(existing.map((r: Record<string, unknown>) => String(r[dupKey] ?? '')))
+    }
+  }
+
+  const rowsWithDupFlag = mappedRows.map(r => ({
+    ...r,
+    _isDuplicate: duplicateKeys.has(String(r[dupKey] ?? '')),
+  }))
+
+  const duplicateCount = rowsWithDupFlag.filter(r => r._isDuplicate).length
+
   return NextResponse.json({
     targetTable,
     targetLabel: schema.label,
     reason,
     mappings,
-    preview: mappedRows.slice(0, 5),
-    totalRows: mappedRows.length,
+    preview: rowsWithDupFlag.slice(0, 5),
+    totalRows: rowsWithDupFlag.length,
     skippedCount: skipped.length,
-    rows: mappedRows,
+    duplicateCount,
+    rows: rowsWithDupFlag,
   })
 }
 
@@ -230,7 +257,9 @@ export async function PUT(req: NextRequest) {
 
   const results = { inserted: 0, errors: [] as string[] }
   for (const row of rows) {
-    const { error } = await supabase.from(targetTable).insert(row)
+    // _isDuplicate フラグはDBに送らない
+    const { _isDuplicate, ...cleanRow } = row as Record<string, unknown> & { _isDuplicate?: boolean }
+    const { error } = await supabase.from(targetTable).insert(cleanRow)
     if (error) results.errors.push(error.message)
     else results.inserted++
   }
