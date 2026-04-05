@@ -115,11 +115,29 @@ export default function AIImport({ members, onImported }: Props) {
     const file = e.target.files?.[0]
     if (!file) return
     setLoading(true)
-    const XLSX = await import('xlsx')
     const buffer = await file.arrayBuffer()
-    // CSV は Shift-JIS (codepage 932) で読む。xlsx/xls はそのまま
-    const isCsv = file.name.toLowerCase().endsWith('.csv')
-    const workbook = XLSX.read(buffer, { type: 'array', cellDates: true, ...(isCsv ? { codepage: 932 } : {}) })
+
+    if (file.name.toLowerCase().endsWith('.csv')) {
+      // CSV: UTF-8 BOM → UTF-8、それ以外は Shift-JIS を試みて失敗したら UTF-8
+      const bytes = new Uint8Array(buffer)
+      const hasUtf8Bom = bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF
+      let text: string
+      if (hasUtf8Bom) {
+        text = new TextDecoder('utf-8').decode(buffer)
+      } else {
+        try {
+          text = new TextDecoder('shift-jis').decode(buffer)
+        } catch {
+          text = new TextDecoder('utf-8').decode(buffer)
+        }
+      }
+      await analyzeRows(parseText(text, hasHeader))
+      return
+    }
+
+    // Excel (.xlsx / .xls)
+    const XLSX = await import('xlsx')
+    const workbook = XLSX.read(buffer, { type: 'array', cellDates: true })
     const sheet = workbook.Sheets[workbook.SheetNames[0]]
     const rawRows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(sheet, { defval: '' })
     await analyzeRows(rawRows)
