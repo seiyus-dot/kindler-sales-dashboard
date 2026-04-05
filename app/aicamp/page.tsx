@@ -39,7 +39,7 @@ export default function AICampPage() {
     const [consRes, membersRes, goalRes] = await Promise.all([
       supabase
         .from('aicamp_consultations')
-        .select('*, member:members!member_id(name)')
+        .select('*, member:members(name)')
         .gte('consultation_date', `${month}-01`)
         .lt('consultation_date', nextMonth(month))
         .order('consultation_date', { ascending: false }),
