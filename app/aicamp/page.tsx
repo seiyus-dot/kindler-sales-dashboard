@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase, AICampConsultation, AICampMonthlyGoal, Member } from '@/lib/supabase'
 import AICampConsultationForm from '@/components/AICampConsultationForm'
+import AIImport from '@/components/AIImport'
 
 const STATUS_COLORS: Record<string, string> = {
   '成約':     'bg-green-100 text-green-700',
@@ -131,6 +132,7 @@ export default function AICampPage() {
             onChange={e => setMonth(e.target.value)}
             className="border border-gray-200 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
           />
+          <AIImport members={members} onImported={fetchAll} />
           <button
             onClick={() => { setEditTarget(null); setShowForm(true) }}
             className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 transition"
