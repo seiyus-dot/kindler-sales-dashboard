@@ -1,7 +1,6 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import * as XLSX from 'xlsx'
 import { Member } from '@/lib/supabase'
 
 type Props = {
@@ -43,6 +42,7 @@ export default function AIImport({ members, onImported }: Props) {
     if (!file) return
     setLoading(true)
 
+    const XLSX = await import('xlsx')
     const buffer = await file.arrayBuffer()
     const workbook = XLSX.read(buffer, { type: 'array', cellDates: true })
     const sheetName = workbook.SheetNames[0]
