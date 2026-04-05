@@ -117,7 +117,9 @@ export default function AIImport({ members, onImported }: Props) {
     setLoading(true)
     const XLSX = await import('xlsx')
     const buffer = await file.arrayBuffer()
-    const workbook = XLSX.read(buffer, { type: 'array', cellDates: true })
+    // CSV は Shift-JIS (codepage 932) で読む。xlsx/xls はそのまま
+    const isCsv = file.name.toLowerCase().endsWith('.csv')
+    const workbook = XLSX.read(buffer, { type: 'array', cellDates: true, ...(isCsv ? { codepage: 932 } : {}) })
     const sheet = workbook.Sheets[workbook.SheetNames[0]]
     const rawRows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(sheet, { defval: '' })
     await analyzeRows(rawRows)

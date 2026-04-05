@@ -202,9 +202,11 @@ ${Object.entries(SCHEMAS).map(([key, s]) => `
       mapped[field] = strVal
     }
 
-    // 必須フィールドチェック
+    // 必須フィールドチェック（空行スキップ）
     if (targetTable === 'deals_toc' && !mapped.name) continue
     if (targetTable === 'deals_tob' && !mapped.company_name) continue
+    // aicamp_consultations: 名前・LINE名・日付が全て空の行はスキップ
+    if (targetTable === 'aicamp_consultations' && !mapped.name && !mapped.line_name && !mapped.consultation_date) continue
 
     mappedRows.push(mapped)
   }
