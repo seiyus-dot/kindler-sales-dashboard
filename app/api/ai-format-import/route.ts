@@ -62,7 +62,7 @@ const SCHEMAS = {
       minutes_url: '議事録URL',
       reply_deadline: '返事の期限',
     },
-    statusMap: { '確定': '成約', '入金待ち': '保留', 'キャンセル': 'キャンセル', '成約': '成約', '失注': '失注', 'ドタキャン': 'ドタキャン', '保留': '保留' } as Record<string, string>,
+    statusMap: { '確定': '成約', '入金待ち': '保留', 'キャンセル': 'キャンセル', '成約': '成約', '失注': '失注', 'ドタキャン': 'ドタキャン', 'ドタキャン（無断）': 'ドタキャン', '保留': '保留' } as Record<string, string>,
   },
 }
 
@@ -153,6 +153,9 @@ ${Object.entries(SCHEMAS).map(([key, s]) => `
 
       const field = dstField as string
 
+      // #N/A は全フィールドで空値扱い
+      if (String(val) === '#N/A' || String(val) === 'N/A') continue
+
       // 担当者名 → UUID変換
       if (field === 'member_id') {
         const resolved = resolveMemberId(String(val))
@@ -167,20 +170,36 @@ ${Object.entries(SCHEMAS).map(([key, s]) => `
         continue
       }
 
-      // 日付フィールド
+      // 日付フィールド（「2026/04/01(水) 19:00-20:00」など日本語混じり形式にも対応）
       if (['first_contact_date', 'last_contact_date', 'next_action_date', 'payment_date', 'reply_deadline', 'consultation_date'].includes(field)) {
-        const d = new Date(String(val))
-        if (!isNaN(d.getTime())) mapped[field] = d.toISOString().slice(0, 10)
+        const str = String(val)
+        // YYYY/MM/DD または YYYY-MM-DD の日付部分だけ抽出
+        const match = str.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/)
+        if (match) {
+          const y = match[1], m = match[2].padStart(2, '0'), d = match[3].padStart(2, '0')
+          mapped[field] = `${y}-${m}-${d}`
+        }
         continue
       }
 
-      // ステータス正規化
+      // ステータス正規化（前方一致も考慮：「ドタキャン（無断）」→「ドタキャン」）
       if (field === 'status') {
-        mapped[field] = schema.statusMap[String(val)] ?? val
+        const s = String(val)
+        const exact = schema.statusMap[s]
+        if (exact) {
+          mapped[field] = exact
+        } else {
+          const partial = Object.keys(schema.statusMap).find(k => s.startsWith(k))
+          mapped[field] = partial ? schema.statusMap[partial] : s
+        }
         continue
       }
 
-      mapped[field] = String(val)
+      // #N/A は空値として扱う
+      const strVal = String(val)
+      if (strVal === '#N/A' || strVal === 'N/A') continue
+
+      mapped[field] = strVal
     }
 
     // 必須フィールドチェック
