@@ -21,17 +21,43 @@ type PreviewResult = {
 }
 
 function parseText(text: string, hasHeader: boolean): Record<string, unknown>[] {
-  const lines = text.trim().split('\n').filter(l => l.trim())
-  if (lines.length === 0) return []
-  // タブ区切り or カンマ区切りを自動判定
-  const delimiter = lines[0].includes('\t') ? '\t' : ','
+  // クォート内の改行を含む TSV/CSV に対応した本格パーサー
+  const delimiter = text.split('\n')[0].includes('\t') ? '\t' : ','
+  const rows: string[][] = []
+  let currentRow: string[] = []
+  let currentField = ''
+  let inQuotes = false
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    if (ch === '"') {
+      if (inQuotes && text[i + 1] === '"') { currentField += '"'; i++ }
+      else inQuotes = !inQuotes
+    } else if (ch === delimiter && !inQuotes) {
+      currentRow.push(currentField.trim())
+      currentField = ''
+    } else if (ch === '\n' && !inQuotes) {
+      currentRow.push(currentField.trim())
+      if (currentRow.some(f => f.length > 0)) rows.push(currentRow)
+      currentRow = []
+      currentField = ''
+    } else if (ch === '\r') {
+      // skip
+    } else {
+      currentField += ch
+    }
+  }
+  if (currentField || currentRow.length > 0) {
+    currentRow.push(currentField.trim())
+    if (currentRow.some(f => f.length > 0)) rows.push(currentRow)
+  }
+
+  if (rows.length === 0) return []
   const headers = hasHeader
-    ? lines[0].split(delimiter).map(h => h.trim().replace(/^"|"$/g, ''))
-    : lines[0].split(delimiter).map((_, i) => `列${i + 1}`)
-  const dataLines = hasHeader ? lines.slice(1) : lines
-  if (dataLines.length === 0) return []
-  return dataLines.map(line => {
-    const values = line.split(delimiter).map(v => v.trim().replace(/^"|"$/g, ''))
+    ? rows[0].map(h => h.replace(/^"|"$/g, ''))
+    : rows[0].map((_, i) => `列${i + 1}`)
+  const dataRows = hasHeader ? rows.slice(1) : rows
+  return dataRows.map(values => {
     const row: Record<string, unknown> = {}
     headers.forEach((h, i) => { row[h] = values[i] ?? '' })
     return row
