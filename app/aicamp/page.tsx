@@ -55,7 +55,7 @@ export default function AICampPage() {
 
   function nextMonth(m: string) {
     const [y, mo] = m.split('-').map(Number)
-    return mo === 12 ? `${y + 1}-01` : `${y}-${String(mo + 1).padStart(2, '0')}`
+    return mo === 12 ? `${y + 1}-01-01` : `${y}-${String(mo + 1).padStart(2, '0')}-01`
   }
 
   async function saveGoal() {
