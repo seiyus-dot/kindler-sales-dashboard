@@ -19,13 +19,17 @@ type PreviewResult = {
   rows: Record<string, unknown>[]
 }
 
-function parseText(text: string): Record<string, unknown>[] {
+function parseText(text: string, hasHeader: boolean): Record<string, unknown>[] {
   const lines = text.trim().split('\n').filter(l => l.trim())
-  if (lines.length < 2) return []
+  if (lines.length === 0) return []
   // タブ区切り or カンマ区切りを自動判定
   const delimiter = lines[0].includes('\t') ? '\t' : ','
-  const headers = lines[0].split(delimiter).map(h => h.trim().replace(/^"|"$/g, ''))
-  return lines.slice(1).map(line => {
+  const headers = hasHeader
+    ? lines[0].split(delimiter).map(h => h.trim().replace(/^"|"$/g, ''))
+    : lines[0].split(delimiter).map((_, i) => `列${i + 1}`)
+  const dataLines = hasHeader ? lines.slice(1) : lines
+  if (dataLines.length === 0) return []
+  return dataLines.map(line => {
     const values = line.split(delimiter).map(v => v.trim().replace(/^"|"$/g, ''))
     const row: Record<string, unknown> = {}
     headers.forEach((h, i) => { row[h] = values[i] ?? '' })
@@ -37,6 +41,7 @@ export default function AIImport({ members, onImported }: Props) {
   const [open, setOpen] = useState(false)
   const [inputMode, setInputMode] = useState<'file' | 'text'>('text')
   const [pasteText, setPasteText] = useState('')
+  const [hasHeader, setHasHeader] = useState(true)
   const [memberId, setMemberId] = useState('')
   const [step, setStep] = useState<'upload' | 'preview' | 'done'>('upload')
   const [loading, setLoading] = useState(false)
@@ -94,7 +99,7 @@ export default function AIImport({ members, onImported }: Props) {
   async function handlePaste() {
     if (!pasteText.trim()) return
     setLoading(true)
-    await analyzeRows(parseText(pasteText))
+    await analyzeRows(parseText(pasteText, hasHeader))
   }
 
   async function handleImport() {
@@ -161,9 +166,20 @@ export default function AIImport({ members, onImported }: Props) {
 
             {inputMode === 'text' ? (
               <div className="space-y-2">
-                <label className="block text-xs font-semibold text-gray-500">
-                  データを貼り付け（スプレッドシートからコピー、またはCSV/TSVテキスト）
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-semibold text-gray-500">
+                    データを貼り付け（スプレッドシートからコピー、またはCSV/TSVテキスト）
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={hasHeader}
+                      onChange={e => setHasHeader(e.target.checked)}
+                      className="rounded"
+                    />
+                    1行目はヘッダー
+                  </label>
+                </div>
                 <textarea
                   value={pasteText}
                   onChange={e => setPasteText(e.target.value)}
