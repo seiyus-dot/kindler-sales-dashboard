@@ -112,6 +112,8 @@ export default function AIImport({ members, onImported }: Props) {
   const [result, setResult] = useState<PreviewResult | null>(null)
   const [imported, setImported] = useState<{ inserted: number; errors: string[] } | null>(null)
   const [importing, setImporting] = useState(false)
+  const [lastRawRows, setLastRawRows] = useState<Record<string, unknown>[]>([])
+  const [changingTable, setChangingTable] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   function close() {
@@ -123,8 +125,9 @@ export default function AIImport({ members, onImported }: Props) {
     if (fileRef.current) fileRef.current.value = ''
   }
 
-  async function analyzeRows(rawRows: Record<string, unknown>[]) {
+  async function analyzeRows(rawRows: Record<string, unknown>[], forceTable?: string) {
     if (rawRows.length === 0) { setLoading(false); return }
+    setLastRawRows(rawRows)
     try {
       const headers = Object.keys(rawRows[0])
       const res = await fetch('/api/ai-format-import', {
@@ -136,6 +139,7 @@ export default function AIImport({ members, onImported }: Props) {
           allRows: rawRows,
           defaultMemberId: memberId || null,
           members: members.map(m => ({ id: m.id, name: m.name })),
+          forceTable: forceTable || null,
         }),
       })
       const data = await res.json()
@@ -193,6 +197,16 @@ export default function AIImport({ members, onImported }: Props) {
     } catch (e) {
       alert(`エラー: ${String(e)}`)
       setLoading(false)
+    }
+  }
+
+  async function changeTargetTable(newTable: string) {
+    if (lastRawRows.length === 0) return
+    setChangingTable(true)
+    try {
+      await analyzeRows(lastRawRows, newTable)
+    } finally {
+      setChangingTable(false)
     }
   }
 
@@ -336,9 +350,25 @@ export default function AIImport({ members, onImported }: Props) {
             <div className="p-6 space-y-4 overflow-y-auto flex-1">
               {/* AI判定結果 */}
               <div className="bg-indigo-50 border border-indigo-100 rounded p-4 space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-indigo-500 uppercase">インポート先</span>
-                  <span className="font-bold text-gray-900">{result.targetLabel}</span>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-indigo-500 uppercase">インポート先</span>
+                    <span className="font-bold text-gray-900">{result.targetLabel}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-indigo-400">変更:</span>
+                    <select
+                      value={result.targetTable}
+                      onChange={e => changeTargetTable(e.target.value)}
+                      disabled={changingTable}
+                      className="text-xs border border-indigo-200 rounded px-2 py-1 bg-white focus:outline-none disabled:opacity-50"
+                    >
+                      <option value="aicamp_consultations">AI CAMP 商談</option>
+                      <option value="deals_tob">法人案件</option>
+                      <option value="deals_toc">個人案件</option>
+                    </select>
+                    {changingTable && <span className="text-xs text-indigo-400">再解析中...</span>}
+                  </div>
                 </div>
                 <p className="text-xs text-indigo-600">{result.reason}</p>
                 <p className="text-xs text-gray-500">

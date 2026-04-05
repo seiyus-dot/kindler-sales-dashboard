@@ -71,7 +71,7 @@ const SCHEMAS = {
 }
 
 export async function POST(req: NextRequest) {
-  const { headers, sampleRows, allRows, defaultMemberId, members } = await req.json()
+  const { headers, sampleRows, allRows, defaultMemberId, members, forceTable } = await req.json()
   const memberList: { id: string; name: string }[] = members ?? []
 
   function resolveMemberId(nameVal: string): string | null {
@@ -110,6 +110,7 @@ ${Object.entries(SCHEMAS).map(([key, s]) => `
   },
   "skipPatterns": ["スキップすべき行のパターン（例：テスト、#N/A）"]
 }
+${forceTable ? `\n重要: インポート先は必ず "${forceTable}" で固定してください。上記JSONの "targetTable" は必ず "${forceTable}" にしてください。` : ''}
 `
 
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -132,7 +133,9 @@ ${Object.entries(SCHEMAS).map(([key, s]) => `
   if (!jsonMatch) return NextResponse.json({ error: `AI応答の解析に失敗しました: ${text.slice(0, 200)}` }, { status: 500 })
 
   const aiResult = JSON.parse(jsonMatch[0])
-  const { targetTable, reason, mappings, skipPatterns = [] } = aiResult
+  const { reason, mappings, skipPatterns = [] } = aiResult
+  // forceTable が指定された場合はAIの判断を上書き
+  const targetTable: string = (forceTable && SCHEMAS[forceTable as keyof typeof SCHEMAS]) ? forceTable : aiResult.targetTable
   const schema = SCHEMAS[targetTable as keyof typeof SCHEMAS]
   if (!schema) return NextResponse.json({ error: '対応していないテーブルです' }, { status: 400 })
 

@@ -5,6 +5,31 @@ import { supabase, AICampConsultation, AICampMonthlyGoal, AICampAdWeekly, Member
 
 const MONTHLY_INCOMES = ['〜10万円', '11～20万円', '21～30万円', '31～40万円', '41～50万円', '51～60万円', '61～70万円', '71～80万円', '81～90万円', '91～100万円', '101万円以上']
 const SERVICE_TYPES = ['AI CAMP', 'プロダクト AI CAMP']
+
+const AICAMP_COLUMNS = [
+  { key: 'consultation_date', label: '実施日時', defaultVisible: true },
+  { key: 'service_type',      label: 'サービス', defaultVisible: true },
+  { key: 'member_id',         label: '担当者',   defaultVisible: true },
+  { key: 'name',              label: '氏名',     defaultVisible: true },
+  { key: 'line_name',         label: 'LINE名',   defaultVisible: true },
+  { key: 'age',               label: '年齢',     defaultVisible: false },
+  { key: 'source',            label: '流入経路', defaultVisible: true },
+  { key: 'registration_source', label: '登録経路', defaultVisible: true },
+  { key: 'status',            label: 'ステータス', defaultVisible: true },
+  { key: 'payment_amount',    label: '着金額',   defaultVisible: true },
+  { key: 'payment_date',      label: '着金日',   defaultVisible: false },
+  { key: 'payment_method',    label: '支払方法', defaultVisible: false },
+  { key: 'reply_deadline',    label: '返事期限', defaultVisible: false },
+  { key: 'occupation',        label: '職業',     defaultVisible: false },
+  { key: 'monthly_income',    label: '月収',     defaultVisible: false },
+  { key: 'ai_experience',     label: 'AI経験',   defaultVisible: false },
+  { key: 'customer_attribute',label: '顧客属性', defaultVisible: false },
+  { key: 'motivation',        label: '動機',     defaultVisible: false },
+  { key: 'reason',            label: '理由',     defaultVisible: false },
+  { key: 'minutes_url',       label: '議事録',   defaultVisible: false },
+] as const
+
+type ColKey = typeof AICAMP_COLUMNS[number]['key']
 import AICampConsultationForm from '@/components/AICampConsultationForm'
 import AIImport from '@/components/AIImport'
 import SourceMasterModal from '@/components/SourceMasterModal'
@@ -48,6 +73,25 @@ export default function AICampPage() {
   const [adSaving, setAdSaving] = useState(false)
   const [showAddWeek, setShowAddWeek] = useState(false)
   const [newWeek, setNewWeek] = useState({ week_label: '', ad_spend: '', list_count: '', consultation_count: '', seated_count: '' })
+  const [showColSettings, setShowColSettings] = useState(false)
+  const [visibleCols, setVisibleCols] = useState<Set<ColKey>>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('aicamp-visible-cols')
+      if (saved) {
+        try { return new Set(JSON.parse(saved) as ColKey[]) } catch {}
+      }
+    }
+    return new Set(AICAMP_COLUMNS.filter(c => c.defaultVisible).map(c => c.key))
+  })
+
+  function toggleCol(key: ColKey) {
+    setVisibleCols(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key); else next.add(key)
+      localStorage.setItem('aicamp-visible-cols', JSON.stringify(Array.from(next)))
+      return next
+    })
+  }
 
   useEffect(() => { fetchAll() }, [month])
 
@@ -640,7 +684,7 @@ export default function AICampPage() {
               </button>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
             <select value={filterMember} onChange={e => setFilterMember(e.target.value)} className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none">
               <option value="">担当者: 全員</option>
               {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
@@ -652,6 +696,39 @@ export default function AICampPage() {
             {(filterMember || filterStatus) && (
               <button onClick={() => { setFilterMember(''); setFilterStatus('') }} className="text-xs text-gray-400 hover:text-gray-600 px-1">✕</button>
             )}
+            {/* 列設定 */}
+            <div className="relative">
+              <button
+                onClick={() => setShowColSettings(v => !v)}
+                className="flex items-center gap-1 px-3 py-1.5 text-xs border border-gray-200 rounded hover:bg-gray-50 transition text-gray-600"
+              >
+                列設定
+              </button>
+              {showColSettings && (
+                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded shadow-xl z-50 p-3 w-48">
+                  <p className="text-xs font-bold text-gray-500 mb-2">表示する列</p>
+                  <div className="space-y-1.5 max-h-72 overflow-y-auto">
+                    {AICAMP_COLUMNS.map(col => (
+                      <label key={col.key} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 px-1 py-0.5 rounded">
+                        <input
+                          type="checkbox"
+                          checked={visibleCols.has(col.key)}
+                          onChange={() => toggleCol(col.key)}
+                          className="rounded"
+                        />
+                        <span className="text-xs text-gray-700">{col.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => setShowColSettings(false)}
+                    className="mt-2 w-full text-xs text-gray-400 hover:text-gray-600 py-1"
+                  >
+                    閉じる
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
         <div className="overflow-x-auto">
@@ -666,14 +743,17 @@ export default function AICampPage() {
                     className="rounded"
                   />
                 </th>
-                {['実施日時', 'サービス', '担当者', 'LINE名', '氏名', '年齢', '流入経路', '登録経路', 'ステータス', '着金額', '着金日', '支払方法', '返事期限', '職業', '月収', 'AI経験', '顧客属性', '動機', '理由', '議事録', ''].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                {AICAMP_COLUMNS.filter(col => visibleCols.has(col.key)).map(col => (
+                  <th key={col.key} className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">
+                    {col.label}
+                  </th>
                 ))}
+                <th className="px-4 py-3"></th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={22} className="text-center py-10 text-gray-400">商談がありません</td></tr>
+                <tr><td colSpan={visibleCols.size + 2} className="text-center py-10 text-gray-400">商談がありません</td></tr>
               ) : filtered.map(c => {
                 const isEditing = inlineEditId === c.id
                 return (
@@ -688,181 +768,176 @@ export default function AICampPage() {
                         className="rounded"
                       />
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap" onClick={e => isEditing && e.stopPropagation()}>
-                      {isEditing ? (
-                        <input
-                          type="datetime-local"
-                          value={inlineDraft.consultation_date}
-                          onChange={e => setDraft('consultation_date', e.target.value)}
-                          className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 w-40"
-                        />
-                      ) : (
-                        <span className="text-gray-600 text-xs">
-                          {c.consultation_date ? new Date(c.consultation_date).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap" onClick={e => isEditing && e.stopPropagation()}>
-                      {isEditing ? (
-                        <select value={inlineDraft.service_type} onChange={e => setDraft('service_type', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none w-36">
-                          {SERVICE_TYPES.map(s => <option key={s}>{s}</option>)}
-                        </select>
-                      ) : <span className="text-xs text-gray-600">{c.service_type ?? 'AI CAMP'}</span>}
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap" onClick={e => isEditing && e.stopPropagation()}>
-                      {isEditing ? (
-                        <select
-                          value={inlineDraft.member_id}
-                          onChange={e => setDraft('member_id', e.target.value)}
-                          className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
-                        >
-                          <option value="">未割当</option>
-                          {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                        </select>
-                      ) : (
-                        <span className="text-gray-700">{(c.member as any)?.name ?? '-'}</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
-                      {isEditing ? (
-                        <input
-                          value={inlineDraft.name}
-                          onChange={e => setDraft('name', e.target.value)}
-                          className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 w-28"
-                          placeholder="氏名"
-                        />
-                      ) : (
-                        <span className="font-medium text-gray-800">{c.name ?? '-'}</span>
-                      )}
-                    </td>
-                    {/* LINE名・年齢 */}
-                    <td className="px-4 py-3 min-w-[140px]" onClick={e => isEditing && e.stopPropagation()}>
-                      {isEditing ? <input value={inlineDraft.line_name} onChange={e => setDraft('line_name', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-36 focus:outline-none" />
-                        : <span className="text-xs text-gray-500">{c.line_name ?? '-'}</span>}
-                    </td>
-                    <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
-                      {isEditing ? <input type="number" value={inlineDraft.age} onChange={e => setDraft('age', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs font-mono w-16 focus:outline-none" />
-                        : <span className="text-xs text-gray-500 font-mono">{c.age ?? '-'}</span>}
-                    </td>
-                    <td className="px-4 py-3 min-w-[180px]" onClick={e => isEditing && e.stopPropagation()}>
-                      {isEditing ? (
-                        <input
-                          value={inlineDraft.source}
-                          onChange={e => setDraft('source', e.target.value)}
-                          className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 w-44"
-                          placeholder="流入経路"
-                        />
-                      ) : (
-                        <span className="text-xs text-gray-500">{c.source ?? '-'}</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
-                      {isEditing ? (
-                        <select
-                          value={inlineDraft.status}
-                          onChange={e => setDraft('status', e.target.value)}
-                          className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
-                        >
-                          {CONSULTATION_STATUSES.map(s => <option key={s}>{s}</option>)}
-                        </select>
-                      ) : (
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[c.status ?? '予定'] ?? 'bg-gray-100 text-gray-500'}`}>
-                          {c.status ?? '予定'}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
-                      {isEditing ? (
-                        <input
-                          type="number"
-                          value={inlineDraft.payment_amount}
-                          onChange={e => setDraft('payment_amount', e.target.value)}
-                          className="border border-blue-300 rounded px-2 py-1 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-blue-400 w-28"
-                          placeholder="円"
-                        />
-                      ) : (
-                        <span className="font-mono text-gray-700">
-                          {c.payment_amount ? `¥${c.payment_amount.toLocaleString()}` : '-'}
-                        </span>
-                      )}
-                    </td>
-                    {/* 着金日・支払方法・登録経路 */}
-                    <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
-                      {isEditing ? <input type="date" value={inlineDraft.payment_date} onChange={e => setDraft('payment_date', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none" />
-                        : <span className="text-xs text-gray-500">{c.payment_date ?? '-'}</span>}
-                    </td>
-                    <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
-                      {isEditing ? (
-                        <select value={inlineDraft.payment_method} onChange={e => setDraft('payment_method', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none">
-                          <option value="">-</option>
-                          {PAYMENT_METHODS.map(p => <option key={p}>{p}</option>)}
-                        </select>
-                      ) : <span className="text-xs text-gray-500">{c.payment_method ?? '-'}</span>}
-                    </td>
-                    <td className="px-4 py-3 max-w-[160px]" onClick={e => isEditing && e.stopPropagation()}>
-                      {isEditing ? <input value={inlineDraft.registration_source} onChange={e => setDraft('registration_source', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-36 focus:outline-none" />
-                        : <span className="text-xs text-gray-500 line-clamp-1">{c.registration_source ?? '-'}</span>}
-                    </td>
-                    <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
-                      {isEditing ? (
-                        <input
-                          type="date"
-                          value={inlineDraft.reply_deadline}
-                          onChange={e => setDraft('reply_deadline', e.target.value)}
-                          className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
-                        />
-                      ) : (
-                        <span className="text-xs text-gray-500">{c.reply_deadline ?? '-'}</span>
-                      )}
-                    </td>
-                    {/* 詳細情報（全て編集可能） */}
-                    <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
-                      {isEditing ? <input value={inlineDraft.occupation} onChange={e => setDraft('occupation', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-24 focus:outline-none" />
-                        : <span className="text-xs text-gray-500">{c.occupation ?? '-'}</span>}
-                    </td>
-                    <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
-                      {isEditing ? (
-                        <select value={inlineDraft.monthly_income} onChange={e => setDraft('monthly_income', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none">
-                          <option value="">-</option>
-                          {MONTHLY_INCOMES.map(i => <option key={i}>{i}</option>)}
-                        </select>
-                      ) : <span className="text-xs text-gray-500">{c.monthly_income ?? '-'}</span>}
-                    </td>
-                    <td className="px-4 py-3 max-w-[180px]" onClick={e => isEditing && e.stopPropagation()}>
-                      {isEditing ? (
-                        <select value={inlineDraft.ai_experience} onChange={e => setDraft('ai_experience', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none w-40">
-                          <option value="">-</option>
-                          {AI_EXPERIENCES.map(e => <option key={e}>{e}</option>)}
-                        </select>
-                      ) : <span className="text-xs text-gray-400 line-clamp-2">{c.ai_experience ?? '-'}</span>}
-                    </td>
-                    <td className="px-4 py-3 max-w-[160px]" onClick={e => isEditing && e.stopPropagation()}>
-                      {isEditing ? <input value={inlineDraft.customer_attribute} onChange={e => setDraft('customer_attribute', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-36 focus:outline-none" />
-                        : <span className="text-xs text-gray-400 line-clamp-2">{c.customer_attribute ?? '-'}</span>}
-                    </td>
-                    <td className="px-4 py-3 max-w-[200px]" onClick={e => isEditing && e.stopPropagation()}>
-                      {isEditing ? <textarea value={inlineDraft.motivation} onChange={e => setDraft('motivation', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-48 h-16 resize-none focus:outline-none" />
-                        : <span className="text-xs text-gray-400 line-clamp-2">{c.motivation ?? '-'}</span>}
-                    </td>
-                    <td className="px-4 py-3 max-w-[160px]" onClick={e => isEditing && e.stopPropagation()}>
-                      {isEditing ? <textarea value={inlineDraft.reason} onChange={e => setDraft('reason', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-40 h-16 resize-none focus:outline-none" />
-                        : <span className="text-xs text-gray-400 line-clamp-2">{c.reason ?? '-'}</span>}
-                    </td>
-                    <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
-                      {isEditing ? <input value={inlineDraft.minutes_url} onChange={e => setDraft('minutes_url', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-36 focus:outline-none" placeholder="https://..." />
-                        : c.minutes_url
-                          ? <a href={c.minutes_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline" onClick={e => e.stopPropagation()}>開く</a>
-                          : <span className="text-xs text-gray-300">-</span>}
-                    </td>
+                    {visibleCols.has('consultation_date') && (
+                      <td className="px-4 py-3 whitespace-nowrap" onClick={e => isEditing && e.stopPropagation()}>
+                        {isEditing ? (
+                          <input type="datetime-local" value={inlineDraft.consultation_date} onChange={e => setDraft('consultation_date', e.target.value)}
+                            className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 w-40" />
+                        ) : (
+                          <span className="text-gray-600 text-xs">
+                            {c.consultation_date ? new Date(c.consultation_date).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
+                          </span>
+                        )}
+                      </td>
+                    )}
+                    {visibleCols.has('service_type') && (
+                      <td className="px-4 py-3 whitespace-nowrap" onClick={e => isEditing && e.stopPropagation()}>
+                        {isEditing ? (
+                          <select value={inlineDraft.service_type} onChange={e => setDraft('service_type', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none w-36">
+                            {SERVICE_TYPES.map(s => <option key={s}>{s}</option>)}
+                          </select>
+                        ) : <span className="text-xs text-gray-600">{c.service_type ?? 'AI CAMP'}</span>}
+                      </td>
+                    )}
+                    {visibleCols.has('member_id') && (
+                      <td className="px-4 py-3 whitespace-nowrap" onClick={e => isEditing && e.stopPropagation()}>
+                        {isEditing ? (
+                          <select value={inlineDraft.member_id} onChange={e => setDraft('member_id', e.target.value)}
+                            className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400">
+                            <option value="">未割当</option>
+                            {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                          </select>
+                        ) : <span className="text-gray-700">{(c.member as any)?.name ?? '-'}</span>}
+                      </td>
+                    )}
+                    {visibleCols.has('name') && (
+                      <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
+                        {isEditing ? (
+                          <input value={inlineDraft.name} onChange={e => setDraft('name', e.target.value)}
+                            className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 w-28" placeholder="氏名" />
+                        ) : <span className="font-medium text-gray-800">{c.name ?? '-'}</span>}
+                      </td>
+                    )}
+                    {visibleCols.has('line_name') && (
+                      <td className="px-4 py-3 min-w-[140px]" onClick={e => isEditing && e.stopPropagation()}>
+                        {isEditing ? <input value={inlineDraft.line_name} onChange={e => setDraft('line_name', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-36 focus:outline-none" />
+                          : <span className="text-xs text-gray-500">{c.line_name ?? '-'}</span>}
+                      </td>
+                    )}
+                    {visibleCols.has('age') && (
+                      <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
+                        {isEditing ? <input type="number" value={inlineDraft.age} onChange={e => setDraft('age', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs font-mono w-16 focus:outline-none" />
+                          : <span className="text-xs text-gray-500 font-mono">{c.age ?? '-'}</span>}
+                      </td>
+                    )}
+                    {visibleCols.has('source') && (
+                      <td className="px-4 py-3 min-w-[180px]" onClick={e => isEditing && e.stopPropagation()}>
+                        {isEditing ? (
+                          <input value={inlineDraft.source} onChange={e => setDraft('source', e.target.value)}
+                            className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 w-44" placeholder="流入経路" />
+                        ) : <span className="text-xs text-gray-500">{c.source ?? '-'}</span>}
+                      </td>
+                    )}
+                    {visibleCols.has('registration_source') && (
+                      <td className="px-4 py-3 max-w-[160px]" onClick={e => isEditing && e.stopPropagation()}>
+                        {isEditing ? <input value={inlineDraft.registration_source} onChange={e => setDraft('registration_source', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-36 focus:outline-none" />
+                          : <span className="text-xs text-gray-500 line-clamp-1">{c.registration_source ?? '-'}</span>}
+                      </td>
+                    )}
+                    {visibleCols.has('status') && (
+                      <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
+                        {isEditing ? (
+                          <select value={inlineDraft.status} onChange={e => setDraft('status', e.target.value)}
+                            className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400">
+                            {CONSULTATION_STATUSES.map(s => <option key={s}>{s}</option>)}
+                          </select>
+                        ) : (
+                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[c.status ?? '予定'] ?? 'bg-gray-100 text-gray-500'}`}>
+                            {c.status ?? '予定'}
+                          </span>
+                        )}
+                      </td>
+                    )}
+                    {visibleCols.has('payment_amount') && (
+                      <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
+                        {isEditing ? (
+                          <input type="number" value={inlineDraft.payment_amount} onChange={e => setDraft('payment_amount', e.target.value)}
+                            className="border border-blue-300 rounded px-2 py-1 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-blue-400 w-28" placeholder="円" />
+                        ) : <span className="font-mono text-gray-700">{c.payment_amount ? `¥${c.payment_amount.toLocaleString()}` : '-'}</span>}
+                      </td>
+                    )}
+                    {visibleCols.has('payment_date') && (
+                      <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
+                        {isEditing ? <input type="date" value={inlineDraft.payment_date} onChange={e => setDraft('payment_date', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none" />
+                          : <span className="text-xs text-gray-500">{c.payment_date ?? '-'}</span>}
+                      </td>
+                    )}
+                    {visibleCols.has('payment_method') && (
+                      <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
+                        {isEditing ? (
+                          <select value={inlineDraft.payment_method} onChange={e => setDraft('payment_method', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none">
+                            <option value="">-</option>
+                            {PAYMENT_METHODS.map(p => <option key={p}>{p}</option>)}
+                          </select>
+                        ) : <span className="text-xs text-gray-500">{c.payment_method ?? '-'}</span>}
+                      </td>
+                    )}
+                    {visibleCols.has('reply_deadline') && (
+                      <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
+                        {isEditing ? (
+                          <input type="date" value={inlineDraft.reply_deadline} onChange={e => setDraft('reply_deadline', e.target.value)}
+                            className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                        ) : <span className="text-xs text-gray-500">{c.reply_deadline ?? '-'}</span>}
+                      </td>
+                    )}
+                    {visibleCols.has('occupation') && (
+                      <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
+                        {isEditing ? <input value={inlineDraft.occupation} onChange={e => setDraft('occupation', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-24 focus:outline-none" />
+                          : <span className="text-xs text-gray-500">{c.occupation ?? '-'}</span>}
+                      </td>
+                    )}
+                    {visibleCols.has('monthly_income') && (
+                      <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
+                        {isEditing ? (
+                          <select value={inlineDraft.monthly_income} onChange={e => setDraft('monthly_income', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none">
+                            <option value="">-</option>
+                            {MONTHLY_INCOMES.map(i => <option key={i}>{i}</option>)}
+                          </select>
+                        ) : <span className="text-xs text-gray-500">{c.monthly_income ?? '-'}</span>}
+                      </td>
+                    )}
+                    {visibleCols.has('ai_experience') && (
+                      <td className="px-4 py-3 max-w-[180px]" onClick={e => isEditing && e.stopPropagation()}>
+                        {isEditing ? (
+                          <select value={inlineDraft.ai_experience} onChange={e => setDraft('ai_experience', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none w-40">
+                            <option value="">-</option>
+                            {AI_EXPERIENCES.map(e => <option key={e}>{e}</option>)}
+                          </select>
+                        ) : <span className="text-xs text-gray-400 line-clamp-2">{c.ai_experience ?? '-'}</span>}
+                      </td>
+                    )}
+                    {visibleCols.has('customer_attribute') && (
+                      <td className="px-4 py-3 max-w-[160px]" onClick={e => isEditing && e.stopPropagation()}>
+                        {isEditing ? <input value={inlineDraft.customer_attribute} onChange={e => setDraft('customer_attribute', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-36 focus:outline-none" />
+                          : <span className="text-xs text-gray-400 line-clamp-2">{c.customer_attribute ?? '-'}</span>}
+                      </td>
+                    )}
+                    {visibleCols.has('motivation') && (
+                      <td className="px-4 py-3 max-w-[200px]" onClick={e => isEditing && e.stopPropagation()}>
+                        {isEditing ? <textarea value={inlineDraft.motivation} onChange={e => setDraft('motivation', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-48 h-16 resize-none focus:outline-none" />
+                          : <span className="text-xs text-gray-400 line-clamp-2">{c.motivation ?? '-'}</span>}
+                      </td>
+                    )}
+                    {visibleCols.has('reason') && (
+                      <td className="px-4 py-3 max-w-[160px]" onClick={e => isEditing && e.stopPropagation()}>
+                        {isEditing ? <textarea value={inlineDraft.reason} onChange={e => setDraft('reason', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-40 h-16 resize-none focus:outline-none" />
+                          : <span className="text-xs text-gray-400 line-clamp-2">{c.reason ?? '-'}</span>}
+                      </td>
+                    )}
+                    {visibleCols.has('minutes_url') && (
+                      <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
+                        {isEditing ? <input value={inlineDraft.minutes_url} onChange={e => setDraft('minutes_url', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-36 focus:outline-none" placeholder="https://..." />
+                          : c.minutes_url
+                            ? <a href={c.minutes_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline" onClick={e => e.stopPropagation()}>開く</a>
+                            : <span className="text-xs text-gray-300">-</span>}
+                      </td>
+                    )}
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                       <div className="flex gap-2 justify-end whitespace-nowrap">
                         {isEditing ? (
                           <>
-                            <button
-                              onClick={() => saveInlineEdit(c.id)}
-                              disabled={inlineSaving}
-                              className="text-xs text-white bg-blue-600 px-2 py-1 rounded hover:bg-blue-700 disabled:opacity-50 transition"
-                            >
+                            <button onClick={() => saveInlineEdit(c.id)} disabled={inlineSaving}
+                              className="text-xs text-white bg-blue-600 px-2 py-1 rounded hover:bg-blue-700 disabled:opacity-50 transition">
                               {inlineSaving ? '...' : '保存'}
                             </button>
                             <button onClick={cancelInlineEdit} className="text-xs text-gray-400 hover:text-gray-600">取消</button>
