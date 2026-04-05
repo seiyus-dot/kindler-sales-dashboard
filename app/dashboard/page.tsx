@@ -109,16 +109,13 @@ export default function DashboardPage() {
   const activeToc = view === 'tob' ? [] : tocDeals
   const allDeals = [...activeTob, ...activeToc]
 
-  // KPI - 案件着金（tob / toc 個別に集計）
+  // KPI - 案件着金（deals_tocはaicamp移行済みのため除外）
   const tobPaid = (view !== 'toc' ? tobDeals : []).filter(d =>
     d.payment_date && (period === 'all' || d.payment_date.startsWith(currentMonth))
   )
-  const tocPaid = (view !== 'tob' ? tocDeals : []).filter(d =>
-    d.payment_date && (period === 'all' || d.payment_date.startsWith(currentMonth))
-  )
-  const paidDeals = [...tobPaid, ...tocPaid]
+  const paidDeals = tobPaid
   const paidTobTotal = tobPaid.reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0)
-  const paidTocTotal = tocPaid.reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0)
+  const paidTocTotal = 0
 
   // aicamp_consultations の着金（円→万円）
   const paidAicamp = aicampDeals.filter(d =>
@@ -400,7 +397,6 @@ export default function DashboardPage() {
           <div className="mt-2 space-y-0.5">
             <p className="text-xs text-slate-400">法人 <span className="font-bold text-slate-600">{paidTobTotal.toLocaleString()}万</span>（{tobPaid.length}件）</p>
             <p className="text-xs text-slate-400">AI CAMP <span className="font-bold text-slate-600">{paidAicampTotal.toLocaleString()}万</span>（{paidAicamp.length}件）</p>
-            {paidTocTotal > 0 && <p className="text-xs text-slate-400">個人(旧) <span className="font-bold text-slate-600">{paidTocTotal.toLocaleString()}万</span>（{tocPaid.length}件）</p>}
           </div>
         </button>
         <StatCard
@@ -463,16 +459,7 @@ export default function DashboardPage() {
                     <td className="px-4 py-2 text-slate-700 font-mono font-bold text-xs text-right">{Math.round((d.payment_amount ?? 0) / 10000).toLocaleString()}万</td>
                   </tr>
                 ))}
-                {tocPaid.map(d => (
-                  <tr key={d.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-2"><span className="text-xs bg-pink-50 text-pink-600 font-bold px-1.5 py-0.5 rounded">個人(旧)</span></td>
-                    <td className="px-4 py-2 text-slate-700 font-medium text-xs">{d.name}</td>
-                    <td className="px-4 py-2 text-slate-400 text-xs">{d.member?.name ?? '-'}</td>
-                    <td className="px-4 py-2 text-slate-400 text-xs font-mono">{d.payment_date ?? '-'}</td>
-                    <td className="px-4 py-2 text-slate-700 font-mono font-bold text-xs text-right">{(d.actual_amount ?? d.expected_amount ?? 0).toLocaleString()}万</td>
-                  </tr>
-                ))}
-                {tobPaid.length + paidAicamp.length + tocPaid.length === 0 && (
+                {tobPaid.length + paidAicamp.length === 0 && (
                   <tr><td colSpan={5} className="text-center py-8 text-slate-400 text-sm">着金データがありません</td></tr>
                 )}
               </tbody>
