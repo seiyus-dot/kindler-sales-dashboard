@@ -67,7 +67,17 @@ const SCHEMAS = {
 }
 
 export async function POST(req: NextRequest) {
-  const { headers, sampleRows, allRows, defaultMemberId } = await req.json()
+  const { headers, sampleRows, allRows, defaultMemberId, members } = await req.json()
+  const memberList: { id: string; name: string }[] = members ?? []
+
+  function resolveMemberId(nameVal: string): string | null {
+    if (!nameVal) return defaultMemberId || null
+    // 部分一致で検索（「白岩 聖悠(AIコンサルタント)」→「白岩」でも一致）
+    const match = memberList.find(m =>
+      nameVal.includes(m.name) || m.name.includes(nameVal) || nameVal === m.name
+    )
+    return match?.id ?? defaultMemberId ?? null
+  }
 
   // Claude にスキーマ判定とマッピングを依頼
   const prompt = `
@@ -78,6 +88,9 @@ ${JSON.stringify(headers)}
 
 ## サンプルデータ（最大5行）
 ${JSON.stringify(sampleRows, null, 2)}
+
+## 担当者マスタ（名前がデータに含まれる場合は member_id にマッピングしてください）
+${memberList.map(m => m.name).join('、') || 'なし'}
 
 ## インポート候補テーブル
 ${Object.entries(SCHEMAS).map(([key, s]) => `
@@ -122,6 +135,7 @@ ${Object.entries(SCHEMAS).map(([key, s]) => `
 
     const mapped: Record<string, unknown> = {}
     if (defaultMemberId) mapped.member_id = defaultMemberId
+    let memberResolved = false
 
     for (const [srcCol, dstField] of Object.entries(mappings)) {
       if (!dstField || dstField === 'null') continue
@@ -129,6 +143,13 @@ ${Object.entries(SCHEMAS).map(([key, s]) => `
       if (!val && val !== 0) continue
 
       const field = dstField as string
+
+      // 担当者名 → UUID変換
+      if (field === 'member_id') {
+        const resolved = resolveMemberId(String(val))
+        if (resolved) { mapped.member_id = resolved; memberResolved = true }
+        continue
+      }
 
       // 数値フィールド
       if (['expected_amount', 'actual_amount', 'payment_amount', 'age', 'win_probability'].includes(field)) {

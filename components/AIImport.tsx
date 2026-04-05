@@ -61,7 +61,13 @@ export default function AIImport({ members, onImported }: Props) {
     const res = await fetch('/api/ai-format-import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ headers, sampleRows, allRows, defaultMemberId: memberId || null }),
+      body: JSON.stringify({
+        headers,
+        sampleRows,
+        allRows,
+        defaultMemberId: memberId || null,
+        members: members.map(m => ({ id: m.id, name: m.name })),
+      }),
     })
     const data = await res.json()
     setResult(data)
