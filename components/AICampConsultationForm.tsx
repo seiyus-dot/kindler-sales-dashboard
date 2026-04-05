@@ -23,6 +23,7 @@ export default function AICampConsultationForm({ members, initial, onClose, onSa
     registration_source: initial?.registration_source ?? '',
     status: initial?.status ?? '予定',
     payment_amount: initial?.payment_amount?.toString() ?? '',
+    payment_date: initial?.payment_date ?? '',
     payment_method: initial?.payment_method ?? '',
     customer_attribute: initial?.customer_attribute ?? '',
     motivation: initial?.motivation ?? '',
@@ -55,6 +56,7 @@ export default function AICampConsultationForm({ members, initial, onClose, onSa
       registration_source: form.registration_source || null,
       status: form.status,
       payment_amount: form.payment_amount ? parseInt(form.payment_amount) : null,
+      payment_date: form.payment_date || null,
       payment_method: form.payment_method || null,
       customer_attribute: form.customer_attribute || null,
       motivation: form.motivation || null,
@@ -124,6 +126,9 @@ export default function AICampConsultationForm({ members, initial, onClose, onSa
             <>
               <Field label="着金額（円）">
                 <input type="number" value={form.payment_amount} onChange={e => set('payment_amount', e.target.value)} className="input font-mono" placeholder="200000" />
+              </Field>
+              <Field label="着金日">
+                <input type="date" value={form.payment_date} onChange={e => set('payment_date', e.target.value)} className="input" />
               </Field>
               <Field label="支払い方法">
                 <select value={form.payment_method} onChange={e => set('payment_method', e.target.value)} className="input">

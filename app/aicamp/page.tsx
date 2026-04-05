@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase, AICampConsultation, AICampMonthlyGoal, Member } from '@/lib/supabase'
+import { supabase, AICampConsultation, AICampMonthlyGoal, Member, CONSULTATION_STATUSES } from '@/lib/supabase'
 import AICampConsultationForm from '@/components/AICampConsultationForm'
 import AIImport from '@/components/AIImport'
 
@@ -31,6 +31,9 @@ export default function AICampPage() {
   const [editTarget, setEditTarget] = useState<AICampConsultation | null>(null)
   const [filterMember, setFilterMember] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
+  const [inlineEditId, setInlineEditId] = useState<string | null>(null)
+  const [inlineDraft, setInlineDraft] = useState<Record<string, string>>({})
+  const [inlineSaving, setInlineSaving] = useState(false)
 
   useEffect(() => { fetchAll() }, [month])
 
@@ -40,8 +43,7 @@ export default function AICampPage() {
       supabase
         .from('aicamp_consultations')
         .select('*, member:members(name)')
-        .gte('consultation_date', `${month}-01`)
-        .lt('consultation_date', nextMonth(month))
+        .or(`and(consultation_date.gte.${month}-01,consultation_date.lt.${nextMonth(month)}),and(payment_date.gte.${month}-01,payment_date.lt.${nextMonth(month)})`)
         .order('consultation_date', { ascending: false }),
       supabase.from('members').select('*').order('sort_order'),
       supabase.from('aicamp_monthly_goals').select('*').eq('month', month).maybeSingle(),
@@ -69,6 +71,44 @@ export default function AICampPage() {
     setEditingGoal(false)
     fetchAll()
   }
+
+  function startInlineEdit(c: AICampConsultation) {
+    setInlineEditId(c.id)
+    setInlineDraft({
+      consultation_date: c.consultation_date?.slice(0, 16) ?? '',
+      member_id: c.member_id ?? '',
+      name: c.name ?? '',
+      line_name: c.line_name ?? '',
+      source: c.source ?? '',
+      status: c.status ?? '予定',
+      payment_amount: c.payment_amount?.toString() ?? '',
+      reply_deadline: c.reply_deadline ?? '',
+    })
+  }
+
+  async function saveInlineEdit(id: string) {
+    setInlineSaving(true)
+    const payload = {
+      consultation_date: inlineDraft.consultation_date || null,
+      member_id: inlineDraft.member_id || null,
+      name: inlineDraft.name || null,
+      source: inlineDraft.source || null,
+      status: inlineDraft.status,
+      payment_amount: inlineDraft.payment_amount ? parseInt(inlineDraft.payment_amount) : null,
+      reply_deadline: inlineDraft.reply_deadline || null,
+    }
+    await supabase.from('aicamp_consultations').update(payload).eq('id', id)
+    setInlineSaving(false)
+    setInlineEditId(null)
+    fetchAll()
+  }
+
+  function cancelInlineEdit() {
+    setInlineEditId(null)
+    setInlineDraft({})
+  }
+
+  const setDraft = (k: string, v: string) => setInlineDraft(d => ({ ...d, [k]: v }))
 
   async function deleteConsultation(id: string) {
     if (!confirm('削除しますか？')) return
@@ -268,41 +308,141 @@ export default function AICampPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100">
-                {['実施日時', '担当者', '氏名', 'ステータス', '着金額', '返事期限', ''].map(h => (
+                {['実施日時', '担当者', '氏名', '流入経路', 'ステータス', '着金額', '返事期限', ''].map(h => (
                   <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={7} className="text-center py-10 text-gray-400">商談がありません</td></tr>
-              ) : filtered.map(c => (
-                <tr key={c.id} className="border-b border-gray-50 hover:bg-gray-50">
-                  <td className="px-4 py-2.5 whitespace-nowrap text-gray-600 text-xs">
-                    {c.consultation_date ? new Date(c.consultation_date).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
-                  </td>
-                  <td className="px-4 py-2.5 text-gray-700 whitespace-nowrap">{(c.member as any)?.name ?? '-'}</td>
-                  <td className="px-4 py-2.5">
-                    <div className="font-medium text-gray-800">{c.name ?? c.line_name ?? '-'}</div>
-                    {c.occupation && <div className="text-xs text-gray-400">{c.occupation}</div>}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[c.status ?? '予定'] ?? 'bg-gray-100 text-gray-500'}`}>
-                      {c.status ?? '予定'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2.5 font-mono text-gray-700">
-                    {c.payment_amount ? `¥${c.payment_amount.toLocaleString()}` : '-'}
-                  </td>
-                  <td className="px-4 py-2.5 text-xs text-gray-500">{c.reply_deadline ?? '-'}</td>
-                  <td className="px-4 py-2.5">
-                    <div className="flex gap-2 justify-end whitespace-nowrap">
-                      <button onClick={() => { setEditTarget(c); setShowForm(true) }} className="text-xs text-blue-500 hover:underline">編集</button>
-                      <button onClick={() => deleteConsultation(c.id)} className="text-xs text-red-400 hover:underline">削除</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                <tr><td colSpan={8} className="text-center py-10 text-gray-400">商談がありません</td></tr>
+              ) : filtered.map(c => {
+                const isEditing = inlineEditId === c.id
+                return (
+                  <tr key={c.id} className={`border-b border-gray-50 ${isEditing ? 'bg-blue-50' : 'hover:bg-gray-50 cursor-pointer'}`}
+                    onClick={!isEditing ? () => startInlineEdit(c) : undefined}
+                  >
+                    <td className="px-4 py-2.5 whitespace-nowrap" onClick={e => isEditing && e.stopPropagation()}>
+                      {isEditing ? (
+                        <input
+                          type="datetime-local"
+                          value={inlineDraft.consultation_date}
+                          onChange={e => setDraft('consultation_date', e.target.value)}
+                          className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 w-40"
+                        />
+                      ) : (
+                        <span className="text-gray-600 text-xs">
+                          {c.consultation_date ? new Date(c.consultation_date).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 whitespace-nowrap" onClick={e => isEditing && e.stopPropagation()}>
+                      {isEditing ? (
+                        <select
+                          value={inlineDraft.member_id}
+                          onChange={e => setDraft('member_id', e.target.value)}
+                          className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        >
+                          <option value="">未割当</option>
+                          {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                        </select>
+                      ) : (
+                        <span className="text-gray-700">{(c.member as any)?.name ?? '-'}</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5" onClick={e => isEditing && e.stopPropagation()}>
+                      {isEditing ? (
+                        <input
+                          value={inlineDraft.name}
+                          onChange={e => setDraft('name', e.target.value)}
+                          className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 w-28"
+                          placeholder="氏名"
+                        />
+                      ) : (
+                        <>
+                          <div className="font-medium text-gray-800">{c.name ?? c.line_name ?? '-'}</div>
+                          {c.occupation && <div className="text-xs text-gray-400">{c.occupation}</div>}
+                        </>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 max-w-[160px]" onClick={e => isEditing && e.stopPropagation()}>
+                      {isEditing ? (
+                        <input
+                          value={inlineDraft.source}
+                          onChange={e => setDraft('source', e.target.value)}
+                          className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 w-32"
+                          placeholder="流入経路"
+                        />
+                      ) : (
+                        <span className="text-xs text-gray-500 line-clamp-2">{c.source ?? '-'}</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5" onClick={e => isEditing && e.stopPropagation()}>
+                      {isEditing ? (
+                        <select
+                          value={inlineDraft.status}
+                          onChange={e => setDraft('status', e.target.value)}
+                          className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        >
+                          {CONSULTATION_STATUSES.map(s => <option key={s}>{s}</option>)}
+                        </select>
+                      ) : (
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[c.status ?? '予定'] ?? 'bg-gray-100 text-gray-500'}`}>
+                          {c.status ?? '予定'}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5" onClick={e => isEditing && e.stopPropagation()}>
+                      {isEditing ? (
+                        <input
+                          type="number"
+                          value={inlineDraft.payment_amount}
+                          onChange={e => setDraft('payment_amount', e.target.value)}
+                          className="border border-blue-300 rounded px-2 py-1 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-blue-400 w-28"
+                          placeholder="円"
+                        />
+                      ) : (
+                        <span className="font-mono text-gray-700">
+                          {c.payment_amount ? `¥${c.payment_amount.toLocaleString()}` : '-'}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5" onClick={e => isEditing && e.stopPropagation()}>
+                      {isEditing ? (
+                        <input
+                          type="date"
+                          value={inlineDraft.reply_deadline}
+                          onChange={e => setDraft('reply_deadline', e.target.value)}
+                          className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        />
+                      ) : (
+                        <span className="text-xs text-gray-500">{c.reply_deadline ?? '-'}</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5" onClick={e => e.stopPropagation()}>
+                      <div className="flex gap-2 justify-end whitespace-nowrap">
+                        {isEditing ? (
+                          <>
+                            <button
+                              onClick={() => saveInlineEdit(c.id)}
+                              disabled={inlineSaving}
+                              className="text-xs text-white bg-blue-600 px-2 py-1 rounded hover:bg-blue-700 disabled:opacity-50 transition"
+                            >
+                              {inlineSaving ? '...' : '保存'}
+                            </button>
+                            <button onClick={cancelInlineEdit} className="text-xs text-gray-400 hover:text-gray-600">取消</button>
+                          </>
+                        ) : (
+                          <>
+                            <button onClick={() => { setEditTarget(c); setShowForm(true) }} className="text-xs text-blue-500 hover:underline">詳細編集</button>
+                            <button onClick={() => deleteConsultation(c.id)} className="text-xs text-red-400 hover:underline">削除</button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

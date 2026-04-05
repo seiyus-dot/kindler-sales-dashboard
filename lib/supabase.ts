@@ -141,6 +141,7 @@ export type AICampConsultation = {
   registration_source?: string
   status?: string
   payment_amount?: number
+  payment_date?: string
   payment_method?: string
   customer_attribute?: string
   motivation?: string
