@@ -159,6 +159,13 @@ export type AICampConsultation = {
   member?: Member
 }
 
+export type SourceMaster = {
+  id: string
+  registration_source: string
+  source: string
+  created_at: string
+}
+
 export type AICampMonthlyGoal = {
   id: string
   month: string

@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { supabase, AICampConsultation, Member, CONSULTATION_STATUSES, PAYMENT_METHODS, AI_EXPERIENCES } from '@/lib/supabase'
+import { useState, useEffect } from 'react'
+import { supabase, AICampConsultation, Member, SourceMaster, CONSULTATION_STATUSES, PAYMENT_METHODS, AI_EXPERIENCES } from '@/lib/supabase'
 
 type Props = {
   members: Member[]
@@ -37,10 +37,32 @@ export default function AICampConsultationForm({ members, initial, onClose, onSa
     expectation: initial?.expectation ?? '',
     question: initial?.question ?? '',
   })
+  const [sourceMasters, setSourceMasters] = useState<SourceMaster[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
+  useEffect(() => {
+    supabase.from('source_master').select('*').order('source').order('registration_source')
+      .then(({ data }) => setSourceMasters(data ?? []))
+  }, [])
+
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
+
+  function handleRegistrationSourceChange(val: string) {
+    const master = sourceMasters.find(m => m.registration_source === val)
+    setForm(f => ({
+      ...f,
+      registration_source: val,
+      source: master ? master.source : f.source,
+    }))
+  }
+
+  // 流入経路ごとにグループ化
+  const groupedMasters = sourceMasters.reduce<Record<string, SourceMaster[]>>((acc, m) => {
+    if (!acc[m.source]) acc[m.source] = []
+    acc[m.source].push(m)
+    return acc
+  }, {})
 
   const isContracted = form.status === '成約'
 
@@ -114,11 +136,33 @@ export default function AICampConsultationForm({ members, initial, onClose, onSa
             </select>
           </Field>
 
-          <Field label="流入経路">
-            <input value={form.source} onChange={e => set('source', e.target.value)} className="input" placeholder="例：その他" />
-          </Field>
           <Field label="登録経路">
-            <input value={form.registration_source} onChange={e => set('registration_source', e.target.value)} className="input" placeholder="例：LP2-3..." />
+            <select
+              value={form.registration_source}
+              onChange={e => handleRegistrationSourceChange(e.target.value)}
+              className="input"
+            >
+              <option value="">選択してください</option>
+              {Object.entries(groupedMasters).map(([src, rows]) => (
+                <optgroup key={src} label={src}>
+                  {rows.map(m => (
+                    <option key={m.id} value={m.registration_source}>{m.registration_source}</option>
+                  ))}
+                </optgroup>
+              ))}
+              <option value="__other__">その他（直接入力）</option>
+            </select>
+            {(form.registration_source === '__other__' || (form.registration_source && !sourceMasters.find(m => m.registration_source === form.registration_source))) && (
+              <input
+                value={form.registration_source === '__other__' ? '' : form.registration_source}
+                onChange={e => set('registration_source', e.target.value)}
+                className="input mt-1"
+                placeholder="登録経路を入力"
+              />
+            )}
+          </Field>
+          <Field label="流入経路">
+            <input value={form.source} onChange={e => set('source', e.target.value)} className="input" placeholder="登録経路を選択すると自動入力" />
           </Field>
 
           {/* 成約情報 */}

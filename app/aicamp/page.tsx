@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { supabase, AICampConsultation, AICampMonthlyGoal, Member, CONSULTATION_STATUSES } from '@/lib/supabase'
 import AICampConsultationForm from '@/components/AICampConsultationForm'
 import AIImport from '@/components/AIImport'
+import SourceMasterModal from '@/components/SourceMasterModal'
 
 const STATUS_COLORS: Record<string, string> = {
   '成約':     'bg-green-100 text-green-700',
@@ -31,6 +32,7 @@ export default function AICampPage() {
   const [editTarget, setEditTarget] = useState<AICampConsultation | null>(null)
   const [filterMember, setFilterMember] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
+  const [showSourceMaster, setShowSourceMaster] = useState(false)
   const [inlineEditId, setInlineEditId] = useState<string | null>(null)
   const [inlineDraft, setInlineDraft] = useState<Record<string, string>>({})
   const [inlineSaving, setInlineSaving] = useState(false)
@@ -172,6 +174,12 @@ export default function AICampPage() {
             onChange={e => setMonth(e.target.value)}
             className="border border-gray-200 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
           />
+          <button
+            onClick={() => setShowSourceMaster(true)}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 border border-gray-200 rounded-sm hover:bg-gray-50 transition"
+          >
+            流入経路マスタ
+          </button>
           <AIImport members={members} onImported={fetchAll} />
           <button
             onClick={() => { setEditTarget(null); setShowForm(true) }}
@@ -447,6 +455,8 @@ export default function AICampPage() {
           </table>
         </div>
       </div>
+
+      {showSourceMaster && <SourceMasterModal onClose={() => setShowSourceMaster(false)} />}
 
       {showForm && (
         <AICampConsultationForm
