@@ -36,6 +36,8 @@ export default function AICampPage() {
   const [inlineEditId, setInlineEditId] = useState<string | null>(null)
   const [inlineDraft, setInlineDraft] = useState<Record<string, string>>({})
   const [inlineSaving, setInlineSaving] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   useEffect(() => { fetchAll() }, [month])
 
@@ -115,6 +117,32 @@ export default function AICampPage() {
   async function deleteConsultation(id: string) {
     if (!confirm('削除しますか？')) return
     await supabase.from('aicamp_consultations').delete().eq('id', id)
+    fetchAll()
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(filtered.map(c => c.id)))
+    }
+  }
+
+  async function bulkDelete() {
+    if (selectedIds.size === 0) return
+    if (!confirm(`選択した ${selectedIds.size} 件を削除しますか？`)) return
+    setBulkDeleting(true)
+    await supabase.from('aicamp_consultations').delete().in('id', Array.from(selectedIds))
+    setSelectedIds(new Set())
+    setBulkDeleting(false)
     fetchAll()
   }
 
@@ -297,7 +325,18 @@ export default function AICampPage() {
       {/* 商談一覧 */}
       <div className="bg-white border border-gray-200 rounded">
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
-          <h2 className="text-sm font-bold text-gray-700">商談一覧 ({filtered.length}件)</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-sm font-bold text-gray-700">商談一覧 ({filtered.length}件)</h2>
+            {selectedIds.size > 0 && (
+              <button
+                onClick={bulkDelete}
+                disabled={bulkDeleting}
+                className="text-xs text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 px-3 py-1 rounded transition"
+              >
+                {bulkDeleting ? '削除中...' : `${selectedIds.size}件を削除`}
+              </button>
+            )}
+          </div>
           <div className="flex gap-2">
             <select value={filterMember} onChange={e => setFilterMember(e.target.value)} className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none">
               <option value="">担当者: 全員</option>
@@ -316,6 +355,14 @@ export default function AICampPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100">
+                <th className="px-4 py-2.5 w-8">
+                  <input
+                    type="checkbox"
+                    checked={filtered.length > 0 && selectedIds.size === filtered.length}
+                    onChange={toggleSelectAll}
+                    className="rounded"
+                  />
+                </th>
                 {['実施日時', '担当者', '氏名', '流入経路', 'ステータス', '着金額', '返事期限', ''].map(h => (
                   <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
                 ))}
@@ -323,13 +370,21 @@ export default function AICampPage() {
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={8} className="text-center py-10 text-gray-400">商談がありません</td></tr>
+                <tr><td colSpan={9} className="text-center py-10 text-gray-400">商談がありません</td></tr>
               ) : filtered.map(c => {
                 const isEditing = inlineEditId === c.id
                 return (
-                  <tr key={c.id} className={`border-b border-gray-50 ${isEditing ? 'bg-blue-50' : 'hover:bg-gray-50 cursor-pointer'}`}
+                  <tr key={c.id} className={`border-b border-gray-50 ${isEditing ? 'bg-blue-50' : selectedIds.has(c.id) ? 'bg-red-50' : 'hover:bg-gray-50 cursor-pointer'}`}
                     onClick={!isEditing ? () => startInlineEdit(c) : undefined}
                   >
+                    <td className="px-4 py-2.5 w-8" onClick={e => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(c.id)}
+                        onChange={() => toggleSelect(c.id)}
+                        className="rounded"
+                      />
+                    </td>
                     <td className="px-4 py-2.5 whitespace-nowrap" onClick={e => isEditing && e.stopPropagation()}>
                       {isEditing ? (
                         <input

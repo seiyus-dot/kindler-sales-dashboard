@@ -1,32 +1,24 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase, DealToB, DealToC, Member, MasterOption, ColumnConfig } from '@/lib/supabase'
+import { supabase, DealToB, Member, MasterOption, ColumnConfig } from '@/lib/supabase'
 import DealToBForm from '@/components/DealToBForm'
-import DealToCForm from '@/components/DealToCForm'
 import CSVImport from '@/components/CSVImport'
 import StripeCSVImport from '@/components/StripeCSVImport'
-import AICampApplicationImport from '@/components/AICampApplicationImport'
 import AIImport from '@/components/AIImport'
 
-type Tab = 'tob' | 'toc'
-
 const TOB_STATUSES = ['アポ取得', '商談中', '提案済', '交渉中', '見積提出', 'リード', '受注', '失注', '保留']
-const TOC_STATUSES = ['相談予約', 'ヒアリング', '提案中', 'クロージング', '相談済', '受注', '失注', '保留']
 const PRIORITIES = ['高', '中', '低']
 
 export default function DealsPage() {
-  const [tab, setTab] = useState<Tab>('tob')
   const [tobDeals, setTobDeals] = useState<DealToB[]>([])
-  const [tocDeals, setTocDeals] = useState<DealToC[]>([])
   const [members, setMembers] = useState<Member[]>([])
   const [tobCols, setTobCols] = useState<ColumnConfig[]>([])
-  const [tocCols, setTocCols] = useState<ColumnConfig[]>([])
   const [sources, setSources] = useState<MasterOption[]>([])
   const [services, setServices] = useState<MasterOption[]>([])
   const [industries, setIndustries] = useState<MasterOption[]>([])
   const [showForm, setShowForm] = useState(false)
-  const [editTarget, setEditTarget] = useState<DealToB | DealToC | null>(null)
+  const [editTarget, setEditTarget] = useState<DealToB | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState<Record<string, string>>({})
   const [showConfirm, setShowConfirm] = useState(false)
@@ -39,9 +31,8 @@ export default function DealsPage() {
   useEffect(() => { fetchAll() }, [])
 
   async function fetchAll() {
-    const [tobRes, tocRes, membersRes, colRes, srcRes, svcRes, indRes] = await Promise.all([
+    const [tobRes, membersRes, colRes, srcRes, svcRes, indRes] = await Promise.all([
       supabase.from('deals_tob').select('*, member:members!member_id(name), sub_member:members!sub_member_id(name)').order('created_at', { ascending: false }),
-      supabase.from('deals_toc').select('*, member:members!member_id(name), sub_member:members!sub_member_id(name)').order('created_at', { ascending: false }),
       supabase.from('members').select('*').order('sort_order'),
       supabase.from('column_config').select('*').order('sort_order'),
       supabase.from('master_options').select('*').eq('type', 'source').order('sort_order'),
@@ -49,53 +40,30 @@ export default function DealsPage() {
       supabase.from('master_options').select('*').eq('type', 'industry').order('sort_order'),
     ])
     if (tobRes.data) setTobDeals(tobRes.data)
-    if (tocRes.data) setTocDeals(tocRes.data)
     if (membersRes.data) setMembers(membersRes.data)
-    if (colRes.data) {
-      setTobCols(colRes.data.filter((c: ColumnConfig) => c.table_type === 'tob' && c.visible))
-      setTocCols(colRes.data.filter((c: ColumnConfig) => c.table_type === 'toc' && c.visible))
-    }
+    if (colRes.data) setTobCols(colRes.data.filter((c: ColumnConfig) => c.table_type === 'tob' && c.visible))
     if (srcRes.data) setSources(srcRes.data)
     if (svcRes.data) setServices(svcRes.data)
     if (indRes.data) setIndustries(indRes.data)
   }
 
-  function startEdit(deal: DealToB | DealToC, type: Tab) {
+  function startEdit(deal: DealToB) {
     setEditingId(deal.id)
-    if (type === 'tob') {
-      const d = deal as DealToB
-      setDraft({
-        member_id: d.member_id ?? '',
-        company_name: d.company_name ?? '',
-        contact_name: d.contact_name ?? '',
-        industry: d.industry ?? '',
-        status: d.status ?? '',
-        priority: d.priority ?? '',
-        expected_amount: d.expected_amount?.toString() ?? '',
-        win_probability: d.win_probability?.toString() ?? '',
-        source: d.source ?? '',
-        service: d.service ?? '',
-        next_action: d.next_action ?? '',
-        next_action_date: d.next_action_date ?? '',
-        notes: d.notes ?? '',
-      })
-    } else {
-      const d = deal as DealToC
-      setDraft({
-        member_id: d.member_id ?? '',
-        name: d.name ?? '',
-        contact: d.contact ?? '',
-        source: d.source ?? '',
-        service: d.service ?? '',
-        status: d.status ?? '',
-        priority: d.priority ?? '',
-        expected_amount: d.expected_amount?.toString() ?? '',
-        win_probability: d.win_probability?.toString() ?? '',
-        next_action: d.next_action ?? '',
-        next_action_date: d.next_action_date ?? '',
-        notes: d.notes ?? '',
-      })
-    }
+    setDraft({
+      member_id: deal.member_id ?? '',
+      company_name: deal.company_name ?? '',
+      contact_name: deal.contact_name ?? '',
+      industry: deal.industry ?? '',
+      status: deal.status ?? '',
+      priority: deal.priority ?? '',
+      expected_amount: deal.expected_amount?.toString() ?? '',
+      win_probability: deal.win_probability?.toString() ?? '',
+      source: deal.source ?? '',
+      service: deal.service ?? '',
+      next_action: deal.next_action ?? '',
+      next_action_date: deal.next_action_date ?? '',
+      notes: deal.notes ?? '',
+    })
   }
 
   function cancelEdit() {
@@ -107,7 +75,6 @@ export default function DealsPage() {
   async function confirmSave() {
     if (!editingId) return
     setSaving(true)
-    const table = tab === 'tob' ? 'deals_tob' : 'deals_toc'
     const payload: Record<string, string | number | null> = {}
     Object.entries(draft).forEach(([k, v]) => {
       if (['expected_amount', 'win_probability'].includes(k)) {
@@ -116,7 +83,7 @@ export default function DealsPage() {
         payload[k] = v || null
       }
     })
-    await supabase.from(table).update(payload).eq('id', editingId)
+    await supabase.from('deals_tob').update(payload).eq('id', editingId)
     setSaving(false)
     setShowConfirm(false)
     setEditingId(null)
@@ -124,10 +91,9 @@ export default function DealsPage() {
     fetchAll()
   }
 
-  async function deleteDeal(id: string, type: Tab) {
+  async function deleteDeal(id: string) {
     if (!confirm('削除しますか？')) return
-    const table = type === 'tob' ? 'deals_tob' : 'deals_toc'
-    await supabase.from(table).delete().eq('id', id)
+    await supabase.from('deals_tob').delete().eq('id', id)
     fetchAll()
   }
 
@@ -181,7 +147,7 @@ export default function DealsPage() {
   )
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function renderViewCell(col: string, deal: DealToB | DealToC) {
+  function renderViewCell(col: string, deal: DealToB) {
     const d = deal as any
     switch (col) {
       case 'member':        return <span className="font-medium">{d.member?.name ?? '-'}</span>
@@ -217,9 +183,6 @@ export default function DealsPage() {
       case 'company_name':  return <span className="font-medium">{d.company_name ?? '-'}</span>
       case 'contact_name':  return <span className="text-gray-500">{d.contact_name ?? '-'}</span>
       case 'industry':      return <span className="text-gray-500">{d.industry ?? '-'}</span>
-      case 'name':          return <span className="font-medium">{d.name ?? '-'}</span>
-      case 'contact':       return <span className="text-gray-500">{d.contact ?? '-'}</span>
-      case 'service':       return <span className="text-gray-500">{d.service ?? '-'}</span>
       default:              return <span className="text-gray-400">-</span>
     }
   }
@@ -227,31 +190,25 @@ export default function DealsPage() {
   function renderEditCell(col: string) {
     switch (col) {
       case 'member':          return memberSelect()
-      case 'status':          return cellSelect('status', tab === 'tob' ? TOB_STATUSES : TOC_STATUSES)
+      case 'status':          return cellSelect('status', TOB_STATUSES)
       case 'priority':        return cellSelect('priority', PRIORITIES)
       case 'expected_amount': return cellInput('expected_amount', 'number')
       case 'win_probability': return cellInput('win_probability', 'number')
       case 'next_action_date': return cellInput('next_action_date', 'date')
       case 'source':          return cellSelect('source', sources.map(s => s.value))
       case 'service':         return cellSelect('service', services.map(s => s.value))
-      case 'service':         return cellSelect('service', services.map(s => s.value))
       case 'company_name':    return cellInput('company_name')
-      case 'name':            return cellInput('name')
       case 'contact_name':    return cellInput('contact_name')
       case 'industry':        return cellSelect('industry', industries.map(i => i.value))
-      case 'contact':         return cellInput('contact')
       case 'next_action':     return cellInput('next_action')
       case 'notes':           return cellInput('notes')
       default:                return null
     }
   }
 
-  const activeCols = tab === 'tob' ? tobCols : tocCols
-  const baseDeals = tab === 'tob' ? tobDeals : tocDeals
-  const activeDeals = baseDeals.filter(deal => {
+  const activeDeals = tobDeals.filter(deal => {
     const d = deal as any
-    const label = tab === 'tob' ? d.company_name : d.name
-    if (search && !label?.toLowerCase().includes(search.toLowerCase())) return false
+    if (search && !d.company_name?.toLowerCase().includes(search.toLowerCase())) return false
     if (filterMember && d.member_id !== filterMember) return false
     if (filterStatus && d.status !== filterStatus) return false
     if (filterPriority && d.priority !== filterPriority) return false
@@ -262,24 +219,10 @@ export default function DealsPage() {
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-        <div className="flex gap-1 bg-gray-100 p-1 rounded-sm">
-          <button
-            onClick={() => { setTab('tob'); cancelEdit() }}
-            className={`px-5 py-2 rounded-md text-base font-medium transition-all ${tab === 'tob' ? 'bg-white shadow text-gray-900' : 'text-gray-500'}`}
-          >
-            法人案件 ({tobDeals.length})
-          </button>
-          <button
-            onClick={() => { setTab('toc'); cancelEdit() }}
-            className={`px-5 py-2 rounded-md text-base font-medium transition-all ${tab === 'toc' ? 'bg-white shadow text-gray-900' : 'text-gray-500'}`}
-          >
-            個人案件 ({tocDeals.length})
-          </button>
-        </div>
+        <h1 className="text-2xl font-black text-gray-900 tracking-tight">法人案件 <span className="text-base font-normal text-gray-400">({tobDeals.length}件)</span></h1>
         <div className="flex gap-2">
-          <CSVImport tab={tab} members={members} sources={sources} onImported={fetchAll} />
-          <StripeCSVImport tab={tab} members={members} onImported={fetchAll} />
-          {tab === 'toc' && <AICampApplicationImport members={members} onImported={fetchAll} />}
+          <CSVImport tab="tob" members={members} sources={sources} onImported={fetchAll} />
+          <StripeCSVImport tab="tob" members={members} onImported={fetchAll} />
           <AIImport members={members} onImported={fetchAll} />
           <button
             onClick={() => { setEditTarget(null); setShowForm(true) }}
@@ -296,7 +239,7 @@ export default function DealsPage() {
           type="text"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder={tab === 'tob' ? '企業名で検索...' : '氏名で検索...'}
+          placeholder="企業名で検索..."
           className="border border-gray-200 rounded-sm px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 w-44"
         />
         <select
@@ -313,7 +256,7 @@ export default function DealsPage() {
           className="border border-gray-200 rounded-sm px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
         >
           <option value="">ステータス: 全て</option>
-          {(tab === 'tob' ? TOB_STATUSES : TOC_STATUSES).map(s => <option key={s}>{s}</option>)}
+          {TOB_STATUSES.map(s => <option key={s}>{s}</option>)}
         </select>
         <select
           value={filterPriority}
@@ -338,7 +281,7 @@ export default function DealsPage() {
         <table className="w-full text-base">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
-              {activeCols.map(col => (
+              {tobCols.map(col => (
                 <th key={col.column_key} className="text-left px-4 py-3 text-sm text-gray-400 font-semibold uppercase tracking-wider whitespace-nowrap">
                   {col.label}
                 </th>
@@ -348,12 +291,12 @@ export default function DealsPage() {
           </thead>
           <tbody>
             {activeDeals.length === 0 ? (
-              <tr><td colSpan={activeCols.length + 1} className="text-center py-12 text-gray-400">案件がありません</td></tr>
+              <tr><td colSpan={tobCols.length + 1} className="text-center py-12 text-gray-400">案件がありません</td></tr>
             ) : activeDeals.map(deal => {
               const editing = editingId === deal.id
               return (
                 <tr key={deal.id} className={`border-b border-gray-100 ${editing ? 'bg-blue-50/40' : 'hover:bg-gray-50'}`}>
-                  {activeCols.map(col => (
+                  {tobCols.map(col => (
                     <td key={col.column_key} className="px-4 py-2">
                       {editing ? renderEditCell(col.column_key) : renderViewCell(col.column_key, deal)}
                     </td>
@@ -367,9 +310,9 @@ export default function DealsPage() {
                         </>
                       ) : (
                         <>
-                          <button onClick={() => startEdit(deal, tab)} className="text-sm text-blue-500 hover:underline">編集</button>
+                          <button onClick={() => startEdit(deal)} className="text-sm text-blue-500 hover:underline">編集</button>
                           <button onClick={() => { setEditTarget(deal); setShowForm(true) }} className="text-sm text-gray-400 hover:underline">詳細</button>
-                          <button onClick={() => deleteDeal(deal.id, tab)} className="text-sm text-red-400 hover:underline">削除</button>
+                          <button onClick={() => deleteDeal(deal.id)} className="text-sm text-red-400 hover:underline">削除</button>
                         </>
                       )}
                     </div>
@@ -398,11 +341,8 @@ export default function DealsPage() {
         </div>
       )}
 
-      {showForm && tab === 'tob' && (
-        <DealToBForm members={members} initial={editTarget as DealToB | null} onClose={() => setShowForm(false)} onSaved={() => { setShowForm(false); fetchAll() }} />
-      )}
-      {showForm && tab === 'toc' && (
-        <DealToCForm members={members} initial={editTarget as DealToC | null} onClose={() => setShowForm(false)} onSaved={() => { setShowForm(false); fetchAll() }} />
+      {showForm && (
+        <DealToBForm members={members} initial={editTarget} onClose={() => setShowForm(false)} onSaved={() => { setShowForm(false); fetchAll() }} />
       )}
     </div>
   )

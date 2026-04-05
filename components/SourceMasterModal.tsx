@@ -12,6 +12,7 @@ export default function SourceMasterModal({ onClose }: Props) {
   const [loading, setLoading] = useState(true)
   const [newReg, setNewReg] = useState('')
   const [newSrc, setNewSrc] = useState('')
+  const [newSrcCustom, setNewSrcCustom] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -24,16 +25,20 @@ export default function SourceMasterModal({ onClose }: Props) {
   }
 
   async function addRow() {
-    if (!newReg.trim() || !newSrc.trim()) { setError('両方入力してください'); return }
+    const srcValue = newSrc === '__new__' ? newSrcCustom.trim() : newSrc.trim()
+    if (!newReg.trim() || !srcValue) { setError('両方入力してください'); return }
     setSaving(true)
     setError('')
-    const { error: err } = await supabase.from('source_master').insert({ registration_source: newReg.trim(), source: newSrc.trim() })
+    const { error: err } = await supabase.from('source_master').insert({ registration_source: newReg.trim(), source: srcValue })
     setSaving(false)
     if (err) { setError(err.message); return }
     setNewReg('')
     setNewSrc('')
+    setNewSrcCustom('')
     fetchMasters()
   }
+
+  const existingSources = Array.from(new Set(masters.map(m => m.source))).sort()
 
   async function deleteRow(id: string) {
     if (!confirm('削除しますか？')) return
@@ -85,12 +90,25 @@ export default function SourceMasterModal({ onClose }: Props) {
         <div className="border-t border-gray-100 px-6 py-4 space-y-3">
           <p className="text-xs font-bold text-gray-500">新規追加</p>
           <div className="flex gap-2">
-            <input
-              value={newSrc}
-              onChange={e => setNewSrc(e.target.value)}
-              className="input flex-1"
-              placeholder="流入経路（例：Instagram広告）"
-            />
+            <div className="flex-1 space-y-1">
+              <select
+                value={newSrc}
+                onChange={e => setNewSrc(e.target.value)}
+                className="input w-full"
+              >
+                <option value="">流入経路を選択</option>
+                {existingSources.map(s => <option key={s} value={s}>{s}</option>)}
+                <option value="__new__">+ 新規追加...</option>
+              </select>
+              {newSrc === '__new__' && (
+                <input
+                  value={newSrcCustom}
+                  onChange={e => setNewSrcCustom(e.target.value)}
+                  className="input w-full"
+                  placeholder="新しい流入経路名を入力"
+                />
+              )}
+            </div>
             <input
               value={newReg}
               onChange={e => setNewReg(e.target.value)}
