@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { supabase, WeeklyLog, DealToB, DealToC, Member } from '@/lib/supabase'
+import { supabase, WeeklyLog, DealToB, DealToC, AICampConsultation, Member } from '@/lib/supabase'
 import DealToBForm from '@/components/DealToBForm'
 import DealToCForm from '@/components/DealToCForm'
 import {
@@ -61,6 +61,7 @@ export default function DashboardPage() {
   const [logs, setLogs] = useState<WeeklyLog[]>([])
   const [tobDeals, setTobDeals] = useState<DealToB[]>([])
   const [tocDeals, setTocDeals] = useState<DealToC[]>([])
+  const [aicampDeals, setAicampDeals] = useState<AICampConsultation[]>([])
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState<View>('all')
@@ -84,16 +85,18 @@ export default function DashboardPage() {
 
   useEffect(() => {
     async function fetchAll() {
-      const [logsRes, membersRes, tobRes, tocRes] = await Promise.all([
+      const [logsRes, membersRes, tobRes, tocRes, aicampRes] = await Promise.all([
         supabase.from('weekly_logs').select('*').order('log_date'),
         supabase.from('members').select('*').order('sort_order'),
         supabase.from('deals_tob').select('*, member:members!member_id(name)'),
         supabase.from('deals_toc').select('*, member:members!member_id(name)'),
+        supabase.from('aicamp_consultations').select('*').eq('status', '成約'),
       ])
       if (logsRes.data) setLogs(logsRes.data)
       if (membersRes.data) setMembers(membersRes.data)
       if (tobRes.data) setTobDeals(tobRes.data)
       if (tocRes.data) setTocDeals(tocRes.data)
+      if (aicampRes.data) setAicampDeals(aicampRes.data)
       setLoading(false)
     }
     fetchAll()
@@ -157,15 +160,35 @@ export default function DashboardPage() {
     })).sort((a, b) => b.金額 - a.金額)
   }, [paidDeals])
 
-  // サービス別着金
+  // サービス別着金（deals_tob + aicamp_consultations）
   const servicePaid = useMemo(() => {
-    const services = Array.from(new Set(paidDeals.map(d => d.service ?? 'その他'))).filter(Boolean)
-    return services.map(name => ({
+    // deals_tob のサービス別（万円単位）
+    const tobPaid = view === 'toc' ? [] : tobDeals.filter(d =>
+      d.payment_date && (period === 'all' || d.payment_date.startsWith(currentMonth))
+    )
+    const tobByService: Record<string, number> = {}
+    for (const d of tobPaid) {
+      const key = d.service ?? 'その他'
+      tobByService[key] = (tobByService[key] ?? 0) + (d.actual_amount ?? d.expected_amount ?? 0)
+    }
+
+    // aicamp_consultations のサービス別（円→万円に変換）
+    const aicampPaid = aicampDeals.filter(d =>
+      (d.payment_date && (period === 'all' || d.payment_date.startsWith(currentMonth))) ||
+      (d.consultation_date && (period === 'all' || d.consultation_date.startsWith(currentMonth)))
+    )
+    const aicampByService: Record<string, number> = {}
+    for (const d of aicampPaid) {
+      const key = d.service_type ?? 'AI CAMP'
+      aicampByService[key] = (aicampByService[key] ?? 0) + Math.round((d.payment_amount ?? 0) / 10000)
+    }
+
+    const allKeys = new Set([...Object.keys(tobByService), ...Object.keys(aicampByService)])
+    return Array.from(allKeys).map(name => ({
       name,
-      金額: paidDeals.filter(d => (d.service ?? 'その他') === name)
-        .reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0),
-    })).sort((a, b) => b.金額 - a.金額)
-  }, [paidDeals])
+      金額: (tobByService[name] ?? 0) + (aicampByService[name] ?? 0),
+    })).filter(r => r.金額 > 0).sort((a, b) => b.金額 - a.金額)
+  }, [tobDeals, aicampDeals, view, period, currentMonth])
 
   // パイチャート
   const paidTobTotal = tobDeals
