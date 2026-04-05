@@ -213,6 +213,7 @@ export default function AICampPage() {
 
   // KPI集計（月全体）
   const contracted = consultations.filter(c => c.status === '成約')
+  const metaContracted = contracted.filter(c => c.source?.toLowerCase().includes('meta'))
   const held = consultations.filter(c => c.status === '保留')
   const conducted = consultations.filter(c => ['成約', '失注', '保留'].includes(c.status ?? ''))
   const cancelled = consultations.filter(c => ['ドタキャン', 'キャンセル'].includes(c.status ?? ''))
@@ -339,7 +340,7 @@ export default function AICampPage() {
         const cpa = totalListCount > 0 ? Math.round(totalAdSpend / totalListCount) : null
         const meetingCpa = totalConsultation > 0 ? Math.round(totalAdSpend / totalConsultation) : null
         const seatedCpa = totalSeated > 0 ? Math.round(totalAdSpend / totalSeated) : null
-        const cpo = contracted.length > 0 ? Math.round(totalAdSpend / contracted.length) : null
+        const cpo = metaContracted.length > 0 ? Math.round(totalAdSpend / metaContracted.length) : null
         const roas = totalAdSpend > 0 ? Math.round(totalRevenue / totalAdSpend * 100) : null
 
         const adCols = ['期間', '広告費[円]', 'リスト数[人]', '面談申込数[人]', '着座数[人]', '']
@@ -438,6 +439,47 @@ export default function AICampPage() {
               </table>
             </div>
 
+            {/* ファネル */}
+            {adWeekly.length > 0 && totalListCount > 0 && (
+              <div className="border-t border-gray-100 px-5 py-4">
+                <p className="text-xs font-bold text-gray-500 mb-3">広告ファネル</p>
+                {(() => {
+                  const stages = [
+                    { label: 'リスト数', value: totalListCount, unit: '人', color: 'bg-blue-500' },
+                    { label: '面談申込', value: totalConsultation, unit: '人', color: 'bg-indigo-500', prev: totalListCount },
+                    { label: '着座', value: totalSeated, unit: '人', color: 'bg-violet-500', prev: totalConsultation },
+                    { label: '成約(Meta)', value: metaContracted.length, unit: '件', color: 'bg-green-500', prev: totalSeated },
+                  ]
+                  const max = totalListCount
+                  return (
+                    <div className="flex flex-col gap-2">
+                      {stages.map((s, i) => {
+                        const pct = max > 0 ? Math.round(s.value / max * 100) : 0
+                        const rate = s.prev && s.prev > 0 ? Math.round(s.value / s.prev * 100) : null
+                        return (
+                          <div key={s.label} className="flex items-center gap-3">
+                            <div className="w-20 text-xs text-gray-500 text-right shrink-0">{s.label}</div>
+                            <div className="flex-1 relative h-7 bg-gray-100 rounded overflow-hidden">
+                              <div
+                                className={`h-full ${s.color} transition-all duration-500`}
+                                style={{ width: `${Math.max(pct, s.value > 0 ? 2 : 0)}%` }}
+                              />
+                              <span className="absolute inset-0 flex items-center px-2.5 text-xs font-mono font-bold text-white mix-blend-luminosity">
+                                {s.value > 0 ? `${s.value.toLocaleString()}${s.unit}` : '-'}
+                              </span>
+                            </div>
+                            <div className="w-14 text-xs text-gray-400 shrink-0 font-mono">
+                              {i === 0 ? '基準' : rate !== null ? `↓${rate}%` : '-'}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                })()}
+              </div>
+            )}
+
             {/* KPI */}
             {adWeekly.length > 0 && (
               <div className="border-t border-gray-100 px-5 py-4 grid grid-cols-2 sm:grid-cols-5 gap-4">
@@ -445,7 +487,7 @@ export default function AICampPage() {
                   { label: 'CPA', value: cpa ? `¥${cpa.toLocaleString()}` : '-', sub: '広告費÷リスト数' },
                   { label: '面談申込CPA', value: meetingCpa ? `¥${meetingCpa.toLocaleString()}` : '-', sub: '広告費÷面談申込数' },
                   { label: '着座単価', value: seatedCpa ? `¥${seatedCpa.toLocaleString()}` : '-', sub: '広告費÷着座数' },
-                  { label: 'CPO', value: cpo ? `¥${cpo.toLocaleString()}` : '-', sub: `広告費÷成約${contracted.length}件` },
+                  { label: 'CPO', value: cpo ? `¥${cpo.toLocaleString()}` : '-', sub: `広告費÷Meta成約${metaContracted.length}件` },
                   { label: 'ROAS', value: roas !== null ? `${roas}%` : '-', sub: `売上÷広告費`, color: roas !== null ? (roas >= 100 ? 'text-green-600' : roas >= 60 ? 'text-amber-500' : 'text-red-500') : 'text-gray-300' },
                 ].map(k => (
                   <div key={k.label}>
