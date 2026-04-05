@@ -164,7 +164,7 @@ export default function DashboardPage() {
           .filter(d => d.payment_date?.startsWith(m) || (!d.payment_date && d.consultation_date?.startsWith(m)))
           .reduce((s, d) => s + (d.payment_amount ?? 0), 0) / 10000
       )
-      return { name: label, 法人: tob, 個人: toc, 'AI CAMP': aicamp }
+      return { name: label, 法人: tob, 個人: toc, '個人（AI CAMP）': aicamp }
     })
   }, [tobDeals, tocDeals, aicampDeals, months6, view])
 
@@ -201,7 +201,7 @@ export default function DashboardPage() {
     )
     const aicampByService: Record<string, number> = {}
     for (const d of aicampPaid) {
-      const key = d.service_type ?? 'AI CAMP'
+      const key = d.service_type ?? '個人（AI CAMP）'
       aicampByService[key] = (aicampByService[key] ?? 0) + Math.round((d.payment_amount ?? 0) / 10000)
     }
 
@@ -216,7 +216,7 @@ export default function DashboardPage() {
   const pieData = view === 'all'
     ? [
         { name: '法人', value: paidTobTotal },
-        { name: 'AI CAMP', value: paidAicampTotal },
+        { name: '個人（AI CAMP）', value: paidAicampTotal },
         { name: '個人(旧)', value: paidTocTotal },
       ].filter(d => d.value > 0)
     : view === 'tob'
@@ -396,7 +396,7 @@ export default function DashboardPage() {
           <h3 className="text-2xl font-bold text-slate-900 mt-1 font-mono">{paidTotal.toLocaleString()}万円</h3>
           <div className="mt-2 space-y-0.5">
             <p className="text-xs text-slate-400">法人 <span className="font-bold text-slate-600">{paidTobTotal.toLocaleString()}万</span>（{tobPaid.length}件）</p>
-            <p className="text-xs text-slate-400">AI CAMP <span className="font-bold text-slate-600">{paidAicampTotal.toLocaleString()}万</span>（{paidAicamp.length}件）</p>
+            <p className="text-xs text-slate-400">個人（AI CAMP） <span className="font-bold text-slate-600">{paidAicampTotal.toLocaleString()}万</span>（{paidAicamp.length}件）</p>
           </div>
         </button>
         <StatCard
@@ -452,7 +452,7 @@ export default function DashboardPage() {
                 ))}
                 {paidAicamp.map(d => (
                   <tr key={d.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-2"><span className="text-xs bg-emerald-50 text-emerald-600 font-bold px-1.5 py-0.5 rounded">AI CAMP</span></td>
+                    <td className="px-4 py-2"><span className="text-xs bg-pink-50 text-pink-600 font-bold px-1.5 py-0.5 rounded">個人（AI CAMP）</span></td>
                     <td className="px-4 py-2 text-slate-700 font-medium text-xs">{d.name ?? d.line_name ?? '-'}</td>
                     <td className="px-4 py-2 text-slate-400 text-xs">{members.find(m => m.id === d.member_id)?.name ?? '-'}</td>
                     <td className="px-4 py-2 text-slate-400 text-xs font-mono">{d.payment_date ?? d.consultation_date?.slice(0, 10) ?? '-'}</td>
@@ -480,7 +480,7 @@ export default function DashboardPage() {
               <Tooltip formatter={(v: number) => `${v.toLocaleString()}万円`} />
               <Legend verticalAlign="top" align="right" height={36} />
               <Area type="monotone" name="法人" dataKey="法人" stackId="1" stroke="#6366f1" fill="#6366f1" fillOpacity={0.5} />
-              <Area type="monotone" name="AI CAMP" dataKey="AI CAMP" stackId="1" stroke="#10b981" fill="#10b981" fillOpacity={0.5} />
+              <Area type="monotone" name="個人（AI CAMP）" dataKey="個人（AI CAMP）" stackId="1" stroke="#ec4899" fill="#ec4899" fillOpacity={0.5} />
               <Area type="monotone" name="個人" dataKey="個人" stackId="1" stroke="#ec4899" fill="#ec4899" fillOpacity={0.4} />
             </AreaChart>
           </ResponsiveContainer>
@@ -494,7 +494,7 @@ export default function DashboardPage() {
             <PieChart>
               <Pie data={pieData} innerRadius={60} outerRadius={85} paddingAngle={4} dataKey="value">
                 {pieData.map((_, i) => (
-                  <Cell key={i} fill={['#6366f1', '#10b981', '#ec4899'][i % 3]} />
+                  <Cell key={i} fill={['#6366f1', '#ec4899'][i % 2]} />
                 ))}
               </Pie>
               <Tooltip formatter={(v: number) => view === 'all' ? `${v.toLocaleString()}万円` : `${v}件`} />
