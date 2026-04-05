@@ -25,7 +25,7 @@ const SCHEMAS = {
       next_action_date: '次回期日',
       notes: 'メモ・備考・その他',
     },
-    statusMap: { '確定': '受注', '入金待ち': '保留', 'キャンセル': '失注', '成約': '受注', '失注': '失注', '保留': '保留' },
+    statusMap: { '確定': '受注', '入金待ち': '保留', 'キャンセル': '失注', '成約': '受注', '失注': '失注', '保留': '保留' } as Record<string, string>,
   },
   deals_tob: {
     label: '法人案件',
@@ -40,7 +40,7 @@ const SCHEMAS = {
       actual_amount: '着金額（万円）',
       notes: 'メモ・備考',
     },
-    statusMap: { '確定': '受注', '成約': '受注', '失注': '失注', '保留': '保留' },
+    statusMap: { '確定': '受注', '成約': '受注', '失注': '失注', '保留': '保留' } as Record<string, string>,
   },
   aicamp_consultations: {
     label: 'AI CAMP 商談（ロードマップ作成会）',
@@ -62,7 +62,7 @@ const SCHEMAS = {
       minutes_url: '議事録URL',
       reply_deadline: '返事の期限',
     },
-    statusMap: { '確定': '成約', '入金待ち': '保留', 'キャンセル': 'キャンセル', '成約': '成約', '失注': '失注', 'ドタキャン': 'ドタキャン', '保留': '保留' },
+    statusMap: { '確定': '成約', '入金待ち': '保留', 'キャンセル': 'キャンセル', '成約': '成約', '失注': '失注', 'ドタキャン': 'ドタキャン', '保留': '保留' } as Record<string, string>,
   },
 }
 
