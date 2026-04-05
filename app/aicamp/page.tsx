@@ -1,7 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase, AICampConsultation, AICampMonthlyGoal, AICampAdWeekly, Member, CONSULTATION_STATUSES } from '@/lib/supabase'
+import { supabase, AICampConsultation, AICampMonthlyGoal, AICampAdWeekly, Member, CONSULTATION_STATUSES, PAYMENT_METHODS, AI_EXPERIENCES } from '@/lib/supabase'
+
+const MONTHLY_INCOMES = ['〜10万円', '11～20万円', '21～30万円', '31～40万円', '41～50万円', '51～60万円', '61～70万円', '71～80万円', '81～90万円', '91～100万円', '101万円以上']
+const SERVICE_TYPES = ['AI CAMP', 'プロダクト AI CAMP']
 import AICampConsultationForm from '@/components/AICampConsultationForm'
 import AIImport from '@/components/AIImport'
 import SourceMasterModal from '@/components/SourceMasterModal'
@@ -77,11 +80,11 @@ export default function AICampPage() {
   async function saveGoal() {
     const val = parseInt(goalInput) || 0
     const pval = parseInt(productGoalInput) || 0
-    if (goal) {
-      await supabase.from('aicamp_monthly_goals').update({ contract_goal: val, product_contract_goal: pval }).eq('id', goal.id)
-    } else {
-      await supabase.from('aicamp_monthly_goals').insert({ month, contract_goal: val, product_contract_goal: pval })
-    }
+    const payload = { contract_goal: val, product_contract_goal: pval }
+    const { error } = goal
+      ? await supabase.from('aicamp_monthly_goals').update(payload).eq('id', goal.id)
+      : await supabase.from('aicamp_monthly_goals').insert({ month, ...payload })
+    if (error) { alert(`保存エラー: ${error.message}`); return }
     setEditingGoal(false)
     fetchAll()
   }
@@ -141,12 +144,24 @@ export default function AICampPage() {
     setInlineDraft({
       consultation_date: c.consultation_date?.slice(0, 16) ?? '',
       member_id: c.member_id ?? '',
-      name: c.name ?? '',
+      service_type: c.service_type ?? 'AI CAMP',
       line_name: c.line_name ?? '',
+      name: c.name ?? '',
+      age: c.age?.toString() ?? '',
       source: c.source ?? '',
+      registration_source: c.registration_source ?? '',
       status: c.status ?? '予定',
       payment_amount: c.payment_amount?.toString() ?? '',
+      payment_date: c.payment_date ?? '',
+      payment_method: c.payment_method ?? '',
       reply_deadline: c.reply_deadline ?? '',
+      occupation: c.occupation ?? '',
+      monthly_income: c.monthly_income ?? '',
+      ai_experience: c.ai_experience ?? '',
+      customer_attribute: c.customer_attribute ?? '',
+      motivation: c.motivation ?? '',
+      reason: c.reason ?? '',
+      minutes_url: c.minutes_url ?? '',
     })
   }
 
@@ -155,11 +170,24 @@ export default function AICampPage() {
     const payload = {
       consultation_date: inlineDraft.consultation_date || null,
       member_id: inlineDraft.member_id || null,
+      service_type: inlineDraft.service_type,
+      line_name: inlineDraft.line_name || null,
       name: inlineDraft.name || null,
+      age: inlineDraft.age ? parseInt(inlineDraft.age) : null,
       source: inlineDraft.source || null,
+      registration_source: inlineDraft.registration_source || null,
       status: inlineDraft.status,
       payment_amount: inlineDraft.payment_amount ? parseInt(inlineDraft.payment_amount) : null,
+      payment_date: inlineDraft.payment_date || null,
+      payment_method: inlineDraft.payment_method || null,
       reply_deadline: inlineDraft.reply_deadline || null,
+      occupation: inlineDraft.occupation || null,
+      monthly_income: inlineDraft.monthly_income || null,
+      ai_experience: inlineDraft.ai_experience || null,
+      customer_attribute: inlineDraft.customer_attribute || null,
+      motivation: inlineDraft.motivation || null,
+      reason: inlineDraft.reason || null,
+      minutes_url: inlineDraft.minutes_url || null,
     }
     await supabase.from('aicamp_consultations').update(payload).eq('id', id)
     setInlineSaving(false)
@@ -674,8 +702,13 @@ export default function AICampPage() {
                         </span>
                       )}
                     </td>
-                    {/* サービス区分 */}
-                    <td className="px-4 py-2.5 whitespace-nowrap text-xs text-gray-600">{c.service_type ?? 'AI CAMP'}</td>
+                    <td className="px-4 py-2.5 whitespace-nowrap" onClick={e => isEditing && e.stopPropagation()}>
+                      {isEditing ? (
+                        <select value={inlineDraft.service_type} onChange={e => setDraft('service_type', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none w-36">
+                          {SERVICE_TYPES.map(s => <option key={s}>{s}</option>)}
+                        </select>
+                      ) : <span className="text-xs text-gray-600">{c.service_type ?? 'AI CAMP'}</span>}
+                    </td>
                     <td className="px-4 py-2.5 whitespace-nowrap" onClick={e => isEditing && e.stopPropagation()}>
                       {isEditing ? (
                         <select
@@ -702,9 +735,15 @@ export default function AICampPage() {
                         <span className="font-medium text-gray-800">{c.name ?? '-'}</span>
                       )}
                     </td>
-                    {/* LINE名・年齢（静的） */}
-                    <td className="px-4 py-2.5 text-xs text-gray-500 whitespace-nowrap">{c.line_name ?? '-'}</td>
-                    <td className="px-4 py-2.5 text-xs text-gray-500 font-mono">{c.age ?? '-'}</td>
+                    {/* LINE名・年齢 */}
+                    <td className="px-4 py-2.5" onClick={e => isEditing && e.stopPropagation()}>
+                      {isEditing ? <input value={inlineDraft.line_name} onChange={e => setDraft('line_name', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-24 focus:outline-none" />
+                        : <span className="text-xs text-gray-500">{c.line_name ?? '-'}</span>}
+                    </td>
+                    <td className="px-4 py-2.5" onClick={e => isEditing && e.stopPropagation()}>
+                      {isEditing ? <input type="number" value={inlineDraft.age} onChange={e => setDraft('age', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs font-mono w-16 focus:outline-none" />
+                        : <span className="text-xs text-gray-500 font-mono">{c.age ?? '-'}</span>}
+                    </td>
                     <td className="px-4 py-2.5 max-w-[160px]" onClick={e => isEditing && e.stopPropagation()}>
                       {isEditing ? (
                         <input
@@ -747,11 +786,22 @@ export default function AICampPage() {
                         </span>
                       )}
                     </td>
-                    {/* 着金日・支払方法・登録経路（静的） */}
-                    <td className="px-4 py-2.5 text-xs text-gray-500 whitespace-nowrap">{c.payment_date ?? '-'}</td>
-                    <td className="px-4 py-2.5 text-xs text-gray-500 whitespace-nowrap">{c.payment_method ?? '-'}</td>
-                    <td className="px-4 py-2.5 text-xs text-gray-500 max-w-[160px]">
-                      <span className="line-clamp-1">{c.registration_source ?? '-'}</span>
+                    {/* 着金日・支払方法・登録経路 */}
+                    <td className="px-4 py-2.5" onClick={e => isEditing && e.stopPropagation()}>
+                      {isEditing ? <input type="date" value={inlineDraft.payment_date} onChange={e => setDraft('payment_date', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none" />
+                        : <span className="text-xs text-gray-500">{c.payment_date ?? '-'}</span>}
+                    </td>
+                    <td className="px-4 py-2.5" onClick={e => isEditing && e.stopPropagation()}>
+                      {isEditing ? (
+                        <select value={inlineDraft.payment_method} onChange={e => setDraft('payment_method', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none">
+                          <option value="">-</option>
+                          {PAYMENT_METHODS.map(p => <option key={p}>{p}</option>)}
+                        </select>
+                      ) : <span className="text-xs text-gray-500">{c.payment_method ?? '-'}</span>}
+                    </td>
+                    <td className="px-4 py-2.5 max-w-[160px]" onClick={e => isEditing && e.stopPropagation()}>
+                      {isEditing ? <input value={inlineDraft.registration_source} onChange={e => setDraft('registration_source', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-36 focus:outline-none" />
+                        : <span className="text-xs text-gray-500 line-clamp-1">{c.registration_source ?? '-'}</span>}
                     </td>
                     <td className="px-4 py-2.5" onClick={e => isEditing && e.stopPropagation()}>
                       {isEditing ? (
@@ -765,25 +815,44 @@ export default function AICampPage() {
                         <span className="text-xs text-gray-500">{c.reply_deadline ?? '-'}</span>
                       )}
                     </td>
-                    {/* 静的列（詳細情報） */}
-                    <td className="px-4 py-2.5 text-xs text-gray-500 whitespace-nowrap">{c.occupation ?? '-'}</td>
-                    <td className="px-4 py-2.5 text-xs text-gray-500 whitespace-nowrap">{c.monthly_income ?? '-'}</td>
-                    <td className="px-4 py-2.5 text-xs text-gray-400 max-w-[160px]">
-                      <span className="line-clamp-2">{c.ai_experience ?? '-'}</span>
+                    {/* 詳細情報（全て編集可能） */}
+                    <td className="px-4 py-2.5" onClick={e => isEditing && e.stopPropagation()}>
+                      {isEditing ? <input value={inlineDraft.occupation} onChange={e => setDraft('occupation', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-24 focus:outline-none" />
+                        : <span className="text-xs text-gray-500">{c.occupation ?? '-'}</span>}
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-gray-400 max-w-[160px]">
-                      <span className="line-clamp-2">{c.customer_attribute ?? '-'}</span>
+                    <td className="px-4 py-2.5" onClick={e => isEditing && e.stopPropagation()}>
+                      {isEditing ? (
+                        <select value={inlineDraft.monthly_income} onChange={e => setDraft('monthly_income', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none">
+                          <option value="">-</option>
+                          {MONTHLY_INCOMES.map(i => <option key={i}>{i}</option>)}
+                        </select>
+                      ) : <span className="text-xs text-gray-500">{c.monthly_income ?? '-'}</span>}
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-gray-400 max-w-[200px]">
-                      <span className="line-clamp-2">{c.motivation ?? '-'}</span>
+                    <td className="px-4 py-2.5 max-w-[180px]" onClick={e => isEditing && e.stopPropagation()}>
+                      {isEditing ? (
+                        <select value={inlineDraft.ai_experience} onChange={e => setDraft('ai_experience', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none w-40">
+                          <option value="">-</option>
+                          {AI_EXPERIENCES.map(e => <option key={e}>{e}</option>)}
+                        </select>
+                      ) : <span className="text-xs text-gray-400 line-clamp-2">{c.ai_experience ?? '-'}</span>}
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-gray-400 max-w-[160px]">
-                      <span className="line-clamp-2">{c.reason ?? '-'}</span>
+                    <td className="px-4 py-2.5 max-w-[160px]" onClick={e => isEditing && e.stopPropagation()}>
+                      {isEditing ? <input value={inlineDraft.customer_attribute} onChange={e => setDraft('customer_attribute', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-36 focus:outline-none" />
+                        : <span className="text-xs text-gray-400 line-clamp-2">{c.customer_attribute ?? '-'}</span>}
                     </td>
-                    <td className="px-4 py-2.5">
-                      {c.minutes_url
-                        ? <a href={c.minutes_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline" onClick={e => e.stopPropagation()}>開く</a>
-                        : <span className="text-xs text-gray-300">-</span>}
+                    <td className="px-4 py-2.5 max-w-[200px]" onClick={e => isEditing && e.stopPropagation()}>
+                      {isEditing ? <textarea value={inlineDraft.motivation} onChange={e => setDraft('motivation', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-48 h-16 resize-none focus:outline-none" />
+                        : <span className="text-xs text-gray-400 line-clamp-2">{c.motivation ?? '-'}</span>}
+                    </td>
+                    <td className="px-4 py-2.5 max-w-[160px]" onClick={e => isEditing && e.stopPropagation()}>
+                      {isEditing ? <textarea value={inlineDraft.reason} onChange={e => setDraft('reason', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-40 h-16 resize-none focus:outline-none" />
+                        : <span className="text-xs text-gray-400 line-clamp-2">{c.reason ?? '-'}</span>}
+                    </td>
+                    <td className="px-4 py-2.5" onClick={e => isEditing && e.stopPropagation()}>
+                      {isEditing ? <input value={inlineDraft.minutes_url} onChange={e => setDraft('minutes_url', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-36 focus:outline-none" placeholder="https://..." />
+                        : c.minutes_url
+                          ? <a href={c.minutes_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline" onClick={e => e.stopPropagation()}>開く</a>
+                          : <span className="text-xs text-gray-300">-</span>}
                     </td>
                     <td className="px-4 py-2.5" onClick={e => e.stopPropagation()}>
                       <div className="flex gap-2 justify-end whitespace-nowrap">
