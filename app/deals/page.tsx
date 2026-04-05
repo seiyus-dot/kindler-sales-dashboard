@@ -6,6 +6,7 @@ import DealToBForm from '@/components/DealToBForm'
 import DealToCForm from '@/components/DealToCForm'
 import CSVImport from '@/components/CSVImport'
 import StripeCSVImport from '@/components/StripeCSVImport'
+import AICampApplicationImport from '@/components/AICampApplicationImport'
 
 type Tab = 'tob' | 'toc'
 
@@ -277,6 +278,7 @@ export default function DealsPage() {
         <div className="flex gap-2">
           <CSVImport tab={tab} members={members} sources={sources} onImported={fetchAll} />
           <StripeCSVImport tab={tab} members={members} onImported={fetchAll} />
+          {tab === 'toc' && <AICampApplicationImport members={members} onImported={fetchAll} />}
           <button
             onClick={() => { setEditTarget(null); setShowForm(true) }}
             className="bg-blue-600 text-white px-4 py-2 rounded-sm text-base font-medium hover:bg-blue-700 transition"
