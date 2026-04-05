@@ -20,6 +20,43 @@ type PreviewResult = {
   rows: Record<string, unknown>[]
 }
 
+const TEMPLATES = [
+  {
+    key: 'aicamp',
+    label: 'AI CAMP 商談',
+    filename: 'template_aicamp_consultations.csv',
+    headers: ['LINE名', '氏名', '年齢', '実施日(YYYY-MM-DD)', '担当者名', '流入経路', '登録経路', 'ステータス', '着金額(円)', '支払方法', '顧客属性', '動機', '理由', '返事期限(YYYY-MM-DD)', '議事録URL', '職業', '月収', 'AI経験'],
+    example: ['みき', '石渡 美希', '48', '2026-03-18', '白岩 聖悠', '', '（LP2-3）', '成約', '150000', '銀行振込', '', '', '', '', '', '事務', '41～50万円', '業務や日常で少し使っている'],
+  },
+  {
+    key: 'toc',
+    label: '個人案件',
+    filename: 'template_deals_toc.csv',
+    headers: ['氏名', 'メール・電話', '商品名', 'ステータス', '流入経路', '見込み金額(万円)', '着金額(万円)', '着金日(YYYY-MM-DD)', '初回接触日(YYYY-MM-DD)', '担当者名', 'メモ'],
+    example: ['山田 太郎', 'example@mail.com', 'AI CAMP', '商談中', 'SNS', '43', '', '', '2026-04-01', '白岩 聖悠', ''],
+  },
+  {
+    key: 'tob',
+    label: '法人案件',
+    filename: 'template_deals_tob.csv',
+    headers: ['企業名', '担当者名', '商品名', '業種', 'ステータス', '流入経路', '見込み金額(万円)', '着金額(万円)', '担当メンバー名', 'メモ'],
+    example: ['株式会社サンプル', '鈴木 一郎', 'AI研修', 'IT', '提案中', '紹介', '50', '', '白岩 聖悠', ''],
+  },
+]
+
+function downloadTemplate(t: typeof TEMPLATES[0]) {
+  const bom = '\uFEFF' // UTF-8 BOM（Excel で文字化けしないように）
+  const rows = [t.headers.join(','), t.example.map(v => `"${v}"`).join(',')]
+  const csv = bom + rows.join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = t.filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 function parseText(text: string, hasHeader: boolean): Record<string, unknown>[] {
   // クォート内の改行を含む TSV/CSV に対応した本格パーサー
   const delimiter = text.split('\n')[0].includes('\t') ? '\t' : ','
@@ -205,6 +242,15 @@ export default function AIImport({ members, onImported }: Props) {
         {/* ステップ: アップロード */}
         {step === 'upload' && (
           <div className="p-6 space-y-4">
+            {/* テンプレダウンロード */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-gray-400">テンプレ:</span>
+              {TEMPLATES.map(t => (
+                <button key={t.key} onClick={() => downloadTemplate(t)} className="text-xs text-indigo-500 hover:underline">
+                  {t.label}
+                </button>
+              ))}
+            </div>
             {/* モード切り替え */}
             <div className="flex gap-1 bg-gray-100 p-1 rounded text-sm">
               {(['text', 'file'] as const).map(mode => (
