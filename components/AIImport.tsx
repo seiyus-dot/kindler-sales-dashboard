@@ -69,6 +69,11 @@ export default function AIImport({ members, onImported }: Props) {
       }),
     })
     const data = await res.json()
+    if (!res.ok || data.error) {
+      alert(`エラー: ${data.error ?? res.statusText}`)
+      setLoading(false)
+      return
+    }
     setResult(data)
     setStep('preview')
     setLoading(false)
