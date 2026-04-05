@@ -108,15 +108,24 @@ ${Object.entries(SCHEMAS).map(([key, s]) => `
 }
 `
 
-  const message = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 1024,
-    messages: [{ role: 'user', content: prompt }],
-  })
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return NextResponse.json({ error: 'ANTHROPIC_API_KEY が設定されていません' }, { status: 500 })
+  }
 
-  const text = (message.content[0] as { type: string; text: string }).text
+  let text = ''
+  try {
+    const message = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: prompt }],
+    })
+    text = (message.content[0] as { type: string; text: string }).text
+  } catch (e) {
+    return NextResponse.json({ error: `Claude API エラー: ${String(e)}` }, { status: 500 })
+  }
+
   const jsonMatch = text.match(/\{[\s\S]*\}/)
-  if (!jsonMatch) return NextResponse.json({ error: 'AI応答の解析に失敗しました' }, { status: 500 })
+  if (!jsonMatch) return NextResponse.json({ error: `AI応答の解析に失敗しました: ${text.slice(0, 200)}` }, { status: 500 })
 
   const aiResult = JSON.parse(jsonMatch[0])
   const { targetTable, reason, mappings, skipPatterns = [] } = aiResult
