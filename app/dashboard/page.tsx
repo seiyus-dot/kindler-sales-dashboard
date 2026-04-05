@@ -156,15 +156,12 @@ export default function DashboardPage() {
       const tob = (view !== 'toc' ? tobDeals : [])
         .filter(d => d.payment_date?.startsWith(m))
         .reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0)
-      const toc = (view !== 'tob' ? tocDeals : [])
-        .filter(d => d.payment_date?.startsWith(m))
-        .reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0)
       const aicamp = Math.round(
         aicampDeals
           .filter(d => d.payment_date?.startsWith(m) || (!d.payment_date && d.consultation_date?.startsWith(m)))
           .reduce((s, d) => s + (d.payment_amount ?? 0), 0) / 10000
       )
-      return { name: label, 法人: tob, 個人: toc, '個人（AI CAMP）': aicamp }
+      return { name: label, 法人: tob, '個人（AI CAMP）': aicamp }
     })
   }, [tobDeals, tocDeals, aicampDeals, months6, view])
 
@@ -481,7 +478,6 @@ export default function DashboardPage() {
               <Legend verticalAlign="top" align="right" height={36} />
               <Area type="monotone" name="法人" dataKey="法人" stackId="1" stroke="#6366f1" fill="#6366f1" fillOpacity={0.5} />
               <Area type="monotone" name="個人（AI CAMP）" dataKey="個人（AI CAMP）" stackId="1" stroke="#ec4899" fill="#ec4899" fillOpacity={0.5} />
-              <Area type="monotone" name="個人" dataKey="個人" stackId="1" stroke="#ec4899" fill="#ec4899" fillOpacity={0.4} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
