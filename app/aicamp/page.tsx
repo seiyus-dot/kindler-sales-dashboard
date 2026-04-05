@@ -436,7 +436,7 @@ export default function AICampPage() {
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-100">
                     {adCols.map(h => (
-                      <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">{h}</th>
+                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -463,12 +463,12 @@ export default function AICampPage() {
                           </>
                         ) : (
                           <>
-                            <td className="px-4 py-2.5 font-medium text-gray-700">{row.week_label}</td>
-                            <td className="px-4 py-2.5 font-mono text-gray-700">¥{row.ad_spend.toLocaleString()}</td>
-                            <td className="px-4 py-2.5 font-mono text-gray-700">{row.list_count}</td>
-                            <td className="px-4 py-2.5 font-mono text-gray-500">{row.consultation_count ?? '-'}</td>
-                            <td className="px-4 py-2.5 font-mono text-gray-500">{row.seated_count ?? '-'}</td>
-                            <td className="px-4 py-2.5">
+                            <td className="px-4 py-3 font-medium text-gray-700">{row.week_label}</td>
+                            <td className="px-4 py-3 font-mono text-gray-700">¥{row.ad_spend.toLocaleString()}</td>
+                            <td className="px-4 py-3 font-mono text-gray-700">{row.list_count}</td>
+                            <td className="px-4 py-3 font-mono text-gray-500">{row.consultation_count ?? '-'}</td>
+                            <td className="px-4 py-3 font-mono text-gray-500">{row.seated_count ?? '-'}</td>
+                            <td className="px-4 py-3">
                               <div className="flex gap-2 justify-end">
                                 <button onClick={() => startAdEdit(row)} className="text-xs text-blue-500 hover:underline">編集</button>
                                 <button onClick={() => deleteAdRow(row.id)} className="text-xs text-red-400 hover:underline">削除</button>
@@ -500,11 +500,11 @@ export default function AICampPage() {
                   {/* 合計行 */}
                   {adWeekly.length > 0 && (
                     <tr className="bg-gray-50 border-t border-gray-200 font-bold">
-                      <td className="px-4 py-2.5 text-gray-500 text-xs">合計</td>
-                      <td className="px-4 py-2.5 font-mono text-gray-800">¥{totalAdSpend.toLocaleString()}</td>
-                      <td className="px-4 py-2.5 font-mono text-gray-800">{totalListCount}</td>
-                      <td className="px-4 py-2.5 font-mono text-gray-800">{totalConsultation > 0 ? totalConsultation : '-'}</td>
-                      <td className="px-4 py-2.5 font-mono text-gray-800">{totalSeated > 0 ? totalSeated : '-'}</td>
+                      <td className="px-4 py-3 text-gray-500 text-xs">合計</td>
+                      <td className="px-4 py-3 font-mono text-gray-800">¥{totalAdSpend.toLocaleString()}</td>
+                      <td className="px-4 py-3 font-mono text-gray-800">{totalListCount}</td>
+                      <td className="px-4 py-3 font-mono text-gray-800">{totalConsultation > 0 ? totalConsultation : '-'}</td>
+                      <td className="px-4 py-3 font-mono text-gray-800">{totalSeated > 0 ? totalSeated : '-'}</td>
                       <td />
                     </tr>
                   )}
@@ -585,38 +585,38 @@ export default function AICampPage() {
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100">
                 {['担当者', '成約', '保留', '実商談', 'キャンセル', 'キャンセル率', '成約率', '売上'].map(h => (
-                  <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {memberStats.map(s => (
                 <tr key={s.member.id} className="border-b border-gray-50 hover:bg-gray-50">
-                  <td className="px-4 py-2.5 font-medium text-gray-800">{s.member.name}</td>
-                  <td className="px-4 py-2.5 font-bold text-green-600">{s.contracted}</td>
-                  <td className="px-4 py-2.5 text-amber-600">{s.held}</td>
-                  <td className="px-4 py-2.5 text-gray-600">{s.conducted}</td>
-                  <td className="px-4 py-2.5 text-red-400">{s.cancelled}</td>
-                  <td className="px-4 py-2.5">
+                  <td className="px-4 py-3 font-medium text-gray-800">{s.member.name}</td>
+                  <td className="px-4 py-3 font-bold text-green-600">{s.contracted}</td>
+                  <td className="px-4 py-3 text-amber-600">{s.held}</td>
+                  <td className="px-4 py-3 text-gray-600">{s.conducted}</td>
+                  <td className="px-4 py-3 text-red-400">{s.cancelled}</td>
+                  <td className="px-4 py-3">
                     <span className={s.cancelRate > 20 ? 'text-red-500 font-bold' : 'text-gray-600'}>{s.cancelRate}%</span>
                   </td>
-                  <td className="px-4 py-2.5">
+                  <td className="px-4 py-3">
                     <span className={s.contractRate >= 50 ? 'text-green-600 font-bold' : 'text-gray-600'}>{s.contractRate}%</span>
                   </td>
-                  <td className="px-4 py-2.5 font-mono text-gray-700">
+                  <td className="px-4 py-3 font-mono text-gray-700">
                     {s.revenue > 0 ? `¥${s.revenue.toLocaleString()}` : '-'}
                   </td>
                 </tr>
               ))}
               <tr className="bg-gray-50 border-t border-gray-200 font-bold">
-                <td className="px-4 py-2.5 text-gray-500">合計</td>
-                <td className="px-4 py-2.5 text-green-600">{contracted.length}</td>
-                <td className="px-4 py-2.5 text-amber-600">{held.length}</td>
-                <td className="px-4 py-2.5 text-gray-600">{conducted.length}</td>
-                <td className="px-4 py-2.5 text-red-400">{cancelled.length}</td>
-                <td className="px-4 py-2.5 text-gray-600">{cancelRate}%</td>
-                <td className="px-4 py-2.5 text-gray-600">{contractRate}%</td>
-                <td className="px-4 py-2.5 font-mono text-gray-700">
+                <td className="px-4 py-3 text-gray-500">合計</td>
+                <td className="px-4 py-3 text-green-600">{contracted.length}</td>
+                <td className="px-4 py-3 text-amber-600">{held.length}</td>
+                <td className="px-4 py-3 text-gray-600">{conducted.length}</td>
+                <td className="px-4 py-3 text-red-400">{cancelled.length}</td>
+                <td className="px-4 py-3 text-gray-600">{cancelRate}%</td>
+                <td className="px-4 py-3 text-gray-600">{contractRate}%</td>
+                <td className="px-4 py-3 font-mono text-gray-700">
                   {totalRevenue > 0 ? `¥${totalRevenue.toLocaleString()}` : '-'}
                 </td>
               </tr>
@@ -658,7 +658,7 @@ export default function AICampPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="px-4 py-2.5 w-8">
+                <th className="px-4 py-3 w-8">
                   <input
                     type="checkbox"
                     checked={filtered.length > 0 && selectedIds.size === filtered.length}
@@ -667,7 +667,7 @@ export default function AICampPage() {
                   />
                 </th>
                 {['実施日時', 'サービス', '担当者', 'LINE名', '氏名', '年齢', '流入経路', '登録経路', 'ステータス', '着金額', '着金日', '支払方法', '返事期限', '職業', '月収', 'AI経験', '顧客属性', '動機', '理由', '議事録', ''].map(h => (
-                  <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -680,7 +680,7 @@ export default function AICampPage() {
                   <tr key={c.id} className={`border-b border-gray-50 ${isEditing ? 'bg-blue-50' : selectedIds.has(c.id) ? 'bg-red-50' : 'hover:bg-gray-50 cursor-pointer'}`}
                     onClick={!isEditing ? () => startInlineEdit(c) : undefined}
                   >
-                    <td className="px-4 py-2.5 w-8" onClick={e => e.stopPropagation()}>
+                    <td className="px-4 py-3 w-8" onClick={e => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={selectedIds.has(c.id)}
@@ -688,7 +688,7 @@ export default function AICampPage() {
                         className="rounded"
                       />
                     </td>
-                    <td className="px-4 py-2.5 whitespace-nowrap" onClick={e => isEditing && e.stopPropagation()}>
+                    <td className="px-4 py-3 whitespace-nowrap" onClick={e => isEditing && e.stopPropagation()}>
                       {isEditing ? (
                         <input
                           type="datetime-local"
@@ -702,14 +702,14 @@ export default function AICampPage() {
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-2.5 whitespace-nowrap" onClick={e => isEditing && e.stopPropagation()}>
+                    <td className="px-4 py-3 whitespace-nowrap" onClick={e => isEditing && e.stopPropagation()}>
                       {isEditing ? (
                         <select value={inlineDraft.service_type} onChange={e => setDraft('service_type', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none w-36">
                           {SERVICE_TYPES.map(s => <option key={s}>{s}</option>)}
                         </select>
                       ) : <span className="text-xs text-gray-600">{c.service_type ?? 'AI CAMP'}</span>}
                     </td>
-                    <td className="px-4 py-2.5 whitespace-nowrap" onClick={e => isEditing && e.stopPropagation()}>
+                    <td className="px-4 py-3 whitespace-nowrap" onClick={e => isEditing && e.stopPropagation()}>
                       {isEditing ? (
                         <select
                           value={inlineDraft.member_id}
@@ -723,7 +723,7 @@ export default function AICampPage() {
                         <span className="text-gray-700">{(c.member as any)?.name ?? '-'}</span>
                       )}
                     </td>
-                    <td className="px-4 py-2.5" onClick={e => isEditing && e.stopPropagation()}>
+                    <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
                       {isEditing ? (
                         <input
                           value={inlineDraft.name}
@@ -736,27 +736,27 @@ export default function AICampPage() {
                       )}
                     </td>
                     {/* LINE名・年齢 */}
-                    <td className="px-4 py-2.5" onClick={e => isEditing && e.stopPropagation()}>
-                      {isEditing ? <input value={inlineDraft.line_name} onChange={e => setDraft('line_name', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-24 focus:outline-none" />
+                    <td className="px-4 py-3 min-w-[140px]" onClick={e => isEditing && e.stopPropagation()}>
+                      {isEditing ? <input value={inlineDraft.line_name} onChange={e => setDraft('line_name', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-36 focus:outline-none" />
                         : <span className="text-xs text-gray-500">{c.line_name ?? '-'}</span>}
                     </td>
-                    <td className="px-4 py-2.5" onClick={e => isEditing && e.stopPropagation()}>
+                    <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
                       {isEditing ? <input type="number" value={inlineDraft.age} onChange={e => setDraft('age', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs font-mono w-16 focus:outline-none" />
                         : <span className="text-xs text-gray-500 font-mono">{c.age ?? '-'}</span>}
                     </td>
-                    <td className="px-4 py-2.5 max-w-[160px]" onClick={e => isEditing && e.stopPropagation()}>
+                    <td className="px-4 py-3 min-w-[180px]" onClick={e => isEditing && e.stopPropagation()}>
                       {isEditing ? (
                         <input
                           value={inlineDraft.source}
                           onChange={e => setDraft('source', e.target.value)}
-                          className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 w-32"
+                          className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 w-44"
                           placeholder="流入経路"
                         />
                       ) : (
-                        <span className="text-xs text-gray-500 line-clamp-2">{c.source ?? '-'}</span>
+                        <span className="text-xs text-gray-500">{c.source ?? '-'}</span>
                       )}
                     </td>
-                    <td className="px-4 py-2.5" onClick={e => isEditing && e.stopPropagation()}>
+                    <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
                       {isEditing ? (
                         <select
                           value={inlineDraft.status}
@@ -771,7 +771,7 @@ export default function AICampPage() {
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-2.5" onClick={e => isEditing && e.stopPropagation()}>
+                    <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
                       {isEditing ? (
                         <input
                           type="number"
@@ -787,11 +787,11 @@ export default function AICampPage() {
                       )}
                     </td>
                     {/* 着金日・支払方法・登録経路 */}
-                    <td className="px-4 py-2.5" onClick={e => isEditing && e.stopPropagation()}>
+                    <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
                       {isEditing ? <input type="date" value={inlineDraft.payment_date} onChange={e => setDraft('payment_date', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none" />
                         : <span className="text-xs text-gray-500">{c.payment_date ?? '-'}</span>}
                     </td>
-                    <td className="px-4 py-2.5" onClick={e => isEditing && e.stopPropagation()}>
+                    <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
                       {isEditing ? (
                         <select value={inlineDraft.payment_method} onChange={e => setDraft('payment_method', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none">
                           <option value="">-</option>
@@ -799,11 +799,11 @@ export default function AICampPage() {
                         </select>
                       ) : <span className="text-xs text-gray-500">{c.payment_method ?? '-'}</span>}
                     </td>
-                    <td className="px-4 py-2.5 max-w-[160px]" onClick={e => isEditing && e.stopPropagation()}>
+                    <td className="px-4 py-3 max-w-[160px]" onClick={e => isEditing && e.stopPropagation()}>
                       {isEditing ? <input value={inlineDraft.registration_source} onChange={e => setDraft('registration_source', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-36 focus:outline-none" />
                         : <span className="text-xs text-gray-500 line-clamp-1">{c.registration_source ?? '-'}</span>}
                     </td>
-                    <td className="px-4 py-2.5" onClick={e => isEditing && e.stopPropagation()}>
+                    <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
                       {isEditing ? (
                         <input
                           type="date"
@@ -816,11 +816,11 @@ export default function AICampPage() {
                       )}
                     </td>
                     {/* 詳細情報（全て編集可能） */}
-                    <td className="px-4 py-2.5" onClick={e => isEditing && e.stopPropagation()}>
+                    <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
                       {isEditing ? <input value={inlineDraft.occupation} onChange={e => setDraft('occupation', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-24 focus:outline-none" />
                         : <span className="text-xs text-gray-500">{c.occupation ?? '-'}</span>}
                     </td>
-                    <td className="px-4 py-2.5" onClick={e => isEditing && e.stopPropagation()}>
+                    <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
                       {isEditing ? (
                         <select value={inlineDraft.monthly_income} onChange={e => setDraft('monthly_income', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none">
                           <option value="">-</option>
@@ -828,7 +828,7 @@ export default function AICampPage() {
                         </select>
                       ) : <span className="text-xs text-gray-500">{c.monthly_income ?? '-'}</span>}
                     </td>
-                    <td className="px-4 py-2.5 max-w-[180px]" onClick={e => isEditing && e.stopPropagation()}>
+                    <td className="px-4 py-3 max-w-[180px]" onClick={e => isEditing && e.stopPropagation()}>
                       {isEditing ? (
                         <select value={inlineDraft.ai_experience} onChange={e => setDraft('ai_experience', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none w-40">
                           <option value="">-</option>
@@ -836,25 +836,25 @@ export default function AICampPage() {
                         </select>
                       ) : <span className="text-xs text-gray-400 line-clamp-2">{c.ai_experience ?? '-'}</span>}
                     </td>
-                    <td className="px-4 py-2.5 max-w-[160px]" onClick={e => isEditing && e.stopPropagation()}>
+                    <td className="px-4 py-3 max-w-[160px]" onClick={e => isEditing && e.stopPropagation()}>
                       {isEditing ? <input value={inlineDraft.customer_attribute} onChange={e => setDraft('customer_attribute', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-36 focus:outline-none" />
                         : <span className="text-xs text-gray-400 line-clamp-2">{c.customer_attribute ?? '-'}</span>}
                     </td>
-                    <td className="px-4 py-2.5 max-w-[200px]" onClick={e => isEditing && e.stopPropagation()}>
+                    <td className="px-4 py-3 max-w-[200px]" onClick={e => isEditing && e.stopPropagation()}>
                       {isEditing ? <textarea value={inlineDraft.motivation} onChange={e => setDraft('motivation', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-48 h-16 resize-none focus:outline-none" />
                         : <span className="text-xs text-gray-400 line-clamp-2">{c.motivation ?? '-'}</span>}
                     </td>
-                    <td className="px-4 py-2.5 max-w-[160px]" onClick={e => isEditing && e.stopPropagation()}>
+                    <td className="px-4 py-3 max-w-[160px]" onClick={e => isEditing && e.stopPropagation()}>
                       {isEditing ? <textarea value={inlineDraft.reason} onChange={e => setDraft('reason', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-40 h-16 resize-none focus:outline-none" />
                         : <span className="text-xs text-gray-400 line-clamp-2">{c.reason ?? '-'}</span>}
                     </td>
-                    <td className="px-4 py-2.5" onClick={e => isEditing && e.stopPropagation()}>
+                    <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
                       {isEditing ? <input value={inlineDraft.minutes_url} onChange={e => setDraft('minutes_url', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-36 focus:outline-none" placeholder="https://..." />
                         : c.minutes_url
                           ? <a href={c.minutes_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline" onClick={e => e.stopPropagation()}>開く</a>
                           : <span className="text-xs text-gray-300">-</span>}
                     </td>
-                    <td className="px-4 py-2.5" onClick={e => e.stopPropagation()}>
+                    <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                       <div className="flex gap-2 justify-end whitespace-nowrap">
                         {isEditing ? (
                           <>
