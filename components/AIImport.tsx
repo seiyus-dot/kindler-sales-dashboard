@@ -88,27 +88,32 @@ export default function AIImport({ members, onImported }: Props) {
 
   async function analyzeRows(rawRows: Record<string, unknown>[]) {
     if (rawRows.length === 0) { setLoading(false); return }
-    const headers = Object.keys(rawRows[0])
-    const res = await fetch('/api/ai-format-import', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        headers,
-        sampleRows: rawRows.slice(0, 5),
-        allRows: rawRows,
-        defaultMemberId: memberId || null,
-        members: members.map(m => ({ id: m.id, name: m.name })),
-      }),
-    })
-    const data = await res.json()
-    if (!res.ok || data.error) {
-      alert(`エラー: ${data.error ?? res.statusText}`)
+    try {
+      const headers = Object.keys(rawRows[0])
+      const res = await fetch('/api/ai-format-import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          headers,
+          sampleRows: rawRows.slice(0, 5),
+          allRows: rawRows,
+          defaultMemberId: memberId || null,
+          members: members.map(m => ({ id: m.id, name: m.name })),
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        alert(`エラー: ${data.error ?? res.statusText}`)
+        setLoading(false)
+        return
+      }
+      setResult(data)
+      setStep('preview')
+    } catch (e) {
+      alert(`エラー: ${String(e)}`)
+    } finally {
       setLoading(false)
-      return
     }
-    setResult(data)
-    setStep('preview')
-    setLoading(false)
   }
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -146,22 +151,32 @@ export default function AIImport({ members, onImported }: Props) {
   async function handlePaste() {
     if (!pasteText.trim()) return
     setLoading(true)
-    await analyzeRows(parseText(pasteText, hasHeader))
+    try {
+      await analyzeRows(parseText(pasteText, hasHeader))
+    } catch (e) {
+      alert(`エラー: ${String(e)}`)
+      setLoading(false)
+    }
   }
 
   async function handleImport() {
     if (!result) return
     setImporting(true)
-    const res = await fetch('/api/ai-format-import', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ targetTable: result.targetTable, rows: result.rows }),
-    })
-    const data = await res.json()
-    setImported(data)
-    setStep('done')
-    setImporting(false)
-    if (data.inserted > 0) onImported()
+    try {
+      const res = await fetch('/api/ai-format-import', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetTable: result.targetTable, rows: result.rows }),
+      })
+      const data = await res.json()
+      setImported(data)
+      setStep('done')
+      if (data.inserted > 0) onImported()
+    } catch (e) {
+      alert(`インポートエラー: ${String(e)}`)
+    } finally {
+      setImporting(false)
+    }
   }
 
   if (!open) {
