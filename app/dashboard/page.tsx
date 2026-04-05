@@ -112,8 +112,17 @@ export default function DashboardPage() {
   const paidDeals = allDeals.filter(d =>
     d.payment_date && (period === 'all' || d.payment_date.startsWith(currentMonth))
   )
-  const paidTotal = paidDeals.reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0)
-  const paidCount = paidDeals.length
+  const paidDealTotal = paidDeals.reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0)
+
+  // aicamp_consultations の着金（円→万円）
+  const paidAicamp = aicampDeals.filter(d =>
+    (d.payment_date && (period === 'all' || d.payment_date.startsWith(currentMonth))) ||
+    (!d.payment_date && d.consultation_date && (period === 'all' || d.consultation_date.startsWith(currentMonth)))
+  )
+  const paidAicampTotal = Math.round(paidAicamp.reduce((s, d) => s + (d.payment_amount ?? 0), 0) / 10000)
+
+  const paidTotal = paidDealTotal + paidAicampTotal
+  const paidCount = paidDeals.length + paidAicamp.length
 
   const activeDeals = allDeals.filter(d => !['受注', '失注'].includes(d.status ?? ''))
 
