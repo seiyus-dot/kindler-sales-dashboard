@@ -226,7 +226,7 @@ ${Object.entries(SCHEMAS).map(([key, s]) => `
         : dupKey)
       .in(dupKey, keyValues)
     if (existing && existing.length > 0) {
-      duplicateKeys = new Set((existing as Record<string, unknown>[]).map(r => String(r[dupKey] ?? '')))
+      duplicateKeys = new Set((existing as unknown as Record<string, unknown>[]).map(r => String(r[dupKey] ?? '')))
     }
   }
 
