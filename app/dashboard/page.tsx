@@ -72,6 +72,7 @@ export default function DashboardPage() {
   const [editingTob, setEditingTob] = useState<DealToB | null>(null)
   const [editingToc, setEditingToc] = useState<DealToC | null>(null)
   const [showAddMenu, setShowAddMenu] = useState(false)
+  const [showPaidDetail, setShowPaidDetail] = useState(false)
   const currentMonth = new Date().toISOString().slice(0, 7)
 
   async function fetchDeals() {
@@ -108,11 +109,16 @@ export default function DashboardPage() {
   const activeToc = view === 'tob' ? [] : tocDeals
   const allDeals = [...activeTob, ...activeToc]
 
-  // KPI
-  const paidDeals = allDeals.filter(d =>
+  // KPI - 案件着金（tob / toc 個別に集計）
+  const tobPaid = (view !== 'toc' ? tobDeals : []).filter(d =>
     d.payment_date && (period === 'all' || d.payment_date.startsWith(currentMonth))
   )
-  const paidDealTotal = paidDeals.reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0)
+  const tocPaid = (view !== 'tob' ? tocDeals : []).filter(d =>
+    d.payment_date && (period === 'all' || d.payment_date.startsWith(currentMonth))
+  )
+  const paidDeals = [...tobPaid, ...tocPaid]
+  const paidTobTotal = tobPaid.reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0)
+  const paidTocTotal = tocPaid.reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0)
 
   // aicamp_consultations の着金（円→万円）
   const paidAicamp = aicampDeals.filter(d =>
@@ -121,8 +127,7 @@ export default function DashboardPage() {
   )
   const paidAicampTotal = Math.round(paidAicamp.reduce((s, d) => s + (d.payment_amount ?? 0), 0) / 10000)
 
-  const paidTotal = paidDealTotal + paidAicampTotal
-  const paidCount = paidDeals.length + paidAicamp.length
+  const paidTotal = paidTobTotal + paidTocTotal + paidAicampTotal
 
   const activeDeals = allDeals.filter(d => !['受注', '失注'].includes(d.status ?? ''))
 
@@ -132,8 +137,10 @@ export default function DashboardPage() {
   }, 0)
   const rawPipeline = activeDeals.reduce((s, d) => s + (d.expected_amount ?? 0), 0)
 
-  const wonCount = allDeals.filter(d => d.status === '受注').length
-  const winRate = allDeals.length > 0 ? Math.round((wonCount / allDeals.length) * 100) : 0
+  const wonDealCount = allDeals.filter(d => d.status === '受注').length
+  // aicampDeals は status='成約' のみ取得済みなので全件が成約
+  const wonCount = wonDealCount + aicampDeals.length
+  const winRate = allDeals.length > 0 ? Math.round((wonDealCount / allDeals.length) * 100) : 0
 
   // 放置案件（7日以上 updated_at が古い進行中案件）
   const staleThreshold = new Date(Date.now() - 7 * 86400000).toISOString()
@@ -155,19 +162,28 @@ export default function DashboardPage() {
       const toc = (view !== 'tob' ? tocDeals : [])
         .filter(d => d.payment_date?.startsWith(m))
         .reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0)
-      return { name: label, 法人: tob, 個人: toc }
+      const aicamp = Math.round(
+        aicampDeals
+          .filter(d => d.payment_date?.startsWith(m) || (!d.payment_date && d.consultation_date?.startsWith(m)))
+          .reduce((s, d) => s + (d.payment_amount ?? 0), 0) / 10000
+      )
+      return { name: label, 法人: tob, 個人: toc, 'AI CAMP': aicamp }
     })
-  }, [tobDeals, tocDeals, months6, view])
+  }, [tobDeals, tocDeals, aicampDeals, months6, view])
 
-  // 担当別着金
+  // 担当別着金（deals + aicamp合算）
   const memberPaid = useMemo(() => {
-    const names = Array.from(new Set(paidDeals.map(d => d.member?.name))).filter(Boolean)
-    return names.map(name => ({
-      name,
-      金額: paidDeals.filter(d => d.member?.name === name)
-        .reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0),
-    })).sort((a, b) => b.金額 - a.金額)
-  }, [paidDeals])
+    const totals: Record<string, number> = {}
+    for (const d of paidDeals) {
+      const name = d.member?.name ?? '未割当'
+      totals[name] = (totals[name] ?? 0) + (d.actual_amount ?? d.expected_amount ?? 0)
+    }
+    for (const d of paidAicamp) {
+      const name = members.find(m => m.id === d.member_id)?.name ?? '未割当'
+      totals[name] = (totals[name] ?? 0) + Math.round((d.payment_amount ?? 0) / 10000)
+    }
+    return Object.entries(totals).map(([name, 金額]) => ({ name, 金額 })).sort((a, b) => b.金額 - a.金額)
+  }, [paidDeals, paidAicamp, members])
 
   // サービス別着金（deals_tob + aicamp_consultations）
   const servicePaid = useMemo(() => {
@@ -199,18 +215,16 @@ export default function DashboardPage() {
     })).filter(r => r.金額 > 0).sort((a, b) => b.金額 - a.金額)
   }, [tobDeals, aicampDeals, view, period, currentMonth])
 
-  // パイチャート
-  const paidTobTotal = tobDeals
-    .filter(d => d.payment_date && (period === 'all' || d.payment_date.startsWith(currentMonth)))
-    .reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0)
-  const paidTocTotal = tocDeals
-    .filter(d => d.payment_date && (period === 'all' || d.payment_date.startsWith(currentMonth)))
-    .reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0)
+  // パイチャート（paidTobTotal / paidTocTotal は上で算出済み）
   const pieData = view === 'all'
-    ? [{ name: '法人', value: paidTobTotal }, { name: '個人', value: paidTocTotal }]
+    ? [
+        { name: '法人', value: paidTobTotal },
+        { name: 'AI CAMP', value: paidAicampTotal },
+        { name: '個人(旧)', value: paidTocTotal },
+      ].filter(d => d.value > 0)
     : view === 'tob'
-      ? [{ name: '受注', value: wonCount }, { name: '進行中', value: activeDeals.length }]
-      : [{ name: '受注', value: wonCount }, { name: '進行中', value: activeDeals.length }]
+      ? [{ name: '受注', value: wonDealCount }, { name: '進行中', value: activeDeals.length }]
+      : [{ name: '受注', value: wonDealCount }, { name: '進行中', value: activeDeals.length }]
 
   // 期日アラート
   const today = new Date().toISOString().slice(0, 10)
@@ -220,6 +234,8 @@ export default function DashboardPage() {
       .map(d => ({ id: d.id, label: d.company_name, action: d.next_action, date: d.next_action_date!, member: d.member?.name, type: '法人' as const })),
     ...tocDeals.filter(d => d.next_action_date && d.next_action_date >= today && d.next_action_date <= in7)
       .map(d => ({ id: d.id, label: d.name, action: d.next_action, date: d.next_action_date!, member: d.member?.name, type: '個人' as const })),
+    ...aicampDeals.filter(d => d.reply_deadline && d.reply_deadline >= today && d.reply_deadline <= in7)
+      .map(d => ({ id: d.id, label: d.name ?? d.line_name ?? '不明', action: '返事期限', date: d.reply_deadline!, member: members.find(m => m.id === d.member_id)?.name, type: 'AI CAMP' as const })),
   ].sort((a, b) => a.date.localeCompare(b.date))
 
   // ファネルデータ
@@ -370,15 +386,23 @@ export default function DashboardPage() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-5">
-        <StatCard
-          title="着金済み売上"
-          value={`${paidTotal.toLocaleString()}万円`}
-          sub={`${paidCount}件`}
-          icon={CreditCard}
-          colorClass="bg-emerald-50 text-emerald-600"
-          change="+実績"
-          isPositive={true}
-        />
+        {/* 着金済み売上 — クリックで明細表示 */}
+        <button
+          onClick={() => setShowPaidDetail(v => !v)}
+          className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all text-left"
+        >
+          <div className="flex justify-between items-start mb-4">
+            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600"><CreditCard size={20} /></div>
+            <span className="text-xs font-bold text-emerald-600">+実績 {showPaidDetail ? '▲' : '▼'}</span>
+          </div>
+          <p className="text-slate-400 text-sm font-medium">着金済み売上</p>
+          <h3 className="text-2xl font-bold text-slate-900 mt-1 font-mono">{paidTotal.toLocaleString()}万円</h3>
+          <div className="mt-2 space-y-0.5">
+            <p className="text-xs text-slate-400">法人 <span className="font-bold text-slate-600">{paidTobTotal.toLocaleString()}万</span>（{tobPaid.length}件）</p>
+            <p className="text-xs text-slate-400">AI CAMP <span className="font-bold text-slate-600">{paidAicampTotal.toLocaleString()}万</span>（{paidAicamp.length}件）</p>
+            {paidTocTotal > 0 && <p className="text-xs text-slate-400">個人(旧) <span className="font-bold text-slate-600">{paidTocTotal.toLocaleString()}万</span>（{tocPaid.length}件）</p>}
+          </div>
+        </button>
         <StatCard
           title="加重パイプライン"
           value={`${weightedPipeline.toLocaleString()}万円`}
@@ -404,6 +428,59 @@ export default function DashboardPage() {
         />
       </div>
 
+      {/* 着金明細パネル */}
+      {showPaidDetail && (
+        <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+            <h3 className="font-bold text-slate-900">着金明細 — {period === 'month' ? `${currentMonth.slice(5)}月` : '全期間'}</h3>
+            <button onClick={() => setShowPaidDetail(false)} className="text-slate-400 hover:text-slate-600 text-lg">✕</button>
+          </div>
+          <div className="overflow-x-auto max-h-72 overflow-y-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 sticky top-0">
+                <tr>
+                  {['区分', '名称', '担当', '着金日', '金額（万円）'].map(h => (
+                    <th key={h} className="px-4 py-2 text-left text-xs font-semibold text-slate-400">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {tobPaid.map(d => (
+                  <tr key={d.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-2"><span className="text-xs bg-blue-50 text-blue-600 font-bold px-1.5 py-0.5 rounded">法人</span></td>
+                    <td className="px-4 py-2 text-slate-700 font-medium text-xs">{d.company_name}</td>
+                    <td className="px-4 py-2 text-slate-400 text-xs">{d.member?.name ?? '-'}</td>
+                    <td className="px-4 py-2 text-slate-400 text-xs font-mono">{d.payment_date ?? '-'}</td>
+                    <td className="px-4 py-2 text-slate-700 font-mono font-bold text-xs text-right">{(d.actual_amount ?? d.expected_amount ?? 0).toLocaleString()}万</td>
+                  </tr>
+                ))}
+                {paidAicamp.map(d => (
+                  <tr key={d.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-2"><span className="text-xs bg-emerald-50 text-emerald-600 font-bold px-1.5 py-0.5 rounded">AI CAMP</span></td>
+                    <td className="px-4 py-2 text-slate-700 font-medium text-xs">{d.name ?? d.line_name ?? '-'}</td>
+                    <td className="px-4 py-2 text-slate-400 text-xs">{members.find(m => m.id === d.member_id)?.name ?? '-'}</td>
+                    <td className="px-4 py-2 text-slate-400 text-xs font-mono">{d.payment_date ?? d.consultation_date?.slice(0, 10) ?? '-'}</td>
+                    <td className="px-4 py-2 text-slate-700 font-mono font-bold text-xs text-right">{Math.round((d.payment_amount ?? 0) / 10000).toLocaleString()}万</td>
+                  </tr>
+                ))}
+                {tocPaid.map(d => (
+                  <tr key={d.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-2"><span className="text-xs bg-pink-50 text-pink-600 font-bold px-1.5 py-0.5 rounded">個人(旧)</span></td>
+                    <td className="px-4 py-2 text-slate-700 font-medium text-xs">{d.name}</td>
+                    <td className="px-4 py-2 text-slate-400 text-xs">{d.member?.name ?? '-'}</td>
+                    <td className="px-4 py-2 text-slate-400 text-xs font-mono">{d.payment_date ?? '-'}</td>
+                    <td className="px-4 py-2 text-slate-700 font-mono font-bold text-xs text-right">{(d.actual_amount ?? d.expected_amount ?? 0).toLocaleString()}万</td>
+                  </tr>
+                ))}
+                {tobPaid.length + paidAicamp.length + tocPaid.length === 0 && (
+                  <tr><td colSpan={5} className="text-center py-8 text-slate-400 text-sm">着金データがありません</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* Charts Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="col-span-1 lg:col-span-8 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
@@ -416,6 +493,7 @@ export default function DashboardPage() {
               <Tooltip formatter={(v: number) => `${v.toLocaleString()}万円`} />
               <Legend verticalAlign="top" align="right" height={36} />
               <Area type="monotone" name="法人" dataKey="法人" stackId="1" stroke="#6366f1" fill="#6366f1" fillOpacity={0.5} />
+              <Area type="monotone" name="AI CAMP" dataKey="AI CAMP" stackId="1" stroke="#10b981" fill="#10b981" fillOpacity={0.5} />
               <Area type="monotone" name="個人" dataKey="個人" stackId="1" stroke="#ec4899" fill="#ec4899" fillOpacity={0.4} />
             </AreaChart>
           </ResponsiveContainer>
@@ -429,7 +507,7 @@ export default function DashboardPage() {
             <PieChart>
               <Pie data={pieData} innerRadius={60} outerRadius={85} paddingAngle={4} dataKey="value">
                 {pieData.map((_, i) => (
-                  <Cell key={i} fill={['#6366f1', '#ec4899'][i % 2]} />
+                  <Cell key={i} fill={['#6366f1', '#10b981', '#ec4899'][i % 3]} />
                 ))}
               </Pie>
               <Tooltip formatter={(v: number) => view === 'all' ? `${v.toLocaleString()}万円` : `${v}件`} />
