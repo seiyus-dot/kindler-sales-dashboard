@@ -346,7 +346,7 @@ export default function MemberDetailPage() {
                     <td className="py-3 pr-4 text-gray-500 text-sm">{d.next_action_date ?? '-'}</td>
                     <td className="py-3 pr-4 text-gray-500 text-sm">{d.next_action ?? '-'}</td>
                     <td className="py-3">
-                      <button onClick={() => setEditingToB(d)} className="text-xs text-blue-600 hover:text-blue-800 font-bold">編集</button>
+                      <button onClick={(e) => { e.stopPropagation(); setEditToB(d); setShowToBForm(true) }} className="text-xs text-blue-600 hover:text-blue-800 font-bold">編集</button>
                     </td>
                   </tr>
                 ))}
@@ -398,7 +398,7 @@ export default function MemberDetailPage() {
                     <td className="py-3 pr-4 text-gray-500 text-sm">{d.next_action_date ?? '-'}</td>
                     <td className="py-3 pr-4 text-gray-500 text-sm">{d.next_action ?? '-'}</td>
                     <td className="py-3">
-                      <button onClick={() => setEditingToC(d)} className="text-xs text-blue-600 hover:text-blue-800 font-bold">編集</button>
+                      <button onClick={(e) => { e.stopPropagation(); setEditToC(d); setShowToCForm(true) }} className="text-xs text-blue-600 hover:text-blue-800 font-bold">編集</button>
                     </td>
                   </tr>
                 ))}
@@ -430,23 +430,7 @@ export default function MemberDetailPage() {
         />
       )}
 
-      {/* 編集モーダル */}
-      {editingToB && (
-        <DealToBForm
-          members={allMembers}
-          initial={editingToB}
-          onClose={() => setEditingToB(null)}
-          onSaved={() => { setEditingToB(null); fetchAll() }}
-        />
-      )}
-      {editingToC && (
-        <DealToCForm
-          members={allMembers}
-          initial={editingToC}
-          onClose={() => setEditingToC(null)}
-          onSaved={() => { setEditingToC(null); fetchAll() }}
-        />
-      )}
+
     </div>
   )
 }
