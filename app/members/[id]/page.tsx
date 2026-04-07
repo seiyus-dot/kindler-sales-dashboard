@@ -297,39 +297,36 @@ export default function MemberDetailPage() {
         </div>
       </div>
 
-      {/* 法人案件 - スマホ横スクロールカード / PC テーブル */}
+      {/* 法人案件 - スマホ横スクロールリスト / PC テーブル */}
       {tobDeals.length > 0 && (
         <div className="bg-white rounded border border-gray-100 shadow-sm p-4 lg:p-7">
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 lg:mb-5">法人案件 ({tobDeals.length}件)</h3>
 
-          {/* スマホ: 横スクロールカード */}
-          <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-3 -mx-4 px-4 lg:hidden snap-x snap-mandatory">
-            {tobDeals.map(d => (
-              <div key={d.id} className="min-w-[260px] max-w-[300px] flex-shrink-0 bg-gray-50 rounded-lg border border-gray-100 p-4 snap-start">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="font-bold text-sm text-gray-800 truncate mr-2">{d.company_name}</span>
-                  {d.status && <span className={`px-2 py-0.5 rounded text-xs font-bold flex-shrink-0 ${statusBadge(d.status)}`}>{d.status}</span>}
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <p className="text-gray-400 mb-0.5">見込み金額</p>
-                    <p className="font-mono font-bold text-gray-700">{d.expected_amount?.toLocaleString() ?? '-'}万円</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-400 mb-0.5">受注確度</p>
-                    <p className="font-mono font-bold text-gray-500">{d.win_probability != null ? `${d.win_probability}%` : '-'}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-400 mb-0.5">次回期日</p>
-                    <p className="font-medium text-gray-500">{d.next_action_date ?? '-'}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-400 mb-0.5">次回アクション</p>
-                    <p className="font-medium text-gray-500 truncate">{d.next_action ?? '-'}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
+          {/* スマホ: 横スクロールリスト */}
+          <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 lg:hidden">
+            <table className="w-full text-sm min-w-[600px]">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  {['企業名', 'ステータス', '金額', '確度', '次回期日', '次回アクション'].map(h => (
+                    <th key={h} className="text-left text-[10px] font-black text-gray-400 uppercase tracking-wider pb-2 pr-3 whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {tobDeals.map(d => (
+                  <tr key={d.id}>
+                    <td className="py-2.5 pr-3 font-medium text-gray-800 whitespace-nowrap">{d.company_name}</td>
+                    <td className="py-2.5 pr-3">
+                      {d.status && <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold whitespace-nowrap ${statusBadge(d.status)}`}>{d.status}</span>}
+                    </td>
+                    <td className="py-2.5 pr-3 font-mono text-gray-700 whitespace-nowrap">{d.expected_amount?.toLocaleString() ?? '-'}万</td>
+                    <td className="py-2.5 pr-3 font-mono text-gray-500">{d.win_probability != null ? `${d.win_probability}%` : '-'}</td>
+                    <td className="py-2.5 pr-3 text-gray-500 text-xs whitespace-nowrap">{d.next_action_date ?? '-'}</td>
+                    <td className="py-2.5 text-gray-500 text-xs whitespace-nowrap">{d.next_action ?? '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
 
           {/* PC: テーブル */}
@@ -361,39 +358,36 @@ export default function MemberDetailPage() {
         </div>
       )}
 
-      {/* 個人案件 - スマホ横スクロールカード / PC テーブル */}
+      {/* 個人案件 - スマホ横スクロールリスト / PC テーブル */}
       {tocDeals.length > 0 && (
         <div className="bg-white rounded border border-gray-100 shadow-sm p-4 lg:p-7">
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 lg:mb-5">個人案件 ({tocDeals.length}件)</h3>
 
-          {/* スマホ: 横スクロールカード */}
-          <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-3 -mx-4 px-4 lg:hidden snap-x snap-mandatory">
-            {tocDeals.map(d => (
-              <div key={d.id} className="min-w-[260px] max-w-[300px] flex-shrink-0 bg-gray-50 rounded-lg border border-gray-100 p-4 snap-start">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="font-bold text-sm text-gray-800 truncate mr-2">{d.name}</span>
-                  {d.status && <span className={`px-2 py-0.5 rounded text-xs font-bold flex-shrink-0 ${statusBadge(d.status)}`}>{d.status}</span>}
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <p className="text-gray-400 mb-0.5">見込み金額</p>
-                    <p className="font-mono font-bold text-gray-700">{d.expected_amount?.toLocaleString() ?? '-'}万円</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-400 mb-0.5">受注確度</p>
-                    <p className="font-mono font-bold text-gray-500">{d.win_probability != null ? `${d.win_probability}%` : '-'}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-400 mb-0.5">次回期日</p>
-                    <p className="font-medium text-gray-500">{d.next_action_date ?? '-'}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-400 mb-0.5">次回アクション</p>
-                    <p className="font-medium text-gray-500 truncate">{d.next_action ?? '-'}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
+          {/* スマホ: 横スクロールリスト */}
+          <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 lg:hidden">
+            <table className="w-full text-sm min-w-[600px]">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  {['氏名', 'ステータス', '金額', '確度', '次回期日', '次回アクション'].map(h => (
+                    <th key={h} className="text-left text-[10px] font-black text-gray-400 uppercase tracking-wider pb-2 pr-3 whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {tocDeals.map(d => (
+                  <tr key={d.id}>
+                    <td className="py-2.5 pr-3 font-medium text-gray-800 whitespace-nowrap">{d.name}</td>
+                    <td className="py-2.5 pr-3">
+                      {d.status && <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold whitespace-nowrap ${statusBadge(d.status)}`}>{d.status}</span>}
+                    </td>
+                    <td className="py-2.5 pr-3 font-mono text-gray-700 whitespace-nowrap">{d.expected_amount?.toLocaleString() ?? '-'}万</td>
+                    <td className="py-2.5 pr-3 font-mono text-gray-500">{d.win_probability != null ? `${d.win_probability}%` : '-'}</td>
+                    <td className="py-2.5 pr-3 text-gray-500 text-xs whitespace-nowrap">{d.next_action_date ?? '-'}</td>
+                    <td className="py-2.5 text-gray-500 text-xs whitespace-nowrap">{d.next_action ?? '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
 
           {/* PC: テーブル */}
