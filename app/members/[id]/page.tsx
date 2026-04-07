@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase, Member, DealToB, DealToC, DealAction, ACTION_TYPES } from '@/lib/supabase'
 import Link from 'next/link'
@@ -35,7 +35,7 @@ export default function MemberDetailPage() {
 
   useEffect(() => {
     fetchAll()
-  }, [id])
+  }, [fetchAll])
 
   async function fetchAll() {
     const [memberRes, membersRes, tobRes, tocRes] = await Promise.all([
@@ -121,20 +121,20 @@ export default function MemberDetailPage() {
     .filter(d => d.count > 0)
 
   return (
-    <div className="space-y-8 pb-8">
+    <div className="space-y-6 lg:space-y-8 pb-8">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link href="/members" className="text-sm text-gray-400 hover:text-gray-600 transition">← メンバー一覧</Link>
+      <div className="flex items-center gap-3 lg:gap-4">
+        <Link href="/members" className="text-sm text-gray-400 hover:text-gray-600 transition">← 一覧</Link>
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded bg-blue-100 flex items-center justify-center text-blue-700 font-black text-base">
             {member.name.slice(0, 1)}
           </div>
-          <h1 className="text-2xl font-black text-gray-900 tracking-tight">{member.name}</h1>
+          <h1 className="text-xl lg:text-2xl font-black text-gray-900 tracking-tight">{member.name}</h1>
         </div>
       </div>
 
-      {/* 結果KPI */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 lg:gap-4">
+      {/* 結果KPI - スマホ横スクロール */}
+      <div className="flex lg:grid lg:grid-cols-5 gap-3 lg:gap-4 overflow-x-auto scrollbar-hide pb-2 -mx-4 px-4 lg:mx-0 lg:px-0 lg:overflow-x-visible snap-x snap-mandatory lg:snap-none">
         {[
           { label: '進行中（法人）', value: tobActive, unit: '件', accent: 'text-blue-600', bg: 'bg-blue-50' },
           { label: '進行中（個人）', value: tocActive, unit: '件', accent: 'text-cyan-600', bg: 'bg-cyan-50' },
@@ -142,31 +142,31 @@ export default function MemberDetailPage() {
           { label: '着金済み', value: paidAmount.toLocaleString(), unit: '万円', accent: 'text-green-600', bg: 'bg-green-50' },
           { label: '受注率', value: winRate, unit: '%', accent: 'text-violet-600', bg: 'bg-violet-50' },
         ].map(k => (
-          <div key={k.label} className={`${k.bg} rounded border border-gray-100 px-5 py-4`}>
-            <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2">{k.label}</p>
+          <div key={k.label} className={`${k.bg} rounded border border-gray-100 px-4 lg:px-5 py-3 lg:py-4 min-w-[140px] flex-shrink-0 lg:flex-shrink lg:min-w-0 snap-start`}>
+            <p className="text-[10px] lg:text-xs font-black text-gray-400 uppercase tracking-widest mb-1 lg:mb-2 whitespace-nowrap">{k.label}</p>
             <div className="flex items-baseline gap-1">
-              <span className={`text-3xl font-black font-mono ${k.accent}`}>{k.value}</span>
-              <span className="text-sm text-gray-400 font-bold">{k.unit}</span>
+              <span className={`text-2xl lg:text-3xl font-black font-mono ${k.accent}`}>{k.value}</span>
+              <span className="text-xs lg:text-sm text-gray-400 font-bold">{k.unit}</span>
             </div>
           </div>
         ))}
       </div>
 
       {/* 行動KPI */}
-      <div className="bg-white rounded border border-gray-100 shadow-sm p-7">
-        <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-5">行動KPI</h3>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="bg-white rounded border border-gray-100 shadow-sm p-4 lg:p-7">
+        <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 lg:mb-5">行動KPI</h3>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-5 lg:mb-6">
           {[
             { label: '総アクション数', value: totalActions, unit: '件', color: 'text-blue-600' },
             { label: '今月のアクション', value: thisMonthActions, unit: '件', color: 'text-indigo-600' },
             { label: '1案件あたり平均', value: actionsPerDeal, unit: 'アクション', color: 'text-purple-600' },
             { label: '進行中案件数', value: activeDealsCount, unit: '件', color: 'text-gray-700' },
           ].map(k => (
-            <div key={k.label} className="bg-gray-50 rounded px-4 py-3">
-              <p className="text-xs font-black text-gray-400 mb-1">{k.label}</p>
+            <div key={k.label} className="bg-gray-50 rounded px-3 lg:px-4 py-2.5 lg:py-3">
+              <p className="text-[10px] lg:text-xs font-black text-gray-400 mb-1">{k.label}</p>
               <div className="flex items-baseline gap-1">
-                <span className={`text-2xl font-black font-mono ${k.color}`}>{k.value}</span>
-                <span className="text-xs text-gray-400">{k.unit}</span>
+                <span className={`text-xl lg:text-2xl font-black font-mono ${k.color}`}>{k.value}</span>
+                <span className="text-[10px] lg:text-xs text-gray-400">{k.unit}</span>
               </div>
             </div>
           ))}
@@ -179,13 +179,13 @@ export default function MemberDetailPage() {
               {actionTypeCounts.map(({ type, count }) => {
                 const pct = totalActions > 0 ? Math.round((count / totalActions) * 100) : 0
                 return (
-                  <div key={type} className="flex items-center gap-3">
-                    <span className="text-xs text-gray-600 font-medium w-20 flex-shrink-0">{type}</span>
+                  <div key={type} className="flex items-center gap-2 lg:gap-3">
+                    <span className="text-[10px] lg:text-xs text-gray-600 font-medium w-16 lg:w-20 flex-shrink-0">{type}</span>
                     <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
                       <div className="h-full bg-blue-500 rounded-full" style={{ width: `${pct}%` }} />
                     </div>
-                    <span className="text-xs font-mono text-gray-500 w-12 text-right">{count}件</span>
-                    <span className="text-xs text-gray-400 w-8">{pct}%</span>
+                    <span className="text-[10px] lg:text-xs font-mono text-gray-500 w-10 lg:w-12 text-right">{count}件</span>
+                    <span className="text-[10px] lg:text-xs text-gray-400 w-7 lg:w-8">{pct}%</span>
                   </div>
                 )
               })}
@@ -200,18 +200,22 @@ export default function MemberDetailPage() {
 
       {/* 直近アクション */}
       {recentActions.length > 0 && (
-        <div className="bg-white rounded border border-gray-100 shadow-sm p-7">
-          <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-5">直近のアクション</h3>
+        <div className="bg-white rounded border border-gray-100 shadow-sm p-4 lg:p-7">
+          <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 lg:mb-5">直近のアクション</h3>
           <div className="space-y-3">
             {recentActions.map(a => {
               const deal = [...tobDeals, ...tocDeals].find(d => d.id === a.deal_id)
               const dealLabel = deal ? ('company_name' in deal ? deal.company_name : deal.name) : '-'
               return (
-                <div key={a.id} className="flex items-start gap-3 text-sm">
-                  <span className="text-xs font-mono text-gray-400 w-20 flex-shrink-0 pt-0.5">{a.action_date}</span>
-                  <span className="bg-blue-50 text-blue-700 text-xs font-bold px-2 py-0.5 rounded flex-shrink-0">{a.action_type}</span>
-                  <span className="text-gray-600 text-xs font-medium">{dealLabel}</span>
-                  {a.notes && <span className="text-gray-400 text-xs truncate max-w-xs">{a.notes}</span>}
+                <div key={a.id} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-gray-400 flex-shrink-0">{a.action_date}</span>
+                    <span className="bg-blue-50 text-blue-700 text-xs font-bold px-2 py-0.5 rounded flex-shrink-0">{a.action_type}</span>
+                  </div>
+                  <div className="flex items-center gap-2 pl-0 sm:pl-0">
+                    <span className="text-gray-600 text-xs font-medium">{dealLabel}</span>
+                    {a.notes && <span className="text-gray-400 text-xs truncate max-w-[200px] lg:max-w-xs">{a.notes}</span>}
+                  </div>
                 </div>
               )
             })}
@@ -221,21 +225,21 @@ export default function MemberDetailPage() {
 
       {/* ファネル */}
       {stageDistribution.length > 0 && (
-        <div className="bg-white rounded border border-gray-100 shadow-sm p-7">
-          <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-5">ステージ分布</h3>
+        <div className="bg-white rounded border border-gray-100 shadow-sm p-4 lg:p-7">
+          <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 lg:mb-5">ステージ分布</h3>
           <div className="space-y-2">
             {stageDistribution.map(({ stage, count }) => {
               const maxCount = Math.max(...stageDistribution.map(d => d.count), 1)
               const pct = Math.max((count / maxCount) * 100, 8)
               return (
-                <div key={stage} className="flex items-center gap-3">
-                  <span className="text-xs text-gray-500 font-medium w-20 flex-shrink-0 text-right">{stage}</span>
-                  <div className="flex-1 bg-gray-50 rounded-full h-6 overflow-hidden">
+                <div key={stage} className="flex items-center gap-2 lg:gap-3">
+                  <span className="text-[10px] lg:text-xs text-gray-500 font-medium w-16 lg:w-20 flex-shrink-0 text-right">{stage}</span>
+                  <div className="flex-1 bg-gray-50 rounded-full h-5 lg:h-6 overflow-hidden">
                     <div
                       className="h-full bg-blue-500 rounded-full flex items-center justify-end pr-2"
                       style={{ width: `${pct}%` }}
                     >
-                      <span className="text-xs font-bold text-white">{count}</span>
+                      <span className="text-[10px] lg:text-xs font-bold text-white">{count}</span>
                     </div>
                   </div>
                 </div>
@@ -247,19 +251,19 @@ export default function MemberDetailPage() {
 
       {/* アラート */}
       {alerts.length > 0 && (
-        <div className="bg-white rounded border border-amber-100 shadow-sm p-7">
-          <h3 className="text-xs font-black text-amber-500 uppercase tracking-widest mb-5">
-            期日アラート — 7日以内にアクションが必要な案件
+        <div className="bg-white rounded border border-amber-100 shadow-sm p-4 lg:p-7">
+          <h3 className="text-xs font-black text-amber-500 uppercase tracking-widest mb-4 lg:mb-5">
+            期日アラート — 7日以内
           </h3>
-          <div className="space-y-3">
+          <div className="space-y-2 lg:space-y-3">
             {alerts.map(deal => (
-              <div key={deal.id} className="flex items-center gap-4 text-base bg-amber-50 rounded px-4 py-3">
+              <div key={deal.id} className="flex flex-wrap items-center gap-2 lg:gap-4 text-sm lg:text-base bg-amber-50 rounded px-3 lg:px-4 py-2.5 lg:py-3">
                 <span className={`px-2 py-0.5 rounded text-xs font-bold ${deal.type === '法人' ? 'bg-blue-100 text-blue-700' : 'bg-cyan-100 text-cyan-700'}`}>
                   {deal.type}
                 </span>
-                <span className="font-bold text-gray-800">{deal.label}</span>
-                <span className="text-gray-400 text-sm">{deal.action}</span>
-                <span className="ml-auto font-mono font-bold text-amber-600 text-sm">{deal.date}</span>
+                <span className="font-bold text-gray-800 text-sm">{deal.label}</span>
+                <span className="text-gray-400 text-xs lg:text-sm">{deal.action}</span>
+                <span className="ml-auto font-mono font-bold text-amber-600 text-xs lg:text-sm">{deal.date}</span>
               </div>
             ))}
           </div>
@@ -268,8 +272,8 @@ export default function MemberDetailPage() {
 
       {/* ステータス内訳 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-5">
-        <div className="bg-white rounded border border-gray-100 shadow-sm p-7">
-          <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-5">法人 ステータス内訳</h3>
+        <div className="bg-white rounded border border-gray-100 shadow-sm p-4 lg:p-7">
+          <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 lg:mb-5">法人 ステータス内訳</h3>
           {tobStatusCounts.length === 0 ? (
             <p className="text-base text-gray-400 text-center py-4">案件なし</p>
           ) : (
@@ -283,8 +287,8 @@ export default function MemberDetailPage() {
             </div>
           )}
         </div>
-        <div className="bg-white rounded border border-gray-100 shadow-sm p-7">
-          <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-5">個人 ステータス内訳</h3>
+        <div className="bg-white rounded border border-gray-100 shadow-sm p-4 lg:p-7">
+          <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 lg:mb-5">個人 ステータス内訳</h3>
           {tocStatusCounts.length === 0 ? (
             <p className="text-base text-gray-400 text-center py-4">案件なし</p>
           ) : (
@@ -321,7 +325,7 @@ export default function MemberDetailPage() {
             <table className="w-full text-base">
               <thead>
                 <tr className="border-b border-gray-100">
-                  {['企業名', 'ステータス', '見込み金額', '受注確度', '次回期日', '次回アクション'].map(h => (
+                  {['企業名', 'ステータス', '見込み金額', '受注確度', '次回期日', '次回アクション', ''].map(h => (
                     <th key={h} className="text-left text-xs font-black text-gray-400 uppercase tracking-wider pb-3 pr-4">{h}</th>
                   ))}
                 </tr>
@@ -340,7 +344,10 @@ export default function MemberDetailPage() {
                     <td className="py-3 pr-4 font-mono text-gray-700">{d.expected_amount?.toLocaleString() ?? '-'}万円</td>
                     <td className="py-3 pr-4 font-mono text-gray-500">{d.win_probability != null ? `${d.win_probability}%` : '-'}</td>
                     <td className="py-3 pr-4 text-gray-500 text-sm">{d.next_action_date ?? '-'}</td>
-                    <td className="py-3 text-gray-500 text-sm">{d.next_action ?? '-'}</td>
+                    <td className="py-3 pr-4 text-gray-500 text-sm">{d.next_action ?? '-'}</td>
+                    <td className="py-3">
+                      <button onClick={() => setEditingToB(d)} className="text-xs text-blue-600 hover:text-blue-800 font-bold">編集</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -370,7 +377,7 @@ export default function MemberDetailPage() {
             <table className="w-full text-base">
               <thead>
                 <tr className="border-b border-gray-100">
-                  {['氏名', 'ステータス', '見込み金額', '受注確度', '次回期日', '次回アクション'].map(h => (
+                  {['氏名', 'ステータス', '見込み金額', '受注確度', '次回期日', '次回アクション', ''].map(h => (
                     <th key={h} className="text-left text-xs font-black text-gray-400 uppercase tracking-wider pb-3 pr-4">{h}</th>
                   ))}
                 </tr>
@@ -389,7 +396,10 @@ export default function MemberDetailPage() {
                     <td className="py-3 pr-4 font-mono text-gray-700">{d.expected_amount?.toLocaleString() ?? '-'}万円</td>
                     <td className="py-3 pr-4 font-mono text-gray-500">{d.win_probability != null ? `${d.win_probability}%` : '-'}</td>
                     <td className="py-3 pr-4 text-gray-500 text-sm">{d.next_action_date ?? '-'}</td>
-                    <td className="py-3 text-gray-500 text-sm">{d.next_action ?? '-'}</td>
+                    <td className="py-3 pr-4 text-gray-500 text-sm">{d.next_action ?? '-'}</td>
+                    <td className="py-3">
+                      <button onClick={() => setEditingToC(d)} className="text-xs text-blue-600 hover:text-blue-800 font-bold">編集</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -417,6 +427,24 @@ export default function MemberDetailPage() {
           defaultMemberId={id}
           onClose={() => { setShowToCForm(false); setEditToC(null) }}
           onSaved={() => { setShowToCForm(false); setEditToC(null); fetchAll() }}
+        />
+      )}
+
+      {/* 編集モーダル */}
+      {editingToB && (
+        <DealToBForm
+          members={allMembers}
+          initial={editingToB}
+          onClose={() => setEditingToB(null)}
+          onSaved={() => { setEditingToB(null); fetchAll() }}
+        />
+      )}
+      {editingToC && (
+        <DealToCForm
+          members={allMembers}
+          initial={editingToC}
+          onClose={() => setEditingToC(null)}
+          onSaved={() => { setEditingToC(null); fetchAll() }}
         />
       )}
     </div>
