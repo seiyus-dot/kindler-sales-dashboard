@@ -9,6 +9,7 @@ type Props = {
   initial: DealToB | null
   onClose: () => void
   onSaved: () => void
+  defaultMemberId?: string
 }
 
 type Tab = 'info' | 'actions'
@@ -16,7 +17,7 @@ type Tab = 'info' | 'actions'
 const TOB_STATUSES = ['アポ取得', '商談中', '提案済', '交渉中', '見積提出', 'リード', '受注', '失注', '保留']
 const PRIORITIES = ['高', '中', '低']
 
-export default function DealToBForm({ members, initial, onClose, onSaved }: Props) {
+export default function DealToBForm({ members, initial, onClose, onSaved, defaultMemberId }: Props) {
   const [tab, setTab] = useState<Tab>('info')
   const [sources, setSources] = useState<MasterOption[]>([])
   const [services, setServices] = useState<MasterOption[]>([])
@@ -35,7 +36,7 @@ export default function DealToBForm({ members, initial, onClose, onSaved }: Prop
   }, [])
 
   const [form, setForm] = useState({
-    member_id: initial?.member_id ?? '',
+    member_id: initial?.member_id ?? defaultMemberId ?? '',
     company_name: initial?.company_name ?? '',
     contact_name: initial?.contact_name ?? '',
     industry: initial?.industry ?? '',

@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, BriefcaseBusiness, ClipboardList, Settings, Users, Menu, X, BookOpen, LogOut, Tent } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { LayoutDashboard, BriefcaseBusiness, ClipboardList, Settings, Users, Menu, X, BookOpen, LogOut, Tent, UserPlus } from 'lucide-react'
+import { createBrowserClient } from '@supabase/ssr'
 import type { User } from '@supabase/supabase-js'
 
 const navItems = [
@@ -15,6 +15,7 @@ const navItems = [
   { href: '/settings',  label: 'マスタ設定',     icon: Settings },
   { href: '/knowledge', label: '営業ナレッジ',   icon: BookOpen },
   { href: '/aicamp',   label: 'AI CAMP',        icon: Tent },
+  { href: '/invites',  label: '招待管理',        icon: UserPlus },
 ]
 
 function NavLink({ href, label, icon: Icon, onClick }: { href: string; label: string; icon: React.ElementType; onClick?: () => void }) {
@@ -34,9 +35,36 @@ function NavLink({ href, label, icon: Icon, onClick }: { href: string; label: st
   )
 }
 
+function getCookie(name: string): string | undefined {
+  if (typeof document === 'undefined') return undefined
+  return document.cookie
+    .split('; ')
+    .find((row) => row.startsWith(name + '='))
+    ?.split('=')[1]
+}
+
+export function useUserRole() {
+  const [role, setRole] = useState<'admin' | 'member'>('member')
+  const [allowedPages, setAllowedPages] = useState<string[]>(['/aicamp'])
+
+  useEffect(() => {
+    const r = getCookie('user_role') as 'admin' | 'member' | undefined
+    const p = getCookie('user_allowed_pages')
+    setRole(r ?? 'member')
+    setAllowedPages(p ? JSON.parse(decodeURIComponent(p)) : ['/aicamp'])
+  }, [])
+
+  return { role, allowedPages }
+}
+
 function UserFooter({ onClose }: { onClose?: () => void }) {
   const [user, setUser] = useState<User | null>(null)
   const router = useRouter()
+
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user))
@@ -83,6 +111,11 @@ function UserFooter({ onClose }: { onClose?: () => void }) {
 
 export default function Sidebar() {
   const [open, setOpen] = useState(false)
+  const { role, allowedPages } = useUserRole()
+
+  const visibleNavItems = role === 'admin'
+    ? navItems
+    : navItems.filter((item) => allowedPages.some((p) => item.href.startsWith(p)))
 
   return (
     <>
@@ -115,7 +148,7 @@ export default function Sidebar() {
               </button>
             </div>
             <nav className="flex-1 px-4 py-4 space-y-1">
-              {navItems.map(item => (
+              {visibleNavItems.map(item => (
                 <NavLink key={item.href} {...item} onClick={() => setOpen(false)} />
               ))}
             </nav>
@@ -136,7 +169,7 @@ export default function Sidebar() {
           </div>
         </div>
         <nav className="flex-1 px-4 py-4 space-y-1">
-          {navItems.map(item => (
+          {visibleNavItems.map(item => (
             <NavLink key={item.href} {...item} />
           ))}
         </nav>

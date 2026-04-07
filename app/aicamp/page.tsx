@@ -68,11 +68,24 @@ export default function AICampPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [adWeekly, setAdWeekly] = useState<AICampAdWeekly[]>([])
+  const [fbAds, setFbAds] = useState<{
+    day: string
+    ad_set_name: string
+    amount_spent: number
+    registrations_completed: number
+    impressions: number
+    link_clicks: number
+    reach: number
+    cpm: number
+    cpc: number
+    ctr: number
+  }[]>([])
   const [adEditId, setAdEditId] = useState<string | null>(null)
   const [adDraft, setAdDraft] = useState<Record<string, string>>({})
   const [adSaving, setAdSaving] = useState(false)
   const [showAddWeek, setShowAddWeek] = useState(false)
   const [newWeek, setNewWeek] = useState({ week_label: '', ad_spend: '', list_count: '', consultation_count: '', seated_count: '' })
+  const [activeTab, setActiveTab] = useState<'overview' | 'ads' | 'deals'>('overview')
   const [showColSettings, setShowColSettings] = useState(false)
   const [visibleCols, setVisibleCols] = useState<Set<ColKey>>(() => {
     if (typeof window !== 'undefined') {
@@ -107,12 +120,19 @@ export default function AICampPage() {
       supabase.from('aicamp_monthly_goals').select('*').eq('month', month).maybeSingle(),
       supabase.from('aicamp_ad_weekly').select('*').eq('month', month).order('sort_order').order('created_at'),
     ])
+    const fbRes = await supabase
+      .from('fb_ads')
+      .select('day, ad_set_name, amount_spent, registrations_completed, impressions, link_clicks, reach, cpm, cpc, ctr')
+      .gte('day', `${month}-01`)
+      .lt('day', nextMonth(month))
+      .order('day', { ascending: false })
     if (consRes.data) setConsultations(consRes.data)
     if (membersRes.data) setMembers(membersRes.data)
     setGoal(goalRes.data ?? null)
     setGoalInput(goalRes.data?.contract_goal?.toString() ?? '0')
     setProductGoalInput(goalRes.data?.product_contract_goal?.toString() ?? '0')
     setAdWeekly(adRes.data ?? [])
+    setFbAds(fbRes.data ?? [])
     setLoading(false)
   }
 
@@ -357,6 +377,28 @@ export default function AICampPage() {
         </div>
       </div>
 
+      {/* タブ */}
+      <div className="flex gap-1 border-b border-gray-200 -mx-6 px-6">
+        {([
+          { key: 'overview', label: '概要' },
+          { key: 'ads',      label: '広告' },
+          { key: 'deals',    label: '商談一覧' },
+        ] as const).map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === tab.key
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'overview' && (<>
       {/* 売上サマリー */}
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-white border border-gray-200 rounded p-5">
@@ -447,7 +489,9 @@ export default function AICampPage() {
           </div>
         ))}
       </div>
+      </>)}
 
+      {activeTab === 'ads' && (<>
       {/* 広告数値 */}
       {(() => {
         const totalAdSpend = adWeekly.reduce((s, r) => s + r.ad_spend, 0)
@@ -619,6 +663,215 @@ export default function AICampPage() {
         )
       })()}
 
+      {/* Meta広告パフォーマンス（fb_ads） */}
+      {fbAds.length > 0 && (() => {
+        // 日付でグループ集計
+        const byDay: Record<string, { day: string; amount_spent: number; registrations: number; impressions: number; clicks: number; reach: number }> = {}
+        fbAds.forEach(r => {
+          if (!byDay[r.day]) byDay[r.day] = { day: r.day, amount_spent: 0, registrations: 0, impressions: 0, clicks: 0, reach: 0 }
+          byDay[r.day].amount_spent += r.amount_spent ?? 0
+          byDay[r.day].registrations += r.registrations_completed ?? 0
+          byDay[r.day].impressions += r.impressions ?? 0
+          byDay[r.day].clicks += r.link_clicks ?? 0
+          byDay[r.day].reach = (byDay[r.day].reach || 0) + (r.reach ?? 0)
+        })
+        const days = Object.values(byDay).sort((a, b) => b.day.localeCompare(a.day))
+        const totalSpend = days.reduce((s, d) => s + d.amount_spent, 0)
+        const totalRegs = days.reduce((s, d) => s + d.registrations, 0)
+        const totalImpressions = days.reduce((s, d) => s + d.impressions, 0)
+        const totalClicks = days.reduce((s, d) => s + d.clicks, 0)
+        const cpr = totalRegs > 0 ? Math.round(totalSpend / totalRegs) : null
+        const cpc = totalClicks > 0 ? Math.round(totalSpend / totalClicks) : null
+        const ctr = totalImpressions > 0 ? (totalClicks / totalImpressions * 100).toFixed(2) : null
+        return (
+          <div className="bg-white border border-gray-200 rounded overflow-hidden">
+            <div className="px-5 py-3 border-b border-gray-100">
+              <h2 className="text-sm font-bold text-gray-700">Meta広告パフォーマンス（{monthLabel}）</h2>
+            </div>
+            {/* サマリKPI */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 px-5 py-4 border-b border-gray-100">
+              {[
+                { label: '広告費', value: `¥${Math.round(totalSpend).toLocaleString()}`, mono: true },
+                { label: '登録数', value: `${totalRegs}件`, color: 'text-blue-600' },
+                { label: 'CPR', value: cpr ? `¥${cpr.toLocaleString()}` : '-', sub: '広告費÷登録数' },
+                { label: 'CPC', value: cpc ? `¥${cpc.toLocaleString()}` : '-', sub: '広告費÷クリック数' },
+                { label: 'CTR', value: ctr ? `${ctr}%` : '-', sub: 'クリック率' },
+              ].map(k => (
+                <div key={k.label}>
+                  <p className="text-xs text-gray-400 font-bold mb-0.5">{k.label}</p>
+                  <p className={`text-xl font-black font-mono ${k.color ?? 'text-gray-800'}`}>{k.value}</p>
+                  {k.sub && <p className="text-xs text-gray-300 mt-0.5">{k.sub}</p>}
+                </div>
+              ))}
+            </div>
+            {/* ファネル */}
+            <div className="border-t border-gray-100 px-5 py-4">
+              <p className="text-xs font-bold text-gray-500 mb-4">広告ファネル（{monthLabel}）</p>
+              {(() => {
+                const funnelSteps = [
+                  { label: 'リーチ', value: days.reduce((s,d) => s + d.reach, 0), color: 'bg-indigo-400', desc: '広告を見たユニーク人数' },
+                  { label: 'クリック', value: days.reduce((s,d) => s + d.clicks, 0), color: 'bg-blue-400', desc: 'LPへの流入数' },
+                  { label: 'LINE登録', value: days.reduce((s,d) => s + d.registrations, 0), color: 'bg-green-400', desc: '登録完了数' },
+                ]
+                const maxVal = funnelSteps[0].value || 1
+                return (
+                  <div className="space-y-2">
+                    {funnelSteps.map((step, i) => {
+                      const prev = i > 0 ? funnelSteps[i-1].value : null
+                      const rate = prev ? (step.value / prev * 100).toFixed(1) : null
+                      const pct = Math.round(step.value / maxVal * 100)
+                      return (
+                        <div key={step.label} className="flex items-center gap-3">
+                          <div className="w-20 text-right text-xs font-bold text-gray-600 shrink-0">{step.label}</div>
+                          <div className="flex-1 relative h-8 bg-gray-100 rounded overflow-hidden">
+                            <div className={`h-full ${step.color} opacity-80 rounded transition-all`} style={{ width: `${pct}%` }} />
+                            <span className="absolute inset-0 flex items-center px-2 text-xs font-bold text-gray-700">
+                              {step.value.toLocaleString()}
+                              {rate && <span className="ml-2 text-gray-400 font-normal">← {rate}%</span>}
+                            </span>
+                          </div>
+                          <div className="w-32 text-xs text-gray-400 shrink-0">{step.desc}</div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
+            </div>
+
+            {/* 広告セット × 登録経路 統合テーブル */}
+            <div className="border-t border-gray-100">
+              <div className="px-5 py-3 border-b border-gray-100">
+                <p className="text-xs font-bold text-gray-500">広告セット別パフォーマンス（{monthLabel}）</p>
+                <p className="text-xs text-gray-400 mt-0.5">広告指標 + 登録経路別の相談・成約実績</p>
+              </div>
+              <div className="overflow-x-auto">
+                {(() => {
+                  // 広告セット別に集計
+                  const adSetMap: Record<string, { spend: number; reach: number; clicks: number; impressions: number; registrations: number }> = {}
+                  fbAds.forEach(r => {
+                    const key = r.ad_set_name || '不明'
+                    if (!adSetMap[key]) adSetMap[key] = { spend: 0, reach: 0, clicks: 0, impressions: 0, registrations: 0 }
+                    adSetMap[key].spend += r.amount_spent ?? 0
+                    adSetMap[key].reach += r.reach ?? 0
+                    adSetMap[key].clicks += r.link_clicks ?? 0
+                    adSetMap[key].impressions += r.impressions ?? 0
+                    adSetMap[key].registrations += r.registrations_completed ?? 0
+                  })
+                  // 登録経路別に相談・成約を集計（registration_source = ad_set_name）
+                  const srcMap: Record<string, { consultations: number; contracted: number }> = {}
+                  consultations.forEach(c => {
+                    const key = c.registration_source || ''
+                    if (!key) return
+                    if (!srcMap[key]) srcMap[key] = { consultations: 0, contracted: 0 }
+                    srcMap[key].consultations++
+                    if (c.status === '成約') srcMap[key].contracted++
+                  })
+                  const rows = Object.entries(adSetMap)
+                    .map(([name, ad]) => ({ name, ...ad, ...(srcMap[name] ?? { consultations: 0, contracted: 0 }) }))
+                    .sort((a, b) => b.registrations - a.registrations || b.spend - a.spend)
+                  return (
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-100">
+                          <th className="px-4 py-2 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">広告セット</th>
+                          <th className="px-4 py-2 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">広告費</th>
+                          <th className="px-4 py-2 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">リーチ</th>
+                          <th className="px-4 py-2 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">クリック</th>
+                          <th className="px-4 py-2 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">登録数</th>
+                          <th className="px-4 py-2 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">CPR</th>
+                          <th className="px-4 py-2 text-left text-xs font-semibold text-blue-300 whitespace-nowrap border-l border-gray-100">相談数</th>
+                          <th className="px-4 py-2 text-left text-xs font-semibold text-green-400 whitespace-nowrap">成約数</th>
+                          <th className="px-4 py-2 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">成約率</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map(r => {
+                          const cpr = r.registrations > 0 ? Math.round(r.spend / r.registrations) : null
+                          const ctr = r.impressions > 0 ? (r.clicks / r.impressions * 100).toFixed(1) : '-'
+                          const rate = r.consultations > 0 ? Math.round(r.contracted / r.consultations * 100) : null
+                          return (
+                            <tr key={r.name} className="border-b border-gray-50 hover:bg-gray-50">
+                              <td className="px-4 py-2 text-xs text-gray-600 max-w-[200px] truncate" title={r.name}>{r.name}</td>
+                              <td className="px-4 py-2 font-mono text-xs text-gray-700">¥{Math.round(r.spend).toLocaleString()}</td>
+                              <td className="px-4 py-2 font-mono text-xs text-gray-500">{r.reach.toLocaleString()}</td>
+                              <td className="px-4 py-2 font-mono text-xs text-gray-500">{r.clicks.toLocaleString()}</td>
+                              <td className="px-4 py-2 font-mono text-xs font-bold text-blue-600">{r.registrations}</td>
+                              <td className="px-4 py-2 font-mono text-xs text-gray-700">{cpr ? `¥${cpr.toLocaleString()}` : '-'}</td>
+                              <td className="px-4 py-2 font-mono text-xs text-gray-700 border-l border-gray-100">{r.consultations || '-'}</td>
+                              <td className="px-4 py-2 font-mono text-xs font-bold text-green-600">{r.contracted || '-'}</td>
+                              <td className="px-4 py-2 font-mono text-xs text-gray-600">{rate !== null ? `${rate}%` : '-'}</td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  )
+                })()}
+              </div>
+            </div>
+
+            {/* ダミー：旧登録経路別テーブルの閉じタグ維持用 */}
+            {(() => {
+              const sources: [string, {count: number; contracted: number}][] = []
+              if (sources.length === 0) return null
+              return (
+                <div className="border-t border-gray-100">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <tbody>
+                        {sources.map(([src, s]) => (
+                          <tr key={src} className="border-b border-gray-50 hover:bg-gray-50">
+                            <td className="px-4 py-2 text-gray-700">{src}</td>
+                            <td className="px-4 py-2 font-mono text-gray-700">{s.count}</td>
+                            <td className="px-4 py-2 font-mono font-bold text-green-600">{s.contracted}</td>
+                            <td className="px-4 py-2 font-mono text-gray-600">
+                              {s.count > 0 ? `${Math.round(s.contracted / s.count * 100)}%` : '-'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )
+            })()}
+
+            {/* 日別テーブル */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    {['日付', '広告費', 'インプレッション', 'クリック', 'CTR', '登録数', 'CPR'].map(h => (
+                      <th key={h} className="px-4 py-2 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {days.map(d => {
+                    const dayCpr = d.registrations > 0 ? Math.round(d.amount_spent / d.registrations) : null
+                    const dayCtr = d.impressions > 0 ? (d.clicks / d.impressions * 100).toFixed(2) : '-'
+                    return (
+                      <tr key={d.day} className="border-b border-gray-50 hover:bg-gray-50">
+                        <td className="px-4 py-2 text-gray-700">{d.day}</td>
+                        <td className="px-4 py-2 font-mono text-gray-700">¥{Math.round(d.amount_spent).toLocaleString()}</td>
+                        <td className="px-4 py-2 font-mono text-gray-500">{d.impressions.toLocaleString()}</td>
+                        <td className="px-4 py-2 font-mono text-gray-500">{d.clicks.toLocaleString()}</td>
+                        <td className="px-4 py-2 font-mono text-gray-500">{dayCtr}%</td>
+                        <td className="px-4 py-2 font-mono font-bold text-blue-600">{d.registrations}</td>
+                        <td className="px-4 py-2 font-mono text-gray-700">{dayCpr ? `¥${dayCpr.toLocaleString()}` : '-'}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      })()}
+      </>)}
+
+      {activeTab === 'overview' && (<>
       {/* 担当者別KPI */}
       {memberStats.length > 0 && (
         <div className="bg-white border border-gray-200 rounded overflow-x-auto">
@@ -668,8 +921,9 @@ export default function AICampPage() {
           </table>
         </div>
       )}
+      </>)}
 
-      {/* 商談一覧 */}
+      {activeTab === 'deals' && (
       <div className="bg-white border border-gray-200 rounded">
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
           <div className="flex items-center gap-3">
@@ -957,6 +1211,7 @@ export default function AICampPage() {
           </table>
         </div>
       </div>
+      )}
 
       {showSourceMaster && <SourceMasterModal onClose={() => setShowSourceMaster(false)} />}
 

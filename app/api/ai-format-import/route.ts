@@ -45,30 +45,79 @@ const SCHEMAS = {
   aicamp_consultations: {
     label: 'AI CAMP 商談（ロードマップ作成会）',
     fields: {
-      name: '氏名',
+      name: '氏名・お名前',
       line_name: 'LINE名',
       age: '年齢',
-      consultation_date: '実施日・商談日',
-      status: 'ステータス（成約/失注/保留/ドタキャン）',
+      consultation_date: '実施日・商談日・日程',
+      status: 'ステータス（成約/失注/保留/ドタキャン/参加予定/キャンセル済み）— 参加状況・成約状況のどちらかをマッピング',
       payment_amount: '着金額（円）',
       payment_method: '支払方法',
-      occupation: '職業',
-      monthly_income: '月収',
+      occupation: '職業・ご職業',
+      monthly_income: '月収・現在の月収',
       ai_experience: 'AIの知識・経験',
+      email: 'メールアドレス・email',
+      phone: '電話番号・phone',
       source: '流入経路',
       registration_source: '登録経路',
-      reason: '成約/失注/保留の理由',
-      motivation: '動機・背景・ロードマップ作成会への動機',
-      minutes_url: '議事録URL・議事録リンク',
+      reason: '成約/失注/保留/キャンセルの理由・キャンセル理由',
+      motivation: '動機・背景・ロードマップ作成会への動機・個別相談会で聞きたいこと',
+      minutes_url: '議事録URL・議事録リンク・参加URL・ZoomURL',
       reply_deadline: '返事の期限',
-      customer_attribute: '顧客属性・顧客情報',
+      customer_attribute: '顧客属性・顧客情報・性別',
       question: '聞きたいこと・質問',
       expectation: '期待すること',
       ai_purpose: 'AIスキルの活用目的',
     },
-    statusMap: { '確定': '成約', '入金待ち': '保留', 'キャンセル': 'キャンセル', '成約': '成約', '失注': '失注', 'ドタキャン': 'ドタキャン', 'ドタキャン（無断）': 'ドタキャン', '保留': '保留' } as Record<string, string>,
+    statusMap: {
+      '確定': '成約', '入金待ち': '保留', 'キャンセル': 'キャンセル', 'キャンセル済み': 'キャンセル',
+      '成約': '成約', '失注': '失注', 'ドタキャン': 'ドタキャン', 'ドタキャン（無断）': 'ドタキャン',
+      '保留': '保留', '参加予定': '相談予約', '未登録': '相談予約',
+    } as Record<string, string>,
   },
 }
+
+// ── 既知フォーマット定義 ─────────────────────────────────────────────────────
+// ヘッダーが一致すれば AI を呼ばずに即マッピング
+const KNOWN_FORMATS: {
+  matchHeaders: string[]          // このヘッダーが全て含まれていれば一致
+  targetTable: string
+  reason: string
+  mappings: Record<string, string | null>
+}[] = [
+  {
+    // AI CAMP 個別相談会申込者CSVエクスポート
+    matchHeaders: ['申込日時', '日程', '担当者', 'お名前', 'フリガナ', '参加URL', '参加状況', '成約状況', 'キャンセル理由'],
+    targetTable: 'aicamp_consultations',
+    reason: 'AI CAMP 個別相談会申込者CSVフォーマット（ルールベース判定）',
+    mappings: {
+      '申込日時':              null,              // 申込タイムスタンプは不要
+      '日程':                  'consultation_date',
+      '担当者':                'member_id',
+      'お名前':                'name',
+      'フリガナ':              null,
+      'メールアドレス':        'email',
+      '電話番号':              'phone',
+      '性別':                  'customer_attribute',
+      '年齢':                  'age',
+      'ご職業':                'occupation',
+      '現在の月収':            'monthly_income',
+      'AIの知識・経験':        'ai_experience',
+      '個別相談会で聞きたいこと': 'motivation',
+      '参加URL':               'minutes_url',
+      '参加状況':              'status',
+      '成約状況':              null,              // 参加状況を優先
+      'キャンセル理由':        'reason',
+    },
+  },
+]
+
+function detectKnownFormat(uploadedHeaders: string[]) {
+  const headerSet = new Set(uploadedHeaders)
+  return KNOWN_FORMATS.find(fmt =>
+    fmt.matchHeaders.every(h => headerSet.has(h))
+  ) ?? null
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   const { headers, sampleRows, allRows, defaultMemberId, members, forceTable } = await req.json()
@@ -83,8 +132,20 @@ export async function POST(req: NextRequest) {
     return match?.id ?? defaultMemberId ?? null
   }
 
-  // Claude にスキーマ判定とマッピングを依頼
-  const prompt = `
+  // ── 既知フォーマット判定（AIスキップ）──────────────────────────────────────
+  const knownFmt = !forceTable ? detectKnownFormat(headers) : null
+  let targetTable: string
+  let reason: string
+  let mappings: Record<string, string | null>
+  let skipPatterns: string[] = []
+
+  if (knownFmt) {
+    targetTable = knownFmt.targetTable
+    reason = knownFmt.reason
+    mappings = knownFmt.mappings
+  } else {
+    // ── Claude にフォールバック ──────────────────────────────────────────────
+    const prompt = `
 あなたは営業データのインポート専門家です。以下のCSV/Excelデータを分析して、最適なインポート先とカラムマッピングを判断してください。
 
 ## 列名
@@ -113,30 +174,32 @@ ${Object.entries(SCHEMAS).map(([key, s]) => `
 ${forceTable ? `\n重要: インポート先は必ず "${forceTable}" で固定してください。上記JSONの "targetTable" は必ず "${forceTable}" にしてください。` : ''}
 `
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json({ error: 'ANTHROPIC_API_KEY が設定されていません' }, { status: 500 })
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return NextResponse.json({ error: 'ANTHROPIC_API_KEY が設定されていません' }, { status: 500 })
+    }
+
+    let text = ''
+    try {
+      const message = await anthropic.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1024,
+        messages: [{ role: 'user', content: prompt }],
+      })
+      text = (message.content[0] as { type: string; text: string }).text
+    } catch (e) {
+      return NextResponse.json({ error: `Claude API エラー: ${String(e)}` }, { status: 500 })
+    }
+
+    const jsonMatch = text.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) return NextResponse.json({ error: `AI応答の解析に失敗しました: ${text.slice(0, 200)}` }, { status: 500 })
+
+    const aiResult = JSON.parse(jsonMatch[0])
+    targetTable = (forceTable && SCHEMAS[forceTable as keyof typeof SCHEMAS]) ? forceTable : aiResult.targetTable
+    reason = aiResult.reason
+    mappings = aiResult.mappings
+    skipPatterns = forceTable ? [] : (aiResult.skipPatterns ?? [])
   }
 
-  let text = ''
-  try {
-    const message = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1024,
-      messages: [{ role: 'user', content: prompt }],
-    })
-    text = (message.content[0] as { type: string; text: string }).text
-  } catch (e) {
-    return NextResponse.json({ error: `Claude API エラー: ${String(e)}` }, { status: 500 })
-  }
-
-  const jsonMatch = text.match(/\{[\s\S]*\}/)
-  if (!jsonMatch) return NextResponse.json({ error: `AI応答の解析に失敗しました: ${text.slice(0, 200)}` }, { status: 500 })
-
-  const aiResult = JSON.parse(jsonMatch[0])
-  const { reason, mappings } = aiResult
-  // forceTable が指定された場合はAIの判断を上書き＆skipPatternsを無効化
-  const targetTable: string = (forceTable && SCHEMAS[forceTable as keyof typeof SCHEMAS]) ? forceTable : aiResult.targetTable
-  const skipPatterns: string[] = forceTable ? [] : (aiResult.skipPatterns ?? [])
   const schema = SCHEMAS[targetTable as keyof typeof SCHEMAS]
   if (!schema) return NextResponse.json({ error: '対応していないテーブルです' }, { status: 400 })
 

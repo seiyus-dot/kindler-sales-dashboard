@@ -114,6 +114,7 @@ export default function AIImport({ members, onImported }: Props) {
   const [importing, setImporting] = useState(false)
   const [lastRawRows, setLastRawRows] = useState<Record<string, unknown>[]>([])
   const [changingTable, setChangingTable] = useState(false)
+  const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set())
   const fileRef = useRef<HTMLInputElement>(null)
 
   function close() {
@@ -122,6 +123,7 @@ export default function AIImport({ members, onImported }: Props) {
     setResult(null)
     setImported(null)
     setPasteText('')
+    setSelectedIndices(new Set())
     if (fileRef.current) fileRef.current.value = ''
   }
 
@@ -148,6 +150,12 @@ export default function AIImport({ members, onImported }: Props) {
         setLoading(false)
         return
       }
+      // 重複行はデフォルトで未選択、非重複行は選択済みにする
+      const initialSelected = new Set<number>()
+      ;(data.rows as Record<string, unknown>[]).forEach((row, i) => {
+        if (!row._isDuplicate) initialSelected.add(i)
+      })
+      setSelectedIndices(initialSelected)
       setResult(data)
       setStep('preview')
     } catch (e) {
@@ -210,14 +218,34 @@ export default function AIImport({ members, onImported }: Props) {
     }
   }
 
+  function toggleRow(i: number) {
+    setSelectedIndices(prev => {
+      const next = new Set(prev)
+      if (next.has(i)) next.delete(i)
+      else next.add(i)
+      return next
+    })
+  }
+
+  function toggleAll() {
+    if (!result) return
+    if (selectedIndices.size === result.rows.length) {
+      setSelectedIndices(new Set())
+    } else {
+      setSelectedIndices(new Set(result.rows.map((_, i) => i)))
+    }
+  }
+
   async function handleImport() {
     if (!result) return
+    const rowsToImport = result.rows.filter((_, i) => selectedIndices.has(i))
+    if (rowsToImport.length === 0) return
     setImporting(true)
     try {
       const res = await fetch('/api/ai-format-import', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targetTable: result.targetTable, rows: result.rows }),
+        body: JSON.stringify({ targetTable: result.targetTable, rows: rowsToImport }),
       })
       const data = await res.json()
       setImported(data)
@@ -372,14 +400,12 @@ export default function AIImport({ members, onImported }: Props) {
                 </div>
                 <p className="text-xs text-indigo-600">{result.reason}</p>
                 <p className="text-xs text-gray-500">
-                  {result.totalRows}件をインポート
-                  {result.skippedCount > 0 && `（${result.skippedCount}件スキップ）`}
+                  全{result.totalRows}件
+                  {result.skippedCount > 0 && `（${result.skippedCount}件スキップ済み）`}
+                  {result.duplicateCount > 0 && (
+                    <span className="ml-2 text-amber-600 font-semibold">重複の可能性 {result.duplicateCount}件（黄色行 — デフォルトで未選択）</span>
+                  )}
                 </p>
-                {result.duplicateCount > 0 && (
-                  <p className="text-xs font-semibold text-amber-600">
-                    重複の可能性: {result.duplicateCount}件（既存データと名前が一致）— インポートすると二重登録になります
-                  </p>
-                )}
               </div>
 
               {/* マッピング表示 */}
@@ -396,29 +422,64 @@ export default function AIImport({ members, onImported }: Props) {
                 </div>
               </div>
 
-              {/* データプレビュー */}
+              {/* 全行選択テーブル */}
               <div>
-                <p className="text-xs font-bold text-gray-500 mb-2">データプレビュー（最初の5件）</p>
-                <div className="overflow-x-auto border border-gray-100 rounded">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-bold text-gray-500">
+                    インポート対象を選択 <span className="text-indigo-600 font-semibold">{selectedIndices.size}件選択中</span>
+                  </p>
+                  <button
+                    onClick={toggleAll}
+                    className="text-xs text-indigo-500 hover:text-indigo-700 underline"
+                  >
+                    {selectedIndices.size === result.rows.length ? '全解除' : '全選択'}
+                  </button>
+                </div>
+                <div className="overflow-x-auto border border-gray-100 rounded max-h-64 overflow-y-auto">
                   <table className="w-full text-xs">
-                    <thead>
-                      <tr className="bg-gray-50 border-b border-gray-100">
-                        {Object.keys(result.preview[0] ?? {}).filter(k => k !== '_isDuplicate').map(k => (
+                    <thead className="sticky top-0 bg-gray-50 z-10">
+                      <tr className="border-b border-gray-100">
+                        <th className="px-2 py-2 w-8">
+                          <input
+                            type="checkbox"
+                            checked={selectedIndices.size === result.rows.length && result.rows.length > 0}
+                            onChange={toggleAll}
+                            className="rounded"
+                          />
+                        </th>
+                        {Object.keys(result.rows[0] ?? {}).filter(k => k !== '_isDuplicate').map(k => (
                           <th key={k} className="px-3 py-2 text-left text-gray-400 font-semibold whitespace-nowrap">{k}</th>
                         ))}
+                        <th className="px-2 py-2 text-gray-400 font-semibold whitespace-nowrap">状態</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {result.preview.map((row, i) => (
-                        <tr key={i} className={`border-b ${row._isDuplicate ? 'bg-amber-50' : 'border-gray-50'}`}>
-                          {Object.entries(row).filter(([k]) => k !== '_isDuplicate').map(([k, v]) => (
-                            <td key={k} className="px-3 py-1.5 text-gray-700 whitespace-nowrap max-w-[150px] truncate">{String(v ?? '-')}</td>
-                          ))}
-                          {!!row._isDuplicate && (
-                            <td className="px-2 py-1.5 text-amber-600 text-xs font-semibold whitespace-nowrap">重複?</td>
-                          )}
-                        </tr>
-                      ))}
+                      {result.rows.map((row, i) => {
+                        const isDup = !!row._isDuplicate
+                        const checked = selectedIndices.has(i)
+                        return (
+                          <tr
+                            key={i}
+                            onClick={() => toggleRow(i)}
+                            className={`border-b cursor-pointer transition-colors ${
+                              isDup ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-indigo-50'
+                            } ${!checked ? 'opacity-40' : ''}`}
+                          >
+                            <td className="px-2 py-1.5 text-center" onClick={e => { e.stopPropagation(); toggleRow(i) }}>
+                              <input type="checkbox" checked={checked} onChange={() => toggleRow(i)} className="rounded" />
+                            </td>
+                            {Object.entries(row).filter(([k]) => k !== '_isDuplicate').map(([k, v]) => (
+                              <td key={k} className="px-3 py-1.5 text-gray-700 whitespace-nowrap max-w-[150px] truncate">{String(v ?? '-')}</td>
+                            ))}
+                            <td className="px-2 py-1.5 whitespace-nowrap">
+                              {isDup
+                                ? <span className="text-amber-600 font-semibold">重複?</span>
+                                : <span className="text-green-600">新規</span>
+                              }
+                            </td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -426,13 +487,13 @@ export default function AIImport({ members, onImported }: Props) {
             </div>
 
             <div className="flex justify-between items-center px-6 py-4 border-t border-gray-100">
-              <button onClick={() => { setStep('upload'); setResult(null); setPasteText(''); if (fileRef.current) fileRef.current.value = '' }} className="text-sm text-gray-400 hover:text-gray-600">やり直す</button>
+              <button onClick={() => { setStep('upload'); setResult(null); setPasteText(''); setSelectedIndices(new Set()); if (fileRef.current) fileRef.current.value = '' }} className="text-sm text-gray-400 hover:text-gray-600">やり直す</button>
               <button
                 onClick={handleImport}
-                disabled={importing}
+                disabled={importing || selectedIndices.size === 0}
                 className="px-6 py-2 text-sm font-medium text-white bg-indigo-600 rounded hover:bg-indigo-700 disabled:opacity-50 transition"
               >
-                {importing ? 'インポート中...' : `${result.totalRows}件をインポートする`}
+                {importing ? 'インポート中...' : `${selectedIndices.size}件をインポートする`}
               </button>
             </div>
           </div>

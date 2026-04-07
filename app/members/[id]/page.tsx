@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase, Member, DealToB, DealToC, DealAction, ACTION_TYPES } from '@/lib/supabase'
 import Link from 'next/link'
+import { Plus } from 'lucide-react'
+import DealToBForm from '@/components/DealToBForm'
+import DealToCForm from '@/components/DealToCForm'
 
 const TOB_STATUSES = ['アポ取得', '商談中', '提案済', '交渉中', '見積提出', 'リード', '受注', '失注', '保留']
 const TOC_STATUSES = ['相談予約', 'ヒアリング', '提案中', 'クロージング', '相談済', '受注', '失注', '保留']
@@ -20,39 +23,48 @@ function statusBadge(status?: string) {
 export default function MemberDetailPage() {
   const { id } = useParams<{ id: string }>()
   const [member, setMember] = useState<Member | null>(null)
+  const [members, setMembers] = useState<Member[]>([])
   const [tobDeals, setTobDeals] = useState<DealToB[]>([])
   const [tocDeals, setTocDeals] = useState<DealToC[]>([])
   const [actions, setActions] = useState<DealAction[]>([])
   const [loading, setLoading] = useState(true)
+  const [showToBForm, setShowToBForm] = useState(false)
+  const [showToCForm, setShowToCForm] = useState(false)
+  const [editToB, setEditToB] = useState<DealToB | null>(null)
+  const [editToC, setEditToC] = useState<DealToC | null>(null)
 
   useEffect(() => {
-    async function fetchAll() {
-      const [memberRes, tobRes, tocRes] = await Promise.all([
-        supabase.from('members').select('*').eq('id', id).single(),
-        supabase.from('deals_tob').select('*').eq('member_id', id).order('created_at', { ascending: false }),
-        supabase.from('deals_toc').select('*').eq('member_id', id).order('created_at', { ascending: false }),
-      ])
-      if (memberRes.data) setMember(memberRes.data)
-      const tob: DealToB[] = tobRes.data ?? []
-      const toc: DealToC[] = tocRes.data ?? []
-      setTobDeals(tob)
-      setTocDeals(toc)
-
-      // アクション履歴：このメンバーの全案件IDで検索
-      const dealIds = [...tob.map(d => d.id), ...toc.map(d => d.id)]
-      if (dealIds.length > 0) {
-        const { data: actionsData } = await supabase
-          .from('deal_actions')
-          .select('*')
-          .in('deal_id', dealIds)
-          .order('action_date', { ascending: false })
-        if (actionsData) setActions(actionsData)
-      }
-
-      setLoading(false)
-    }
     fetchAll()
   }, [id])
+
+  async function fetchAll() {
+    const [memberRes, membersRes, tobRes, tocRes] = await Promise.all([
+      supabase.from('members').select('*').eq('id', id).single(),
+      supabase.from('members').select('*').order('sort_order'),
+      supabase.from('deals_tob').select('*').eq('member_id', id).order('created_at', { ascending: false }),
+      supabase.from('deals_toc').select('*').eq('member_id', id).order('created_at', { ascending: false }),
+    ])
+    if (memberRes.data) setMember(memberRes.data)
+    if (membersRes.data) setMembers(membersRes.data)
+    const tob: DealToB[] = tobRes.data ?? []
+    const toc: DealToC[] = tocRes.data ?? []
+    setTobDeals(tob)
+    setTocDeals(toc)
+
+    const dealIds = [...tob.map(d => d.id), ...toc.map(d => d.id)]
+    if (dealIds.length > 0) {
+      const { data: actionsData } = await supabase
+        .from('deal_actions')
+        .select('*')
+        .in('deal_id', dealIds)
+        .order('action_date', { ascending: false })
+      if (actionsData) setActions(actionsData)
+    } else {
+      setActions([])
+    }
+
+    setLoading(false)
+  }
 
   if (loading) return (
     <div className="flex items-center justify-center h-64 text-gray-400 text-base">読み込み中...</div>
@@ -89,22 +101,18 @@ export default function MemberDetailPage() {
   const tobStatusCounts = TOB_STATUSES.map(s => ({ status: s, count: tobDeals.filter(d => d.status === s).length })).filter(x => x.count > 0)
   const tocStatusCounts = TOC_STATUSES.map(s => ({ status: s, count: tocDeals.filter(d => d.status === s).length })).filter(x => x.count > 0)
 
-  // 行動KPI
   const totalActions = actions.length
   const thisMonthActions = actions.filter(a => a.action_date.startsWith(currentMonth)).length
   const activeDealsCount = tobActive + tocActive
   const actionsPerDeal = activeDealsCount > 0 ? (totalActions / activeDealsCount).toFixed(1) : '-'
 
-  // アクション種別内訳
   const actionTypeCounts = ACTION_TYPES.map(t => ({
     type: t,
     count: actions.filter(a => a.action_type === t).length,
   })).filter(x => x.count > 0).sort((a, b) => b.count - a.count)
 
-  // 直近アクション（5件）
   const recentActions = actions.slice(0, 5)
 
-  // ファネル（このメンバーのステージ分布）
   const allMemberDeals = [...tobDeals, ...tocDeals]
   const stageDistribution = [
     '初回接触', 'アポ取得', '商談中', '提案済', '交渉中', '見積提出', 'クロージング',
@@ -164,7 +172,6 @@ export default function MemberDetailPage() {
           ))}
         </div>
 
-        {/* アクション種別内訳 */}
         {actionTypeCounts.length > 0 && (
           <div>
             <p className="text-xs font-bold text-gray-400 mb-3">アクション種別内訳</p>
@@ -212,7 +219,7 @@ export default function MemberDetailPage() {
         </div>
       )}
 
-      {/* ファネル（このメンバーのステージ分布） */}
+      {/* ファネル */}
       {stageDistribution.length > 0 && (
         <div className="bg-white rounded border border-gray-100 shadow-sm p-7">
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-5">ステージ分布</h3>
@@ -294,9 +301,22 @@ export default function MemberDetailPage() {
       </div>
 
       {/* 法人案件テーブル */}
-      {tobDeals.length > 0 && (
-        <div className="bg-white rounded border border-gray-100 shadow-sm p-7">
-          <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-5">法人案件 ({tobDeals.length}件)</h3>
+      <div className="bg-white rounded border border-gray-100 shadow-sm p-7">
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
+            法人案件 ({tobDeals.length}件)
+          </h3>
+          <button
+            onClick={() => { setEditToB(null); setShowToBForm(true) }}
+            className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded transition-colors"
+          >
+            <Plus size={13} />
+            法人案件を追加
+          </button>
+        </div>
+        {tobDeals.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-6">案件がありません</p>
+        ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-base">
               <thead>
@@ -308,7 +328,11 @@ export default function MemberDetailPage() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {tobDeals.map(d => (
-                  <tr key={d.id} className="hover:bg-gray-50 transition-colors">
+                  <tr
+                    key={d.id}
+                    onClick={() => { setEditToB(d); setShowToBForm(true) }}
+                    className="hover:bg-gray-50 transition-colors cursor-pointer"
+                  >
                     <td className="py-3 pr-4 font-medium text-gray-800">{d.company_name}</td>
                     <td className="py-3 pr-4">
                       {d.status && <span className={`px-2 py-0.5 rounded text-xs font-bold ${statusBadge(d.status)}`}>{d.status}</span>}
@@ -322,13 +346,26 @@ export default function MemberDetailPage() {
               </tbody>
             </table>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* 個人案件テーブル */}
-      {tocDeals.length > 0 && (
-        <div className="bg-white rounded border border-gray-100 shadow-sm p-7">
-          <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-5">個人案件 ({tocDeals.length}件)</h3>
+      <div className="bg-white rounded border border-gray-100 shadow-sm p-7">
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
+            個人案件 ({tocDeals.length}件)
+          </h3>
+          <button
+            onClick={() => { setEditToC(null); setShowToCForm(true) }}
+            className="flex items-center gap-1.5 text-xs font-bold text-cyan-600 hover:text-cyan-700 bg-cyan-50 hover:bg-cyan-100 px-3 py-1.5 rounded transition-colors"
+          >
+            <Plus size={13} />
+            個人案件を追加
+          </button>
+        </div>
+        {tocDeals.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-6">案件がありません</p>
+        ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-base">
               <thead>
@@ -340,7 +377,11 @@ export default function MemberDetailPage() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {tocDeals.map(d => (
-                  <tr key={d.id} className="hover:bg-gray-50 transition-colors">
+                  <tr
+                    key={d.id}
+                    onClick={() => { setEditToC(d); setShowToCForm(true) }}
+                    className="hover:bg-gray-50 transition-colors cursor-pointer"
+                  >
                     <td className="py-3 pr-4 font-medium text-gray-800">{d.name}</td>
                     <td className="py-3 pr-4">
                       {d.status && <span className={`px-2 py-0.5 rounded text-xs font-bold ${statusBadge(d.status)}`}>{d.status}</span>}
@@ -354,7 +395,29 @@ export default function MemberDetailPage() {
               </tbody>
             </table>
           </div>
-        </div>
+        )}
+      </div>
+
+      {/* 法人案件フォームモーダル */}
+      {showToBForm && (
+        <DealToBForm
+          members={members}
+          initial={editToB}
+          defaultMemberId={id}
+          onClose={() => { setShowToBForm(false); setEditToB(null) }}
+          onSaved={() => { setShowToBForm(false); setEditToB(null); fetchAll() }}
+        />
+      )}
+
+      {/* 個人案件フォームモーダル */}
+      {showToCForm && (
+        <DealToCForm
+          members={members}
+          initial={editToC}
+          defaultMemberId={id}
+          onClose={() => { setShowToCForm(false); setEditToC(null) }}
+          onSaved={() => { setShowToCForm(false); setEditToC(null); fetchAll() }}
+        />
       )}
     </div>
   )
