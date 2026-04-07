@@ -1,9 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase, Member, DealToB, DealToC, DealAction, ACTION_TYPES } from '@/lib/supabase'
 import Link from 'next/link'
+import DealToBForm from '@/components/DealToBForm'
+import DealToCForm from '@/components/DealToCForm'
 
 const TOB_STATUSES = ['アポ取得', '商談中', '提案済', '交渉中', '見積提出', 'リード', '受注', '失注', '保留']
 const TOC_STATUSES = ['相談予約', 'ヒアリング', '提案中', 'クロージング', '相談済', '受注', '失注', '保留']
@@ -20,39 +22,45 @@ function statusBadge(status?: string) {
 export default function MemberDetailPage() {
   const { id } = useParams<{ id: string }>()
   const [member, setMember] = useState<Member | null>(null)
+  const [allMembers, setAllMembers] = useState<Member[]>([])
   const [tobDeals, setTobDeals] = useState<DealToB[]>([])
   const [tocDeals, setTocDeals] = useState<DealToC[]>([])
   const [actions, setActions] = useState<DealAction[]>([])
   const [loading, setLoading] = useState(true)
+  const [editingToB, setEditingToB] = useState<DealToB | null>(null)
+  const [editingToC, setEditingToC] = useState<DealToC | null>(null)
+
+  const fetchAll = useCallback(async () => {
+    const [memberRes, membersRes, tobRes, tocRes] = await Promise.all([
+      supabase.from('members').select('*').eq('id', id).single(),
+      supabase.from('members').select('*').order('sort_order'),
+      supabase.from('deals_tob').select('*').eq('member_id', id).order('created_at', { ascending: false }),
+      supabase.from('deals_toc').select('*').eq('member_id', id).order('created_at', { ascending: false }),
+    ])
+    if (memberRes.data) setMember(memberRes.data)
+    if (membersRes.data) setAllMembers(membersRes.data)
+    const tob: DealToB[] = tobRes.data ?? []
+    const toc: DealToC[] = tocRes.data ?? []
+    setTobDeals(tob)
+    setTocDeals(toc)
+
+    // アクション履歴：このメンバーの全案件IDで検索
+    const dealIds = [...tob.map(d => d.id), ...toc.map(d => d.id)]
+    if (dealIds.length > 0) {
+      const { data: actionsData } = await supabase
+        .from('deal_actions')
+        .select('*')
+        .in('deal_id', dealIds)
+        .order('action_date', { ascending: false })
+      if (actionsData) setActions(actionsData)
+    }
+
+    setLoading(false)
+  }, [id])
 
   useEffect(() => {
-    async function fetchAll() {
-      const [memberRes, tobRes, tocRes] = await Promise.all([
-        supabase.from('members').select('*').eq('id', id).single(),
-        supabase.from('deals_tob').select('*').eq('member_id', id).order('created_at', { ascending: false }),
-        supabase.from('deals_toc').select('*').eq('member_id', id).order('created_at', { ascending: false }),
-      ])
-      if (memberRes.data) setMember(memberRes.data)
-      const tob: DealToB[] = tobRes.data ?? []
-      const toc: DealToC[] = tocRes.data ?? []
-      setTobDeals(tob)
-      setTocDeals(toc)
-
-      // アクション履歴：このメンバーの全案件IDで検索
-      const dealIds = [...tob.map(d => d.id), ...toc.map(d => d.id)]
-      if (dealIds.length > 0) {
-        const { data: actionsData } = await supabase
-          .from('deal_actions')
-          .select('*')
-          .in('deal_id', dealIds)
-          .order('action_date', { ascending: false })
-        if (actionsData) setActions(actionsData)
-      }
-
-      setLoading(false)
-    }
     fetchAll()
-  }, [id])
+  }, [fetchAll])
 
   if (loading) return (
     <div className="flex items-center justify-center h-64 text-gray-400 text-base">読み込み中...</div>
@@ -302,7 +310,7 @@ export default function MemberDetailPage() {
         <div className="bg-white rounded border border-gray-100 shadow-sm p-4 lg:p-7">
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 lg:mb-5">法人案件 ({tobDeals.length}件)</h3>
 
-          {/* スマホ: 横スクロールリスト */}
+          {/* スマホ: 横スクロールリスト（タップで編集） */}
           <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 lg:hidden">
             <table className="w-full text-sm min-w-[600px]">
               <thead>
@@ -314,7 +322,7 @@ export default function MemberDetailPage() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {tobDeals.map(d => (
-                  <tr key={d.id}>
+                  <tr key={d.id} className="active:bg-blue-50 cursor-pointer" onClick={() => setEditingToB(d)}>
                     <td className="py-2.5 pr-3 font-medium text-gray-800 whitespace-nowrap">{d.company_name}</td>
                     <td className="py-2.5 pr-3">
                       {d.status && <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold whitespace-nowrap ${statusBadge(d.status)}`}>{d.status}</span>}
@@ -334,7 +342,7 @@ export default function MemberDetailPage() {
             <table className="w-full text-base">
               <thead>
                 <tr className="border-b border-gray-100">
-                  {['企業名', 'ステータス', '見込み金額', '受注確度', '次回期日', '次回アクション'].map(h => (
+                  {['企業名', 'ステータス', '見込み金額', '受注確度', '次回期日', '次回アクション', ''].map(h => (
                     <th key={h} className="text-left text-xs font-black text-gray-400 uppercase tracking-wider pb-3 pr-4">{h}</th>
                   ))}
                 </tr>
@@ -349,7 +357,10 @@ export default function MemberDetailPage() {
                     <td className="py-3 pr-4 font-mono text-gray-700">{d.expected_amount?.toLocaleString() ?? '-'}万円</td>
                     <td className="py-3 pr-4 font-mono text-gray-500">{d.win_probability != null ? `${d.win_probability}%` : '-'}</td>
                     <td className="py-3 pr-4 text-gray-500 text-sm">{d.next_action_date ?? '-'}</td>
-                    <td className="py-3 text-gray-500 text-sm">{d.next_action ?? '-'}</td>
+                    <td className="py-3 pr-4 text-gray-500 text-sm">{d.next_action ?? '-'}</td>
+                    <td className="py-3">
+                      <button onClick={() => setEditingToB(d)} className="text-xs text-blue-600 hover:text-blue-800 font-bold">編集</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -363,7 +374,7 @@ export default function MemberDetailPage() {
         <div className="bg-white rounded border border-gray-100 shadow-sm p-4 lg:p-7">
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 lg:mb-5">個人案件 ({tocDeals.length}件)</h3>
 
-          {/* スマホ: 横スクロールリスト */}
+          {/* スマホ: 横スクロールリスト（タップで編集） */}
           <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 lg:hidden">
             <table className="w-full text-sm min-w-[600px]">
               <thead>
@@ -375,7 +386,7 @@ export default function MemberDetailPage() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {tocDeals.map(d => (
-                  <tr key={d.id}>
+                  <tr key={d.id} className="active:bg-blue-50 cursor-pointer" onClick={() => setEditingToC(d)}>
                     <td className="py-2.5 pr-3 font-medium text-gray-800 whitespace-nowrap">{d.name}</td>
                     <td className="py-2.5 pr-3">
                       {d.status && <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold whitespace-nowrap ${statusBadge(d.status)}`}>{d.status}</span>}
@@ -395,7 +406,7 @@ export default function MemberDetailPage() {
             <table className="w-full text-base">
               <thead>
                 <tr className="border-b border-gray-100">
-                  {['氏名', 'ステータス', '見込み金額', '受注確度', '次回期日', '次回アクション'].map(h => (
+                  {['氏名', 'ステータス', '見込み金額', '受注確度', '次回期日', '次回アクション', ''].map(h => (
                     <th key={h} className="text-left text-xs font-black text-gray-400 uppercase tracking-wider pb-3 pr-4">{h}</th>
                   ))}
                 </tr>
@@ -410,13 +421,34 @@ export default function MemberDetailPage() {
                     <td className="py-3 pr-4 font-mono text-gray-700">{d.expected_amount?.toLocaleString() ?? '-'}万円</td>
                     <td className="py-3 pr-4 font-mono text-gray-500">{d.win_probability != null ? `${d.win_probability}%` : '-'}</td>
                     <td className="py-3 pr-4 text-gray-500 text-sm">{d.next_action_date ?? '-'}</td>
-                    <td className="py-3 text-gray-500 text-sm">{d.next_action ?? '-'}</td>
+                    <td className="py-3 pr-4 text-gray-500 text-sm">{d.next_action ?? '-'}</td>
+                    <td className="py-3">
+                      <button onClick={() => setEditingToC(d)} className="text-xs text-blue-600 hover:text-blue-800 font-bold">編集</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         </div>
+      )}
+
+      {/* 編集モーダル */}
+      {editingToB && (
+        <DealToBForm
+          members={allMembers}
+          initial={editingToB}
+          onClose={() => setEditingToB(null)}
+          onSaved={() => { setEditingToB(null); fetchAll() }}
+        />
+      )}
+      {editingToC && (
+        <DealToCForm
+          members={allMembers}
+          initial={editingToC}
+          onClose={() => setEditingToC(null)}
+          onSaved={() => { setEditingToC(null); fetchAll() }}
+        />
       )}
     </div>
   )
