@@ -125,8 +125,7 @@ export default function DashboardPage() {
 
   // aicamp_consultations の着金（円→万円）
   const paidAicamp = aicampDeals.filter(d =>
-    (d.payment_date && (period === 'all' || d.payment_date.startsWith(selectedMonth))) ||
-    (!d.payment_date && d.consultation_date && (period === 'all' || d.consultation_date.startsWith(selectedMonth)))
+    d.payment_date && (period === 'all' || d.payment_date.startsWith(selectedMonth))
   )
   const paidAicampTotal = Math.round(paidAicamp.reduce((s, d) => s + (d.payment_amount ?? 0), 0) / 10000)
 
@@ -164,7 +163,7 @@ export default function DashboardPage() {
         .reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0)
       const aicamp = Math.round(
         aicampDeals
-          .filter(d => d.payment_date?.startsWith(m) || (!d.payment_date && d.consultation_date?.startsWith(m)))
+          .filter(d => d.payment_date?.startsWith(m))
           .reduce((s, d) => s + (d.payment_amount ?? 0), 0) / 10000
       )
       return { name: label, 法人: tob, '個人（AI CAMP）': aicamp }

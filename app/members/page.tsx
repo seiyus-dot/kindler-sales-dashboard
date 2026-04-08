@@ -65,16 +65,16 @@ export default function MembersPage() {
         .filter(d => !['受注', '失注'].includes(d.status ?? ''))
         .reduce((s, d) => s + (d.expected_amount ?? 0), 0)
 
-      // 月次着金額 (toB + aicamp)
-      const paidAmount = [
-        ...tob.filter(d => d.payment_date && d.payment_date.startsWith(currentMonth)),
-        ...toc.filter(d => d.payment_date && d.payment_date.startsWith(currentMonth)),
-      ].reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0) +
-      aicamp.filter(d => (d.payment_date && d.payment_date.startsWith(currentMonth)) || (!d.payment_date && d.consultation_date?.startsWith(currentMonth)))
-        .reduce((s, d) => s + Math.round((d.payment_amount ?? 0) / 10000), 0)
+        // 着金金額 (累計) - toB + toC + aicamp
+        const paidAmount = [
+          ...tob.filter(d => d.payment_date),
+          ...toc.filter(d => d.payment_date),
+        ].reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0) +
+        aicamp.filter(d => d.status === '成約' && d.payment_date)
+          .reduce((s, d) => s + Math.round((d.payment_amount ?? 0) / 10000), 0)
 
-      const wonCount = tob.filter(d => d.status === '受注' && d.payment_date?.startsWith(currentMonth)).length + 
-                       aicamp.filter(d => d.status === '成約' && (d.payment_date?.startsWith(currentMonth) || (!d.payment_date && d.consultation_date?.startsWith(currentMonth)))).length
+        const wonCount = tob.filter(d => d.status === '受注').length + 
+                         aicamp.filter(d => d.status === '成約').length
 
       const alertCount = [
         ...tob.filter(d => d.next_action_date && d.next_action_date >= today && d.next_action_date <= in7),
