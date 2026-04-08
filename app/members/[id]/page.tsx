@@ -35,7 +35,8 @@ export default function MemberDetailPage() {
 
   useEffect(() => {
     fetchAll()
-  }, [fetchAll])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id])
 
   async function fetchAll() {
     const [memberRes, membersRes, tobRes, tocRes] = await Promise.all([
