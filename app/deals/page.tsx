@@ -342,50 +342,66 @@ export default function DealsPage() {
             </div>
           </div>
 
-          {/* ステータス内訳 */}
-          <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
-            <h3 className="font-bold text-gray-700 text-sm mb-3">ステータス内訳</h3>
-            <div className="flex flex-wrap gap-2">
-              {statusBreakdown.map(({ status, count }) => (
-                <span key={status} className={`px-3 py-1 rounded-full text-sm font-medium ${statusColor(status)}`}>
-                  {status} {count}件
-                </span>
-              ))}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* ステータス別件数 */}
+            <div className="bg-white border border-gray-200 rounded p-5">
+              <p className="text-sm font-bold text-gray-600 mb-4">ステータス別件数</p>
+              <div className="space-y-2">
+                {statusBreakdown.map(({ status, count }) => {
+                  const max = Math.max(...statusBreakdown.map(x => x.count))
+                  const pct = Math.round(count / max * 100)
+                  const color = status === '受注' ? 'bg-green-500'
+                    : status === '失注' ? 'bg-red-400'
+                    : ['クロージング', '見積提出'].includes(status) ? 'bg-blue-500'
+                    : 'bg-gray-300'
+                  return (
+                    <div key={status} className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500 w-20 shrink-0">{status}</span>
+                      <div className="flex-1 bg-gray-100 rounded h-2">
+                        <div className={`h-2 rounded ${color}`} style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="text-xs font-mono font-bold text-gray-700 w-6 text-right">{count}</span>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
-          </div>
 
-          {/* 担当者別 */}
-          <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
-            <h3 className="font-bold text-gray-700 text-sm mb-3">担当者別パイプライン</h3>
-            <div className="space-y-2">
-              {memberBreakdown.map(m => (
-                <div key={m.name} className="flex items-center gap-3">
-                  <span className="text-sm text-gray-600 w-16 shrink-0">{m.name}</span>
-                  <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
-                    <div className="bg-blue-500 h-full rounded-full" style={{ width: pipeline > 0 ? `${Math.round(m.pipeline / pipeline * 100)}%` : '0%' }} />
-                  </div>
-                  <span className="text-sm font-mono text-gray-700 w-20 text-right shrink-0">{m.pipeline.toLocaleString()}万</span>
-                  <span className="text-xs text-gray-400 w-14 text-right shrink-0">受注{m.won}件</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* サービス別 */}
-          {serviceBreakdown.length > 0 && (
-            <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
-              <h3 className="font-bold text-gray-700 text-sm mb-3">サービス別</h3>
-              <div className="flex flex-wrap gap-2">
-                {serviceBreakdown.map(({ name, won, pipeline: sp }) => (
-                  <div key={name} className="bg-gray-50 border border-gray-100 rounded-xl px-4 py-2 text-sm">
-                    <span className="font-medium text-gray-700">{name}</span>
-                    <span className="ml-2 text-emerald-600">受注{won}</span>
-                    {sp > 0 && <span className="ml-2 text-blue-500">{sp.toLocaleString()}万</span>}
+            {/* 担当者別パイプライン */}
+            <div className="bg-white border border-gray-200 rounded p-5">
+              <p className="text-sm font-bold text-gray-600 mb-4">担当者別パイプライン</p>
+              <div className="space-y-3">
+                {memberBreakdown.map(m => (
+                  <div key={m.name} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded bg-blue-100 flex items-center justify-center text-blue-700 font-black text-xs">{m.name[0]}</div>
+                      <span className="text-sm font-medium text-gray-700">{m.name}</span>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-mono font-bold text-gray-800">{m.pipeline.toLocaleString()}<span className="text-xs text-gray-400 ml-0.5">万</span></p>
+                      <p className="text-xs text-gray-400">受注{m.won}件 / 進行{m.active}件</p>
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
-          )}
+
+            {/* サービス別 */}
+            <div className="bg-white border border-gray-200 rounded p-5">
+              <p className="text-sm font-bold text-gray-600 mb-4">サービス別</p>
+              <div className="space-y-3">
+                {serviceBreakdown.map(s => (
+                  <div key={s.name} className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">{s.name}</span>
+                    <div className="text-right">
+                      <p className="text-xs font-bold text-green-600">受注 {s.won}件</p>
+                      <p className="text-xs text-gray-400">パイプ {s.pipeline.toLocaleString()}万</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
