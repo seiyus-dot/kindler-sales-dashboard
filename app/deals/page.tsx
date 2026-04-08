@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { supabase, DealToB, Member, MasterOption, ColumnConfig } from '@/lib/supabase'
+import { supabase, DealToB, DealAction, Member, MasterOption, ColumnConfig } from '@/lib/supabase'
 import DealToBForm from '@/components/DealToBForm'
 import CSVImport from '@/components/CSVImport'
 import StripeCSVImport from '@/components/StripeCSVImport'
@@ -23,9 +23,12 @@ const TOB_COL_MIN_WIDTH: Record<string, string> = {
   service:          'min-w-[120px]',
   industry:         'min-w-[100px]',
   source:           'min-w-[100px]',
-  next_action_date: 'min-w-[110px]',
-  next_action:      'min-w-[160px]',
-  notes:            'min-w-[200px]',
+  next_action_date:   'min-w-[110px]',
+  next_action:        'min-w-[160px]',
+  notes:              'min-w-[200px]',
+  latest_meeting_at:  'min-w-[120px]',
+  video_url:          'min-w-[60px]',
+  minutes_text:       'min-w-[180px]',
 }
 const TOB_COL_NOWRAP = new Set(['notes'])
 
@@ -47,17 +50,19 @@ export default function DealsPage() {
   const [filterStatus, setFilterStatus] = useState('')
   const [filterPriority, setFilterPriority] = useState('')
   const [activeTab, setActiveTab] = useState<'overview' | 'deals'>('overview')
+  const [latestMeetings, setLatestMeetings] = useState<Map<string, DealAction>>(new Map())
 
   useEffect(() => { fetchAll() }, [])
 
   async function fetchAll() {
-    const [tobRes, membersRes, colRes, srcRes, svcRes, indRes] = await Promise.all([
+    const [tobRes, membersRes, colRes, srcRes, svcRes, indRes, meetingRes] = await Promise.all([
       supabase.from('deals_tob').select('*, member:members!member_id(name), sub_member:members!sub_member_id(name)').order('created_at', { ascending: false }),
       supabase.from('members').select('*').order('sort_order'),
       supabase.from('column_config').select('*').order('sort_order'),
       supabase.from('master_options').select('*').eq('type', 'source').order('sort_order'),
       supabase.from('master_options').select('*').eq('type', 'service').order('sort_order'),
       supabase.from('master_options').select('*').eq('type', 'industry').order('sort_order'),
+      supabase.from('deal_actions').select('*').eq('deal_type', 'tob').eq('action_type', '商談').order('action_date', { ascending: false }),
     ])
     if (tobRes.data) setTobDeals(tobRes.data)
     if (membersRes.data) setMembers(membersRes.data)
@@ -65,6 +70,13 @@ export default function DealsPage() {
     if (srcRes.data) setSources(srcRes.data)
     if (svcRes.data) setServices(svcRes.data)
     if (indRes.data) setIndustries(indRes.data)
+    if (meetingRes.data) {
+      const map = new Map<string, DealAction>()
+      for (const a of meetingRes.data) {
+        if (!map.has(a.deal_id)) map.set(a.deal_id, a)
+      }
+      setLatestMeetings(map)
+    }
   }
 
   function startEdit(deal: DealToB) {
@@ -204,6 +216,20 @@ export default function DealsPage() {
       case 'company_name':  return <span className="font-medium">{d.company_name ?? '-'}</span>
       case 'contact_name':  return <span className="text-gray-500">{d.contact_name ?? '-'}</span>
       case 'industry':      return <span className="text-gray-500">{d.industry ?? '-'}</span>
+      case 'latest_meeting_at': {
+        const m = latestMeetings.get(d.id)
+        if (!m?.action_date) return <span className="text-gray-300">—</span>
+        return <span className="text-gray-600 text-sm">{m.action_date}</span>
+      }
+      case 'video_url': {
+        if (!d.video_url) return <span className="text-gray-300">—</span>
+        return <a href={d.video_url} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline text-sm">動画</a>
+      }
+      case 'minutes_text': {
+        const text = d.minutes_text
+        if (!text) return <span className="text-gray-300">—</span>
+        return <span title={text} className="text-gray-500 text-sm">{text.slice(0, 28)}{text.length > 28 ? '…' : ''}</span>
+      }
       default:              return <span className="text-gray-400">-</span>
     }
   }

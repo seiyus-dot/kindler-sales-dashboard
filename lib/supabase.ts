@@ -58,6 +58,8 @@ export type DealToB = {
   payment_error_date?: string
   stripe_subscription_id?: string
   stripe_customer_id?: string
+  video_url?: string
+  minutes_text?: string
   created_at: string
   updated_at: string
   member?: Member
@@ -93,6 +95,8 @@ export type DealToC = {
   payment_error_date?: string
   stripe_subscription_id?: string
   stripe_customer_id?: string
+  video_url?: string
+  minutes_text?: string
   created_at: string
   updated_at: string
   member?: Member
@@ -184,6 +188,14 @@ export type AICampMonthlyGoal = {
   month: string
   contract_goal: number
   product_contract_goal: number
+  created_at: string
+}
+
+export type MemberMonthlyGoal = {
+  id: string
+  member_id: string
+  month: string
+  target_amount: number
   created_at: string
 }
 

@@ -56,8 +56,11 @@ export default function DealToBForm({ members, initial, onClose, onSaved, defaul
     loss_reason: initial?.loss_reason ?? '',
     loss_detail: initial?.loss_detail ?? '',
     sub_member_id: initial?.sub_member_id ?? '',
+    video_url: initial?.video_url ?? '',
+    minutes_text: initial?.minutes_text ?? '',
   })
   const [saving, setSaving] = useState(false)
+  const [generatingMinutes, setGeneratingMinutes] = useState(false)
   const [error, setError] = useState('')
 
   const set = (key: string, val: string) => setForm(f => ({ ...f, [key]: val }))
@@ -89,6 +92,8 @@ export default function DealToBForm({ members, initial, onClose, onSaved, defaul
       loss_reason: form.loss_reason || null,
       loss_detail: form.loss_detail || null,
       sub_member_id: form.sub_member_id || null,
+      video_url: form.video_url || null,
+      minutes_text: form.minutes_text || null,
     }
     const { error: err } = initial
       ? await supabase.from('deals_tob').update(payload).eq('id', initial.id)
@@ -97,6 +102,23 @@ export default function DealToBForm({ members, initial, onClose, onSaved, defaul
     setSaving(false)
     if (err) { setError(err.message); return }
     onSaved()
+  }
+
+  async function generateMinutes() {
+    if (!form.minutes_text.trim()) return
+    setGeneratingMinutes(true)
+    try {
+      const res = await fetch('/api/generate-minutes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ raw_text: form.minutes_text }),
+      })
+      const { minutes } = await res.json()
+      set('minutes_text', minutes)
+    } catch {
+      // 失敗時はそのまま
+    }
+    setGeneratingMinutes(false)
   }
 
   const isLost = form.status === '失注'
@@ -234,6 +256,44 @@ export default function DealToBForm({ members, initial, onClose, onSaved, defaul
                   </div>
                 </div>
               )}
+
+              <div className="col-span-2 border-t border-blue-100 pt-4 mt-1">
+                <p className="text-sm font-bold text-blue-500 mb-3">商談記録</p>
+                <div className="space-y-3">
+                  <Field label="動画URL">
+                    <div className="flex gap-2">
+                      <input
+                        type="url"
+                        value={form.video_url}
+                        onChange={e => set('video_url', e.target.value)}
+                        className="input flex-1"
+                        placeholder="https://zoom.us/rec/..."
+                      />
+                      {form.video_url && (
+                        <a href={form.video_url} target="_blank" rel="noreferrer" className="px-3 py-1.5 text-sm border border-gray-200 rounded text-blue-500 hover:bg-blue-50 whitespace-nowrap">開く</a>
+                      )}
+                    </div>
+                  </Field>
+                  <Field label="議事録">
+                    <div className="space-y-1.5">
+                      <textarea
+                        value={form.minutes_text}
+                        onChange={e => set('minutes_text', e.target.value)}
+                        className="input h-28 resize-none"
+                        placeholder="テキストを貼り付けてAI生成、またはそのまま入力"
+                      />
+                      <button
+                        type="button"
+                        onClick={generateMinutes}
+                        disabled={generatingMinutes || !form.minutes_text.trim()}
+                        className="text-xs text-blue-600 border border-blue-200 rounded px-3 py-1 hover:bg-blue-50 disabled:opacity-50 transition"
+                      >
+                        {generatingMinutes ? 'AI生成中...' : 'AI議事録生成'}
+                      </button>
+                    </div>
+                  </Field>
+                </div>
+              </div>
 
               <div className="col-span-2 border-t border-green-100 pt-4 mt-1">
                 <p className="text-sm font-bold text-green-600 mb-3">着金情報</p>

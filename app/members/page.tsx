@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase, Member, DealToB, DealToC } from '@/lib/supabase'
+import { supabase, Member, DealToB, DealToC, MemberMonthlyGoal, AICampConsultation } from '@/lib/supabase'
 import Link from 'next/link'
+import MemberWhiteboard from '@/components/MemberWhiteboard'
 
 type MemberStat = {
   member: Member
@@ -17,53 +18,77 @@ type MemberStat = {
 
 export default function MembersPage() {
   const [stats, setStats] = useState<MemberStat[]>([])
+  const [members, setMembers] = useState<Member[]>([])
+  const [goals, setGoals] = useState<MemberMonthlyGoal[]>([])
+  const [tobDeals, setTobDeals] = useState<DealToB[]>([])
+  const [tocDeals, setTocDeals] = useState<DealToC[]>([])
+  const [aicampDeals, setAicampDeals] = useState<AICampConsultation[]>([])
   const [loading, setLoading] = useState(true)
+  const currentMonth = new Date().toISOString().slice(0, 7) // YYYY-MM
+
+  async function fetchAll() {
+    const [membersRes, tobRes, tocRes, goalsRes, aicampRes] = await Promise.all([
+      supabase.from('members').select('*').order('sort_order'),
+      supabase.from('deals_tob').select('*'),
+      supabase.from('deals_toc').select('*'),
+      supabase.from('member_monthly_goals').select('*').eq('month', currentMonth),
+      supabase.from('aicamp_consultations').select('*'),
+    ])
+    
+    const mData: Member[] = membersRes.data ?? []
+    const tobData: DealToB[] = tobRes.data ?? []
+    const tocData: DealToC[] = tocRes.data ?? []
+    const gData: MemberMonthlyGoal[] = goalsRes.data ?? []
+    const aData: AICampConsultation[] = aicampRes.data ?? []
+
+    setMembers(mData)
+    setTobDeals(tobData)
+    setTocDeals(tocData)
+    setGoals(gData)
+    setAicampDeals(aData)
+
+    const today = new Date().toISOString().slice(0, 10)
+    const in7 = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10)
+
+    const result: MemberStat[] = mData.map(m => {
+      const tob = tobData.filter(d => d.member_id === m.id)
+      const toc = tocData.filter(d => d.member_id === m.id)
+      const aicamp = aData.filter(d => d.member_id === m.id)
+
+      const tobActive = tob.filter(d => !['受注', '失注'].includes(d.status ?? '')).length
+      const tocActive = toc.filter(d => !['受注', '失注'].includes(d.status ?? '')).length
+
+      const tobPipeline = tob
+        .filter(d => !['受注', '失注'].includes(d.status ?? ''))
+        .reduce((s, d) => s + (d.expected_amount ?? 0), 0)
+      const tocPipeline = toc
+        .filter(d => !['受注', '失注'].includes(d.status ?? ''))
+        .reduce((s, d) => s + (d.expected_amount ?? 0), 0)
+
+      // 月次着金額 (toB + aicamp)
+      const paidAmount = [
+        ...tob.filter(d => d.payment_date && d.payment_date.startsWith(currentMonth)),
+        ...toc.filter(d => d.payment_date && d.payment_date.startsWith(currentMonth)),
+      ].reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0) +
+      aicamp.filter(d => (d.payment_date && d.payment_date.startsWith(currentMonth)) || (!d.payment_date && d.consultation_date?.startsWith(currentMonth)))
+        .reduce((s, d) => s + Math.round((d.payment_amount ?? 0) / 10000), 0)
+
+      const wonCount = tob.filter(d => d.status === '受注' && d.payment_date?.startsWith(currentMonth)).length + 
+                       aicamp.filter(d => d.status === '成約' && (d.payment_date?.startsWith(currentMonth) || (!d.payment_date && d.consultation_date?.startsWith(currentMonth)))).length
+
+      const alertCount = [
+        ...tob.filter(d => d.next_action_date && d.next_action_date >= today && d.next_action_date <= in7),
+        ...toc.filter(d => d.next_action_date && d.next_action_date >= today && d.next_action_date <= in7),
+      ].length
+
+      return { member: m, tobActive, tocActive, tobPipeline, tocPipeline, paidAmount, wonCount, alertCount }
+    })
+
+    setStats(result)
+    setLoading(false)
+  }
 
   useEffect(() => {
-    async function fetchAll() {
-      const [membersRes, tobRes, tocRes] = await Promise.all([
-        supabase.from('members').select('*').order('sort_order'),
-        supabase.from('deals_tob').select('*'),
-        supabase.from('deals_toc').select('*'),
-      ])
-      const members: Member[] = membersRes.data ?? []
-      const tobDeals: DealToB[] = tobRes.data ?? []
-      const tocDeals: DealToC[] = tocRes.data ?? []
-
-      const today = new Date().toISOString().slice(0, 10)
-      const in7 = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10)
-
-      const result: MemberStat[] = members.map(m => {
-        const tob = tobDeals.filter(d => d.member_id === m.id)
-        const toc = tocDeals.filter(d => d.member_id === m.id)
-
-        const tobActive = tob.filter(d => !['受注', '失注'].includes(d.status ?? '')).length
-        const tocActive = toc.filter(d => !['受注', '失注'].includes(d.status ?? '')).length
-
-        const tobPipeline = tob
-          .filter(d => !['受注', '失注'].includes(d.status ?? ''))
-          .reduce((s, d) => s + (d.expected_amount ?? 0), 0)
-        const tocPipeline = toc
-          .filter(d => !['受注', '失注'].includes(d.status ?? ''))
-          .reduce((s, d) => s + (d.expected_amount ?? 0), 0)
-
-        const paidAmount = [...tob, ...toc]
-          .filter(d => d.payment_date)
-          .reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0)
-
-        const wonCount = tob.filter(d => d.status === '受注').length + toc.filter(d => d.status === '受注').length
-
-        const alertCount = [
-          ...tob.filter(d => d.next_action_date && d.next_action_date >= today && d.next_action_date <= in7),
-          ...toc.filter(d => d.next_action_date && d.next_action_date >= today && d.next_action_date <= in7),
-        ].length
-
-        return { member: m, tobActive, tocActive, tobPipeline, tocPipeline, paidAmount, wonCount, alertCount }
-      })
-
-      setStats(result)
-      setLoading(false)
-    }
     fetchAll()
   }, [])
 
@@ -72,11 +97,22 @@ export default function MembersPage() {
   )
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-black text-gray-900 tracking-tight">メンバー</h1>
         <p className="text-sm text-gray-400 mt-0.5">担当者ごとの案件状況・KPI</p>
       </div>
+
+      {/* ホワイトボード：4月度目標進捗 */}
+      <MemberWhiteboard 
+        members={members}
+        goals={goals}
+        tobDeals={tobDeals}
+        tocDeals={tocDeals}
+        aicampDeals={aicampDeals}
+        month={currentMonth}
+        onSaved={fetchAll}
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-5">
         {stats.map(s => (

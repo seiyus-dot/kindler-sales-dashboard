@@ -277,7 +277,7 @@ export default function DealActions({
               value={form.notes}
               onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
               className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 h-20 resize-none"
-              placeholder="商談内容・議事録などを記録"
+              placeholder="商談内容・メモなどを記録"
             />
           </div>
           <div className="flex gap-2">
