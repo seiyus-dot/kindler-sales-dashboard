@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { supabase, DealToB, Member, MasterOption, ColumnConfig } from '@/lib/supabase'
 import DealToBForm from '@/components/DealToBForm'
 import CSVImport from '@/components/CSVImport'
@@ -9,6 +9,25 @@ import AIImport from '@/components/AIImport'
 
 const TOB_STATUSES = ['アポ取得', '商談中', '提案済', '交渉中', '見積提出', 'リード', '受注', '失注', '保留']
 const PRIORITIES = ['高', '中', '低']
+
+const TOB_COL_MIN_WIDTH: Record<string, string> = {
+  member:           'min-w-[80px]',
+  sub_member:       'min-w-[80px]',
+  company_name:     'min-w-[160px]',
+  contact_name:     'min-w-[160px]',
+  status:           'min-w-[100px]',
+  priority:         'min-w-[70px]',
+  expected_amount:  'min-w-[90px]',
+  weighted_amount:  'min-w-[90px]',
+  win_probability:  'min-w-[70px]',
+  service:          'min-w-[120px]',
+  industry:         'min-w-[100px]',
+  source:           'min-w-[100px]',
+  next_action_date: 'min-w-[110px]',
+  next_action:      'min-w-[160px]',
+  notes:            'min-w-[200px]',
+}
+const TOB_COL_NOWRAP = new Set(['notes'])
 
 export default function DealsPage() {
   const [tobDeals, setTobDeals] = useState<DealToB[]>([])
@@ -27,6 +46,7 @@ export default function DealsPage() {
   const [filterMember, setFilterMember] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterPriority, setFilterPriority] = useState('')
+  const [activeTab, setActiveTab] = useState<'overview' | 'deals'>('overview')
 
   useEffect(() => { fetchAll() }, [])
 
@@ -150,7 +170,8 @@ export default function DealsPage() {
   function renderViewCell(col: string, deal: DealToB) {
     const d = deal as any
     switch (col) {
-      case 'member':        return <span className="font-medium">{d.member?.name ?? '-'}</span>
+      case 'member':
+      case 'member_id':     return <span className="font-medium">{d.member?.name ?? '-'}</span>
       case 'sub_member':    return <span className="text-gray-500">{d.sub_member?.name ?? '-'}</span>
       case 'status':        return <span className={`px-2 py-0.5 rounded text-sm font-medium ${statusColor(d.status)}`}>{d.status ?? '-'}</span>
       case 'priority':      return <span className={priorityColor(d.priority)}>{d.priority ?? '-'}</span>
@@ -189,7 +210,8 @@ export default function DealsPage() {
 
   function renderEditCell(col: string) {
     switch (col) {
-      case 'member':          return memberSelect()
+      case 'member':
+      case 'member_id':       return memberSelect()
       case 'status':          return cellSelect('status', TOB_STATUSES)
       case 'priority':        return cellSelect('priority', PRIORITIES)
       case 'expected_amount': return cellInput('expected_amount', 'number')
@@ -216,10 +238,53 @@ export default function DealsPage() {
   })
   const hasFilter = search || filterMember || filterStatus || filterPriority
 
+  // 概要タブ用集計
+  const wonDeals = useMemo(() => tobDeals.filter(d => d.status === '受注'), [tobDeals])
+  const lostDeals = useMemo(() => tobDeals.filter(d => d.status === '失注'), [tobDeals])
+  const inProgressDeals = useMemo(() => tobDeals.filter(d => !['受注', '失注'].includes(d.status ?? '')), [tobDeals])
+  const paidTotal = useMemo(() => wonDeals.filter(d => d.payment_date).reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0), [wonDeals])
+  const pipeline = useMemo(() => inProgressDeals.reduce((s, d) => s + (d.expected_amount ?? 0), 0), [inProgressDeals])
+  const weightedPipeline = useMemo(() => inProgressDeals.reduce((s, d) => s + Math.round((d.expected_amount ?? 0) * (d.win_probability ?? 0) / 100), 0), [inProgressDeals])
+  const winRate = useMemo(() => (wonDeals.length + lostDeals.length) > 0 ? Math.round(wonDeals.length / (wonDeals.length + lostDeals.length) * 100) : 0, [wonDeals, lostDeals])
+
+  const statusBreakdown = useMemo(() => {
+    const order = ['初回接触', 'ヒアリング', '提案中', '見積提出', 'クロージング', '受注', '失注', '保留', 'アポ取得', '商談中', '提案済', '交渉中', 'リード']
+    return order.map(s => ({ status: s, count: tobDeals.filter(d => d.status === s).length })).filter(x => x.count > 0)
+  }, [tobDeals])
+
+  const memberBreakdown = useMemo(() => {
+    const map: Record<string, { name: string; pipeline: number; won: number; active: number }> = {}
+    for (const d of tobDeals) {
+      const name = (d as any).member?.name ?? '未割当'
+      if (!map[name]) map[name] = { name, pipeline: 0, won: 0, active: 0 }
+      if (!['受注', '失注'].includes(d.status ?? '')) {
+        map[name].pipeline += d.expected_amount ?? 0
+        map[name].active++
+      }
+      if (d.status === '受注') map[name].won++
+    }
+    return Object.values(map).sort((a, b) => b.pipeline - a.pipeline)
+  }, [tobDeals])
+
+  const serviceBreakdown = useMemo(() => {
+    const map: Record<string, { won: number; pipeline: number }> = {}
+    for (const d of tobDeals) {
+      const key = d.service ?? 'その他'
+      if (!map[key]) map[key] = { won: 0, pipeline: 0 }
+      if (d.status === '受注') map[key].won++
+      else if (!['失注'].includes(d.status ?? '')) map[key].pipeline += d.expected_amount ?? 0
+    }
+    return Object.entries(map).map(([name, v]) => ({ name, ...v })).sort((a, b) => b.won - a.won)
+  }, [tobDeals])
+
   return (
-    <div>
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-        <h1 className="text-2xl font-black text-gray-900 tracking-tight">法人案件 <span className="text-base font-normal text-gray-400">({tobDeals.length}件)</span></h1>
+    <div className="space-y-6">
+      {/* ヘッダー */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-black text-gray-900 tracking-tight">法人案件</h1>
+          <p className="text-sm text-gray-400 mt-0.5">{tobDeals.length}件 / 受注 {wonDeals.length}件 / 進行中 {inProgressDeals.length}件</p>
+        </div>
         <div className="flex gap-2">
           <CSVImport tab="tob" members={members} sources={sources} onImported={fetchAll} />
           <StripeCSVImport tab="tob" members={members} onImported={fetchAll} />
@@ -233,96 +298,192 @@ export default function DealsPage() {
         </div>
       </div>
 
-      {/* フィルターバー */}
-      <div className="flex flex-wrap items-center gap-2 mb-4">
-        <input
-          type="text"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="企業名で検索..."
-          className="border border-gray-200 rounded-sm px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 w-44"
-        />
-        <select
-          value={filterMember}
-          onChange={e => setFilterMember(e.target.value)}
-          className="border border-gray-200 rounded-sm px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-        >
-          <option value="">担当者: 全員</option>
-          {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-        </select>
-        <select
-          value={filterStatus}
-          onChange={e => setFilterStatus(e.target.value)}
-          className="border border-gray-200 rounded-sm px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-        >
-          <option value="">ステータス: 全て</option>
-          {TOB_STATUSES.map(s => <option key={s}>{s}</option>)}
-        </select>
-        <select
-          value={filterPriority}
-          onChange={e => setFilterPriority(e.target.value)}
-          className="border border-gray-200 rounded-sm px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-        >
-          <option value="">優先度: 全て</option>
-          {PRIORITIES.map(p => <option key={p}>{p}</option>)}
-        </select>
-        {hasFilter && (
+      {/* タブ */}
+      <div className="flex gap-1 border-b border-gray-200">
+        {([
+          { key: 'overview', label: '概要' },
+          { key: 'deals',    label: '案件一覧' },
+        ] as const).map(tab => (
           <button
-            onClick={() => { setSearch(''); setFilterMember(''); setFilterStatus(''); setFilterPriority('') }}
-            className="text-sm text-gray-400 hover:text-gray-600 px-2 py-1.5 transition"
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === tab.key
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
           >
-            ✕ リセット
+            {tab.label}
           </button>
-        )}
-        <span className="ml-auto text-sm text-gray-400">{activeDeals.length}件</span>
+        ))}
       </div>
 
-      <div className="bg-white border border-gray-200 rounded overflow-x-auto">
-        <table className="w-full text-base">
-          <thead>
-            <tr className="bg-gray-50 border-b border-gray-200">
-              {tobCols.map(col => (
-                <th key={col.column_key} className="text-left px-4 py-3 text-sm text-gray-400 font-semibold uppercase tracking-wider whitespace-nowrap">
-                  {col.label}
-                </th>
+      {/* 概要タブ */}
+      {activeTab === 'overview' && (
+        <div className="space-y-6">
+          {/* KPIカード */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+              <p className="text-xs text-gray-400 font-medium">着金合計</p>
+              <p className="text-2xl font-black text-gray-900 mt-1 font-mono">{paidTotal.toLocaleString()}<span className="text-sm font-normal text-gray-400 ml-1">万円</span></p>
+            </div>
+            <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+              <p className="text-xs text-gray-400 font-medium">パイプライン</p>
+              <p className="text-2xl font-black text-gray-900 mt-1 font-mono">{pipeline.toLocaleString()}<span className="text-sm font-normal text-gray-400 ml-1">万円</span></p>
+            </div>
+            <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+              <p className="text-xs text-gray-400 font-medium">加重パイプライン</p>
+              <p className="text-2xl font-black text-blue-600 mt-1 font-mono">{weightedPipeline.toLocaleString()}<span className="text-sm font-normal text-gray-400 ml-1">万円</span></p>
+            </div>
+            <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+              <p className="text-xs text-gray-400 font-medium">受注率</p>
+              <p className="text-2xl font-black text-emerald-600 mt-1 font-mono">{winRate}<span className="text-sm font-normal text-gray-400 ml-1">%</span></p>
+              <p className="text-xs text-gray-300 mt-0.5">受注 {wonDeals.length} / 失注 {lostDeals.length}</p>
+            </div>
+          </div>
+
+          {/* ステータス内訳 */}
+          <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+            <h3 className="font-bold text-gray-700 text-sm mb-3">ステータス内訳</h3>
+            <div className="flex flex-wrap gap-2">
+              {statusBreakdown.map(({ status, count }) => (
+                <span key={status} className={`px-3 py-1 rounded-full text-sm font-medium ${statusColor(status)}`}>
+                  {status} {count}件
+                </span>
               ))}
-              <th className="px-4 py-3" />
-            </tr>
-          </thead>
-          <tbody>
-            {activeDeals.length === 0 ? (
-              <tr><td colSpan={tobCols.length + 1} className="text-center py-12 text-gray-400">案件がありません</td></tr>
-            ) : activeDeals.map(deal => {
-              const editing = editingId === deal.id
-              return (
-                <tr key={deal.id} className={`border-b border-gray-100 ${editing ? 'bg-blue-50/40' : 'hover:bg-gray-50'}`}>
+            </div>
+          </div>
+
+          {/* 担当者別 */}
+          <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+            <h3 className="font-bold text-gray-700 text-sm mb-3">担当者別パイプライン</h3>
+            <div className="space-y-2">
+              {memberBreakdown.map(m => (
+                <div key={m.name} className="flex items-center gap-3">
+                  <span className="text-sm text-gray-600 w-16 shrink-0">{m.name}</span>
+                  <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
+                    <div className="bg-blue-500 h-full rounded-full" style={{ width: pipeline > 0 ? `${Math.round(m.pipeline / pipeline * 100)}%` : '0%' }} />
+                  </div>
+                  <span className="text-sm font-mono text-gray-700 w-20 text-right shrink-0">{m.pipeline.toLocaleString()}万</span>
+                  <span className="text-xs text-gray-400 w-14 text-right shrink-0">受注{m.won}件</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* サービス別 */}
+          {serviceBreakdown.length > 0 && (
+            <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+              <h3 className="font-bold text-gray-700 text-sm mb-3">サービス別</h3>
+              <div className="flex flex-wrap gap-2">
+                {serviceBreakdown.map(({ name, won, pipeline: sp }) => (
+                  <div key={name} className="bg-gray-50 border border-gray-100 rounded-xl px-4 py-2 text-sm">
+                    <span className="font-medium text-gray-700">{name}</span>
+                    <span className="ml-2 text-emerald-600">受注{won}</span>
+                    {sp > 0 && <span className="ml-2 text-blue-500">{sp.toLocaleString()}万</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 案件一覧タブ */}
+      {activeTab === 'deals' && (
+        <div className="space-y-4">
+          {/* フィルターバー */}
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="企業名で検索..."
+              className="border border-gray-200 rounded-sm px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 w-44"
+            />
+            <select
+              value={filterMember}
+              onChange={e => setFilterMember(e.target.value)}
+              className="border border-gray-200 rounded-sm px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+            >
+              <option value="">担当者: 全員</option>
+              {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </select>
+            <select
+              value={filterStatus}
+              onChange={e => setFilterStatus(e.target.value)}
+              className="border border-gray-200 rounded-sm px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+            >
+              <option value="">ステータス: 全て</option>
+              {TOB_STATUSES.map(s => <option key={s}>{s}</option>)}
+            </select>
+            <select
+              value={filterPriority}
+              onChange={e => setFilterPriority(e.target.value)}
+              className="border border-gray-200 rounded-sm px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+            >
+              <option value="">優先度: 全て</option>
+              {PRIORITIES.map(p => <option key={p}>{p}</option>)}
+            </select>
+            {hasFilter && (
+              <button
+                onClick={() => { setSearch(''); setFilterMember(''); setFilterStatus(''); setFilterPriority('') }}
+                className="text-sm text-gray-400 hover:text-gray-600 px-2 py-1.5 transition"
+              >
+                ✕ リセット
+              </button>
+            )}
+            <span className="ml-auto text-sm text-gray-400">{activeDeals.length}件</span>
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded overflow-x-auto">
+            <table className="w-full text-base">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200">
                   {tobCols.map(col => (
-                    <td key={col.column_key} className="px-4 py-2">
-                      {editing ? renderEditCell(col.column_key) : renderViewCell(col.column_key, deal)}
-                    </td>
+                    <th key={col.column_key} className={`text-left px-4 py-3 text-sm text-gray-400 font-semibold uppercase tracking-wider whitespace-nowrap ${TOB_COL_MIN_WIDTH[col.column_key] ?? ''}`}>
+                      {col.label}
+                    </th>
                   ))}
-                  <td className="px-4 py-2">
-                    <div className="flex gap-2 justify-end whitespace-nowrap">
-                      {editing ? (
-                        <>
-                          <button onClick={() => setShowConfirm(true)} className="text-sm text-white bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded transition">保存</button>
-                          <button onClick={cancelEdit} className="text-sm text-gray-500 hover:text-gray-700">取消</button>
-                        </>
-                      ) : (
-                        <>
-                          <button onClick={() => startEdit(deal)} className="text-sm text-blue-500 hover:underline">編集</button>
-                          <button onClick={() => { setEditTarget(deal); setShowForm(true) }} className="text-sm text-gray-400 hover:underline">詳細</button>
-                          <button onClick={() => deleteDeal(deal.id)} className="text-sm text-red-400 hover:underline">削除</button>
-                        </>
-                      )}
-                    </div>
-                  </td>
+                  <th className="px-4 py-3" />
                 </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+              </thead>
+              <tbody>
+                {activeDeals.length === 0 ? (
+                  <tr><td colSpan={tobCols.length + 1} className="text-center py-12 text-gray-400">案件がありません</td></tr>
+                ) : activeDeals.map(deal => {
+                  const editing = editingId === deal.id
+                  return (
+                    <tr key={deal.id} className={`border-b border-gray-100 ${editing ? 'bg-blue-50/40' : 'hover:bg-gray-50'}`}>
+                      {tobCols.map(col => (
+                        <td key={col.column_key} className={`px-4 py-2 ${TOB_COL_MIN_WIDTH[col.column_key] ?? ''} ${TOB_COL_NOWRAP.has(col.column_key) ? '' : 'whitespace-nowrap'}`}>
+                          {editing ? renderEditCell(col.column_key) : renderViewCell(col.column_key, deal)}
+                        </td>
+                      ))}
+                      <td className="px-4 py-2">
+                        <div className="flex gap-2 justify-end whitespace-nowrap">
+                          {editing ? (
+                            <>
+                              <button onClick={() => setShowConfirm(true)} className="text-sm text-white bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded transition">保存</button>
+                              <button onClick={cancelEdit} className="text-sm text-gray-500 hover:text-gray-700">取消</button>
+                            </>
+                          ) : (
+                            <>
+                              <button onClick={() => startEdit(deal)} className="text-sm text-blue-500 hover:underline">編集</button>
+                              <button onClick={() => { setEditTarget(deal); setShowForm(true) }} className="text-sm text-gray-400 hover:underline">詳細</button>
+                              <button onClick={() => deleteDeal(deal.id)} className="text-sm text-red-400 hover:underline">削除</button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {showConfirm && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">

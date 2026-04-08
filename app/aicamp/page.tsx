@@ -6,10 +6,34 @@ import { supabase, AICampConsultation, AICampMonthlyGoal, AICampAdWeekly, Member
 const MONTHLY_INCOMES = ['〜10万円', '11～20万円', '21～30万円', '31～40万円', '41～50万円', '51～60万円', '61～70万円', '71～80万円', '81～90万円', '91～100万円', '101万円以上']
 const SERVICE_TYPES = ['AI CAMP', 'プロダクト AI CAMP']
 
+const AICAMP_COL_MIN_WIDTH: Record<string, string> = {
+  consultation_date:    'min-w-[100px]',
+  service_type:         'min-w-[120px]',
+  member_id:            'min-w-[80px]',
+  name:                 'min-w-[120px]',
+  line_name:            'min-w-[120px]',
+  age:                  'min-w-[60px]',
+  source:               'min-w-[180px]',
+  registration_source:  'min-w-[180px]',
+  status:               'min-w-[100px]',
+  payment_amount:       'min-w-[90px]',
+  payment_date:         'min-w-[100px]',
+  payment_method:       'min-w-[100px]',
+  reply_deadline:       'min-w-[110px]',
+  occupation:           'min-w-[90px]',
+  monthly_income:       'min-w-[110px]',
+  ai_experience:        'min-w-[120px]',
+  customer_attribute:   'min-w-[200px]',
+  motivation:           'min-w-[200px]',
+  reason:               'min-w-[200px]',
+  minutes_url:          'min-w-[80px]',
+}
+const AICAMP_COL_NOWRAP = new Set(['customer_attribute', 'motivation', 'reason'])
+
 const AICAMP_COLUMNS = [
   { key: 'consultation_date', label: '実施日時', defaultVisible: true },
   { key: 'service_type',      label: 'サービス', defaultVisible: true },
-  { key: 'member_id',         label: '担当者',   defaultVisible: true },
+  { key: 'member_id',         label: '営業担当', defaultVisible: true },
   { key: 'name',              label: '氏名',     defaultVisible: true },
   { key: 'line_name',         label: 'LINE名',   defaultVisible: true },
   { key: 'age',               label: '年齢',     defaultVisible: false },
@@ -998,7 +1022,7 @@ export default function AICampPage() {
                   />
                 </th>
                 {AICAMP_COLUMNS.filter(col => visibleCols.has(col.key)).map(col => (
-                  <th key={col.key} className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">
+                  <th key={col.key} className={`px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap ${AICAMP_COL_MIN_WIDTH[col.key] ?? ''}`}>
                     {col.label}
                   </th>
                 ))}

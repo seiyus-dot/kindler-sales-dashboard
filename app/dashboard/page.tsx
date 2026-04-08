@@ -73,7 +73,13 @@ export default function DashboardPage() {
   const [editingToc, setEditingToc] = useState<DealToC | null>(null)
   const [showAddMenu, setShowAddMenu] = useState(false)
   const [showPaidDetail, setShowPaidDetail] = useState(false)
-  const currentMonth = new Date().toISOString().slice(0, 7)
+  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7))
+
+  function shiftMonth(ym: string, delta: number): string {
+    const [y, m] = ym.split('-').map(Number)
+    const d = new Date(y, m - 1 + delta, 1)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  }
 
   async function fetchDeals() {
     const [tobRes, tocRes] = await Promise.all([
@@ -111,7 +117,7 @@ export default function DashboardPage() {
 
   // KPI - 案件着金（deals_tocはaicamp移行済みのため除外）
   const tobPaid = (view !== 'toc' ? tobDeals : []).filter(d =>
-    d.payment_date && (period === 'all' || d.payment_date.startsWith(currentMonth))
+    d.payment_date && (period === 'all' || d.payment_date.startsWith(selectedMonth))
   )
   const paidDeals = tobPaid
   const paidTobTotal = tobPaid.reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0)
@@ -119,8 +125,8 @@ export default function DashboardPage() {
 
   // aicamp_consultations の着金（円→万円）
   const paidAicamp = aicampDeals.filter(d =>
-    (d.payment_date && (period === 'all' || d.payment_date.startsWith(currentMonth))) ||
-    (!d.payment_date && d.consultation_date && (period === 'all' || d.consultation_date.startsWith(currentMonth)))
+    (d.payment_date && (period === 'all' || d.payment_date.startsWith(selectedMonth))) ||
+    (!d.payment_date && d.consultation_date && (period === 'all' || d.consultation_date.startsWith(selectedMonth)))
   )
   const paidAicampTotal = Math.round(paidAicamp.reduce((s, d) => s + (d.payment_amount ?? 0), 0) / 10000)
 
@@ -183,7 +189,7 @@ export default function DashboardPage() {
   const servicePaid = useMemo(() => {
     // deals_tob のサービス別（万円単位）
     const tobPaid = view === 'toc' ? [] : tobDeals.filter(d =>
-      d.payment_date && (period === 'all' || d.payment_date.startsWith(currentMonth))
+      d.payment_date && (period === 'all' || d.payment_date.startsWith(selectedMonth))
     )
     const tobByService: Record<string, number> = {}
     for (const d of tobPaid) {
@@ -193,8 +199,8 @@ export default function DashboardPage() {
 
     // aicamp_consultations のサービス別（円→万円に変換）
     const aicampPaid = aicampDeals.filter(d =>
-      (d.payment_date && (period === 'all' || d.payment_date.startsWith(currentMonth))) ||
-      (d.consultation_date && (period === 'all' || d.consultation_date.startsWith(currentMonth)))
+      (d.payment_date && (period === 'all' || d.payment_date.startsWith(selectedMonth))) ||
+      (d.consultation_date && (period === 'all' || d.consultation_date.startsWith(selectedMonth)))
     )
     const aicampByService: Record<string, number> = {}
     for (const d of aicampPaid) {
@@ -207,7 +213,7 @@ export default function DashboardPage() {
       name,
       金額: (tobByService[name] ?? 0) + (aicampByService[name] ?? 0),
     })).filter(r => r.金額 > 0).sort((a, b) => b.金額 - a.金額)
-  }, [tobDeals, aicampDeals, view, period, currentMonth])
+  }, [tobDeals, aicampDeals, view, period, selectedMonth])
 
   // パイチャート（paidTobTotal / paidTocTotal は上で算出済み）
   const pieData = view === 'all'
@@ -300,22 +306,30 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
-          <div className="flex gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
-            {([
-              { key: 'month', label: '当月' },
-              { key: 'all',   label: '全体' },
-            ] as { key: Period; label: string }[]).map(p => (
-              <button
-                key={p.key}
-                onClick={() => setPeriod(p.key)}
-                className={`px-4 py-1.5 text-sm font-bold rounded-lg transition-all ${
-                  period === p.key ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                {p.label}
-              </button>
-            ))}
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+            <button
+              onClick={() => { setPeriod('month'); setSelectedMonth(s => shiftMonth(s, -1)) }}
+              className="px-2 py-1.5 text-sm font-bold text-slate-500 hover:text-slate-700 rounded-lg transition"
+            >&lt;</button>
+            <button
+              onClick={() => setPeriod('month')}
+              className={`px-3 py-1.5 text-sm font-bold rounded-lg transition-all ${
+                period === 'month' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >{selectedMonth}</button>
+            <button
+              onClick={() => { setPeriod('month'); setSelectedMonth(s => shiftMonth(s, 1)) }}
+              className="px-2 py-1.5 text-sm font-bold text-slate-500 hover:text-slate-700 rounded-lg transition"
+            >&gt;</button>
           </div>
+          <button
+            onClick={() => setPeriod('all')}
+            className={`px-4 py-2 text-sm font-bold rounded-xl border transition-all ${
+              period === 'all'
+                ? 'bg-white text-emerald-600 border-slate-200 shadow-sm'
+                : 'bg-slate-100 text-slate-500 border-slate-200 hover:text-slate-700'
+            }`}
+          >全体</button>
           <div className="flex gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
             {([
               { key: 'all', label: '全社' },
@@ -425,7 +439,7 @@ export default function DashboardPage() {
       {showPaidDetail && (
         <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-            <h3 className="font-bold text-slate-900">着金明細 — {period === 'month' ? `${currentMonth.slice(5)}月` : '全期間'}</h3>
+            <h3 className="font-bold text-slate-900">着金明細 — {period === 'month' ? `${selectedMonth.slice(5)}月` : '全期間'}</h3>
             <button onClick={() => setShowPaidDetail(false)} className="text-slate-400 hover:text-slate-600 text-lg">✕</button>
           </div>
           <div className="overflow-x-auto max-h-72 overflow-y-auto">
