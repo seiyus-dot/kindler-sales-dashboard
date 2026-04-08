@@ -9,7 +9,7 @@ import type { User } from '@supabase/supabase-js'
 
 const navItems = [
   { href: '/dashboard', label: 'ダッシュボード', icon: LayoutDashboard },
-  { href: '/deals',     label: '案件管理',       icon: BriefcaseBusiness },
+  { href: '/deals',     label: '法人案件',       icon: BriefcaseBusiness },
   { href: '/weekly',    label: '週次ログ',       icon: ClipboardList },
   { href: '/members',   label: 'メンバー',       icon: Users },
   { href: '/settings',  label: 'マスタ設定',     icon: Settings },

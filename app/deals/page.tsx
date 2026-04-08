@@ -274,7 +274,7 @@ export default function DealsPage() {
       if (d.status === '受注') map[key].won++
       else if (!['失注'].includes(d.status ?? '')) map[key].pipeline += d.expected_amount ?? 0
     }
-    return Object.entries(map).map(([name, v]) => ({ name, ...v })).sort((a, b) => b.won - a.won)
+    return Object.entries(map).map(([name, v]) => ({ name, ...v })).filter(r => r.won > 0 || r.pipeline > 0).sort((a, b) => b.won - a.won)
   }, [tobDeals])
 
   return (
