@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, BriefcaseBusiness, ClipboardList, Settings, Users, Menu, X, BookOpen, LogOut, Tent, UserPlus } from 'lucide-react'
+import { LayoutDashboard, BriefcaseBusiness, ClipboardList, Settings, Users, Menu, X, BookOpen, LogOut, Tent, UserPlus, Zap } from 'lucide-react'
 import { createBrowserClient } from '@supabase/ssr'
 import type { User } from '@supabase/supabase-js'
 
@@ -16,6 +16,7 @@ const navItems = [
   { href: '/knowledge', label: '営業ナレッジ',   icon: BookOpen },
   { href: '/aicamp',   label: 'AI CAMP',        icon: Tent },
   { href: '/invites',  label: '招待管理',        icon: UserPlus },
+  { href: '/utage',   label: 'UTAGE',           icon: Zap },
 ]
 
 function NavLink({ href, label, icon: Icon, onClick }: { href: string; label: string; icon: React.ElementType; onClick?: () => void }) {
