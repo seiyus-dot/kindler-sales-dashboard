@@ -39,7 +39,7 @@ export default function UtagePage() {
     fetch('/api/utage/funnels')
       .then(r => r.json())
       .then(d => {
-        if (d.error) throw new Error(d.error)
+        if (d.error) throw new Error(String(d.error))
         setFunnels(d.data ?? [])
       })
       .catch(e => setFunnelsError(String(e)))
@@ -54,7 +54,7 @@ export default function UtagePage() {
     fetch('/api/utage/accounts')
       .then(r => r.json())
       .then(d => {
-        if (d.error) throw new Error(d.error)
+        if (d.error) throw new Error(String(d.error))
         setAccounts(d.data ?? [])
       })
       .catch(e => setAccountsError(String(e)))
@@ -80,7 +80,7 @@ export default function UtagePage() {
     fetch(`/api/utage/media?type=${mediaType}`)
       .then(r => r.json())
       .then(d => {
-        if (d.error) throw new Error(d.error)
+        if (d.error) throw new Error(String(d.error))
         setMediaItems(d.data ?? [])
       })
       .catch(e => setMediaError(String(e)))
