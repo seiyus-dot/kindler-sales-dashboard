@@ -121,7 +121,7 @@ export default function UtagePage() {
       {tab === 'funnels' && (
         <div>
           {funnelsLoading && <Loading />}
-          {funnelsError && <Error message={funnelsError} />}
+          {funnelsError && <ErrorMsg message={funnelsError} />}
           {!funnelsLoading && !funnelsError && (
             funnels.length === 0
               ? <Empty text="ファネルがありません" />
@@ -149,7 +149,7 @@ export default function UtagePage() {
           <div>
             <h2 className="text-sm font-bold text-gray-500 mb-3 uppercase tracking-wide">配信アカウント</h2>
             {accountsLoading && <Loading />}
-            {accountsError && <Error message={accountsError} />}
+            {accountsError && <ErrorMsg message={accountsError} />}
             {!accountsLoading && !accountsError && (
               accounts.length === 0
                 ? <Empty text="配信アカウントがありません" />
@@ -227,7 +227,7 @@ export default function UtagePage() {
           </div>
 
           {mediaLoading && <Loading />}
-          {mediaError && <Error message={mediaError} />}
+          {mediaError && <ErrorMsg message={mediaError} />}
           {!mediaLoading && !mediaError && (
             mediaItems.length === 0
               ? <Empty text={`${mediaType === 'video' ? '動画' : '音声'}がありません`} />
@@ -257,7 +257,7 @@ function Loading() {
   return <div className="text-sm text-gray-400 py-8 text-center">読み込み中...</div>
 }
 
-function Error({ message }: { message: string }) {
+function ErrorMsg({ message }: { message: string }) {
   return (
     <div className="bg-red-50 border border-red-100 rounded p-4 text-sm text-red-600">
       エラー: {message}
