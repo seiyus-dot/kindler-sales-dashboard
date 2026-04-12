@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
-import { supabase, Member, DealToB, DealToC, DealAction, ACTION_TYPES } from '@/lib/supabase'
+import { supabase, Member, DealToB, DealToC, DealAction, ACTION_TYPES, AICampConsultation } from '@/lib/supabase'
 import Link from 'next/link'
 import { Plus } from 'lucide-react'
 import DealToBForm from '@/components/DealToBForm'
@@ -15,7 +15,7 @@ function statusBadge(status?: string) {
   const s = status ?? ''
   if (s === '受注') return 'bg-green-100 text-green-700'
   if (s === '失注') return 'bg-red-100 text-red-600'
-  if (['クロージング', '見積提出'].includes(s)) return 'bg-blue-100 text-blue-700'
+  if (['クロージング', '見積提出'].includes(s)) return 'bg-[#e8eeff] text-navy'
   if (s === '保留') return 'bg-amber-100 text-amber-700'
   return 'bg-gray-100 text-gray-600'
 }
@@ -26,6 +26,7 @@ export default function MemberDetailPage() {
   const [members, setMembers] = useState<Member[]>([])
   const [tobDeals, setTobDeals] = useState<DealToB[]>([])
   const [tocDeals, setTocDeals] = useState<DealToC[]>([])
+  const [aicampDeals, setAicampDeals] = useState<AICampConsultation[]>([])
   const [actions, setActions] = useState<DealAction[]>([])
   const [loading, setLoading] = useState(true)
   const [showToBForm, setShowToBForm] = useState(false)
@@ -39,11 +40,12 @@ export default function MemberDetailPage() {
   }, [id])
 
   async function fetchAll() {
-    const [memberRes, membersRes, tobRes, tocRes] = await Promise.all([
+    const [memberRes, membersRes, tobRes, tocRes, aicampRes] = await Promise.all([
       supabase.from('members').select('*').eq('id', id).single(),
       supabase.from('members').select('*').order('sort_order'),
       supabase.from('deals_tob').select('*').eq('member_id', id).order('created_at', { ascending: false }),
       supabase.from('deals_toc').select('*').eq('member_id', id).order('created_at', { ascending: false }),
+      supabase.from('aicamp_consultations').select('*').eq('member_id', id),
     ])
     if (memberRes.data) setMember(memberRes.data)
     if (membersRes.data) setMembers(membersRes.data)
@@ -51,6 +53,7 @@ export default function MemberDetailPage() {
     const toc: DealToC[] = tocRes.data ?? []
     setTobDeals(tob)
     setTocDeals(toc)
+    setAicampDeals(aicampRes.data ?? [])
 
     const dealIds = [...tob.map(d => d.id), ...toc.map(d => d.id)]
     if (dealIds.length > 0) {
@@ -85,7 +88,9 @@ export default function MemberDetailPage() {
     .reduce((s, d) => s + (d.expected_amount ?? 0), 0)
   const paidAmount = [...tobDeals, ...tocDeals]
     .filter(d => d.payment_date)
-    .reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0)
+    .reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0) +
+    aicampDeals.filter(d => d.status === '成約' && d.payment_date)
+      .reduce((s, d) => s + Math.round((d.payment_amount ?? 0) / 10000), 0)
   const wonCount = tobDeals.filter(d => d.status === '受注').length + tocDeals.filter(d => d.status === '受注').length
   const totalDeals = tobDeals.length + tocDeals.length
   const winRate = totalDeals > 0 ? Math.round((wonCount / totalDeals) * 100) : 0
@@ -127,7 +132,7 @@ export default function MemberDetailPage() {
       <div className="flex items-center gap-3 lg:gap-4">
         <Link href="/members" className="text-sm text-gray-400 hover:text-gray-600 transition">← 一覧</Link>
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded bg-blue-100 flex items-center justify-center text-blue-700 font-black text-base">
+          <div className="w-10 h-10 rounded-lg bg-[#e8eeff] flex items-center justify-center text-navy font-black text-base">
             {member.name.slice(0, 1)}
           </div>
           <h1 className="text-xl lg:text-2xl font-black text-gray-900 tracking-tight">{member.name}</h1>
@@ -137,13 +142,13 @@ export default function MemberDetailPage() {
       {/* 結果KPI - スマホ横スクロール */}
       <div className="flex lg:grid lg:grid-cols-5 gap-3 lg:gap-4 overflow-x-auto scrollbar-hide pb-2 -mx-4 px-4 lg:mx-0 lg:px-0 lg:overflow-x-visible snap-x snap-mandatory lg:snap-none">
         {[
-          { label: '進行中（法人）', value: tobActive, unit: '件', accent: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: '進行中（個人）', value: tocActive, unit: '件', accent: 'text-cyan-600', bg: 'bg-cyan-50' },
-          { label: '期待売上', value: pipeline.toLocaleString(), unit: '万円', accent: 'text-gray-800', bg: 'bg-white' },
-          { label: '着金済み', value: paidAmount.toLocaleString(), unit: '万円', accent: 'text-green-600', bg: 'bg-green-50' },
-          { label: '受注率', value: winRate, unit: '%', accent: 'text-violet-600', bg: 'bg-violet-50' },
+          { label: '進行中（法人）', value: tobActive, unit: '件', accent: 'text-navy', bg: 'bg-[#f0f4ff]' },
+          { label: '進行中（個人）', value: tocActive, unit: '件', accent: 'text-[#1a6e6e]', bg: 'bg-[#f0f8ff]' },
+          { label: '期待売上', value: pipeline.toLocaleString(), unit: '万円', accent: 'text-[#1a2540]', bg: 'bg-white' },
+          { label: '着金済み', value: paidAmount.toLocaleString(), unit: '万円', accent: 'text-[#2a7a4a]', bg: 'bg-[#f0f8f4]' },
+          { label: '受注率', value: winRate, unit: '%', accent: 'text-[#b8902a]', bg: 'bg-[#fdf8f0]' },
         ].map(k => (
-          <div key={k.label} className={`${k.bg} rounded border border-gray-100 px-4 lg:px-5 py-3 lg:py-4 min-w-[140px] flex-shrink-0 lg:flex-shrink lg:min-w-0 snap-start`}>
+          <div key={k.label} className={`${k.bg} rounded-xl border border-[#e0e6f0] px-4 lg:px-5 py-3 lg:py-4 min-w-[140px] flex-shrink-0 lg:flex-shrink lg:min-w-0 snap-start`}>
             <p className="text-[10px] lg:text-xs font-black text-gray-400 uppercase tracking-widest mb-1 lg:mb-2 whitespace-nowrap">{k.label}</p>
             <div className="flex items-baseline gap-1">
               <span className={`text-2xl lg:text-3xl font-black font-mono ${k.accent}`}>{k.value}</span>
@@ -154,16 +159,16 @@ export default function MemberDetailPage() {
       </div>
 
       {/* 行動KPI */}
-      <div className="bg-white rounded border border-gray-100 shadow-sm p-4 lg:p-7">
-        <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 lg:mb-5">行動KPI</h3>
+      <div className="bg-white rounded-xl border border-[#e0e6f0] shadow-sm p-4 lg:p-7">
+        <h3 className="text-xs font-black text-[#8a96b0] uppercase tracking-widest mb-4 lg:mb-5">行動KPI</h3>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-5 lg:mb-6">
           {[
-            { label: '総アクション数', value: totalActions, unit: '件', color: 'text-blue-600' },
-            { label: '今月のアクション', value: thisMonthActions, unit: '件', color: 'text-indigo-600' },
-            { label: '1案件あたり平均', value: actionsPerDeal, unit: 'アクション', color: 'text-purple-600' },
-            { label: '進行中案件数', value: activeDealsCount, unit: '件', color: 'text-gray-700' },
+            { label: '総アクション数', value: totalActions, unit: '件', color: 'text-navy' },
+            { label: '今月のアクション', value: thisMonthActions, unit: '件', color: 'text-navy' },
+            { label: '1案件あたり平均', value: actionsPerDeal, unit: 'アクション', color: 'text-[#b8902a]' },
+            { label: '進行中案件数', value: activeDealsCount, unit: '件', color: 'text-[#1a2540]' },
           ].map(k => (
-            <div key={k.label} className="bg-gray-50 rounded px-3 lg:px-4 py-2.5 lg:py-3">
+            <div key={k.label} className="bg-[#f8f9fd] rounded-lg px-3 lg:px-4 py-2.5 lg:py-3">
               <p className="text-[10px] lg:text-xs font-black text-gray-400 mb-1">{k.label}</p>
               <div className="flex items-baseline gap-1">
                 <span className={`text-xl lg:text-2xl font-black font-mono ${k.color}`}>{k.value}</span>
@@ -183,7 +188,7 @@ export default function MemberDetailPage() {
                   <div key={type} className="flex items-center gap-2 lg:gap-3">
                     <span className="text-[10px] lg:text-xs text-gray-600 font-medium w-16 lg:w-20 flex-shrink-0">{type}</span>
                     <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
-                      <div className="h-full bg-blue-500 rounded-full" style={{ width: `${pct}%` }} />
+                      <div className="h-full bg-navy rounded-full" style={{ width: `${pct}%` }} />
                     </div>
                     <span className="text-[10px] lg:text-xs font-mono text-gray-500 w-10 lg:w-12 text-right">{count}件</span>
                     <span className="text-[10px] lg:text-xs text-gray-400 w-7 lg:w-8">{pct}%</span>
@@ -201,8 +206,8 @@ export default function MemberDetailPage() {
 
       {/* 直近アクション */}
       {recentActions.length > 0 && (
-        <div className="bg-white rounded border border-gray-100 shadow-sm p-4 lg:p-7">
-          <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 lg:mb-5">直近のアクション</h3>
+        <div className="bg-white rounded-xl border border-[#e0e6f0] shadow-sm p-4 lg:p-7">
+          <h3 className="text-xs font-black text-[#8a96b0] uppercase tracking-widest mb-4 lg:mb-5">直近のアクション</h3>
           <div className="space-y-3">
             {recentActions.map(a => {
               const deal = [...tobDeals, ...tocDeals].find(d => d.id === a.deal_id)
@@ -211,7 +216,7 @@ export default function MemberDetailPage() {
                 <div key={a.id} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 text-sm">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-mono text-gray-400 flex-shrink-0">{a.action_date}</span>
-                    <span className="bg-blue-50 text-blue-700 text-xs font-bold px-2 py-0.5 rounded flex-shrink-0">{a.action_type}</span>
+                    <span className="bg-[#f0f4ff] text-navy text-xs font-bold px-2 py-0.5 rounded flex-shrink-0">{a.action_type}</span>
                   </div>
                   <div className="flex items-center gap-2 pl-0 sm:pl-0">
                     <span className="text-gray-600 text-xs font-medium">{dealLabel}</span>
@@ -226,8 +231,8 @@ export default function MemberDetailPage() {
 
       {/* ファネル */}
       {stageDistribution.length > 0 && (
-        <div className="bg-white rounded border border-gray-100 shadow-sm p-4 lg:p-7">
-          <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 lg:mb-5">ステージ分布</h3>
+        <div className="bg-white rounded-xl border border-[#e0e6f0] shadow-sm p-4 lg:p-7">
+          <h3 className="text-xs font-black text-[#8a96b0] uppercase tracking-widest mb-4 lg:mb-5">ステージ分布</h3>
           <div className="space-y-2">
             {stageDistribution.map(({ stage, count }) => {
               const maxCount = Math.max(...stageDistribution.map(d => d.count), 1)
@@ -235,9 +240,9 @@ export default function MemberDetailPage() {
               return (
                 <div key={stage} className="flex items-center gap-2 lg:gap-3">
                   <span className="text-[10px] lg:text-xs text-gray-500 font-medium w-16 lg:w-20 flex-shrink-0 text-right">{stage}</span>
-                  <div className="flex-1 bg-gray-50 rounded-full h-5 lg:h-6 overflow-hidden">
+                  <div className="flex-1 bg-[#f8f9fd] rounded-full h-5 lg:h-6 overflow-hidden">
                     <div
-                      className="h-full bg-blue-500 rounded-full flex items-center justify-end pr-2"
+                      className="h-full bg-navy rounded-full flex items-center justify-end pr-2"
                       style={{ width: `${pct}%` }}
                     >
                       <span className="text-[10px] lg:text-xs font-bold text-white">{count}</span>
@@ -259,7 +264,7 @@ export default function MemberDetailPage() {
           <div className="space-y-2 lg:space-y-3">
             {alerts.map(deal => (
               <div key={deal.id} className="flex flex-wrap items-center gap-2 lg:gap-4 text-sm lg:text-base bg-amber-50 rounded px-3 lg:px-4 py-2.5 lg:py-3">
-                <span className={`px-2 py-0.5 rounded text-xs font-bold ${deal.type === '法人' ? 'bg-blue-100 text-blue-700' : 'bg-cyan-100 text-cyan-700'}`}>
+                <span className={`px-2 py-0.5 rounded text-xs font-bold ${deal.type === '法人' ? 'bg-[#e8eeff] text-navy' : 'bg-cyan-100 text-[#1a6e6e]'}`}>
                   {deal.type}
                 </span>
                 <span className="font-bold text-gray-800 text-sm">{deal.label}</span>
@@ -273,8 +278,8 @@ export default function MemberDetailPage() {
 
       {/* ステータス内訳 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-5">
-        <div className="bg-white rounded border border-gray-100 shadow-sm p-4 lg:p-7">
-          <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 lg:mb-5">法人 ステータス内訳</h3>
+        <div className="bg-white rounded-xl border border-[#e0e6f0] shadow-sm p-4 lg:p-7">
+          <h3 className="text-xs font-black text-[#8a96b0] uppercase tracking-widest mb-4 lg:mb-5">法人 ステータス内訳</h3>
           {tobStatusCounts.length === 0 ? (
             <p className="text-base text-gray-400 text-center py-4">案件なし</p>
           ) : (
@@ -288,8 +293,8 @@ export default function MemberDetailPage() {
             </div>
           )}
         </div>
-        <div className="bg-white rounded border border-gray-100 shadow-sm p-4 lg:p-7">
-          <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 lg:mb-5">個人 ステータス内訳</h3>
+        <div className="bg-white rounded-xl border border-[#e0e6f0] shadow-sm p-4 lg:p-7">
+          <h3 className="text-xs font-black text-[#8a96b0] uppercase tracking-widest mb-4 lg:mb-5">個人 ステータス内訳</h3>
           {tocStatusCounts.length === 0 ? (
             <p className="text-base text-gray-400 text-center py-4">案件なし</p>
           ) : (
@@ -313,7 +318,7 @@ export default function MemberDetailPage() {
           </h3>
           <button
             onClick={() => { setEditToB(null); setShowToBForm(true) }}
-            className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded transition-colors"
+            className="flex items-center gap-1.5 text-xs font-bold text-navy hover:text-[#152f5a] bg-[#f0f4ff] hover:bg-[#e8eeff] px-3 py-1.5 rounded transition-colors"
           >
             <Plus size={13} />
             法人案件を追加
@@ -347,7 +352,7 @@ export default function MemberDetailPage() {
                     <td className="py-3 pr-4 text-gray-500 text-sm">{d.next_action_date ?? '-'}</td>
                     <td className="py-3 pr-4 text-gray-500 text-sm">{d.next_action ?? '-'}</td>
                     <td className="py-3">
-                      <button onClick={(e) => { e.stopPropagation(); setEditToB(d); setShowToBForm(true) }} className="text-xs text-blue-600 hover:text-blue-800 font-bold">編集</button>
+                      <button onClick={(e) => { e.stopPropagation(); setEditToB(d); setShowToBForm(true) }} className="text-xs text-navy hover:text-[#152f5a] font-bold">編集</button>
                     </td>
                   </tr>
                 ))}
@@ -365,7 +370,7 @@ export default function MemberDetailPage() {
           </h3>
           <button
             onClick={() => { setEditToC(null); setShowToCForm(true) }}
-            className="flex items-center gap-1.5 text-xs font-bold text-cyan-600 hover:text-cyan-700 bg-cyan-50 hover:bg-cyan-100 px-3 py-1.5 rounded transition-colors"
+            className="flex items-center gap-1.5 text-xs font-bold text-[#1a6e6e] hover:text-[#155a5a] bg-[#f0f8ff] hover:bg-[#e0f4ff] px-3 py-1.5 rounded transition-colors"
           >
             <Plus size={13} />
             個人案件を追加
@@ -399,7 +404,7 @@ export default function MemberDetailPage() {
                     <td className="py-3 pr-4 text-gray-500 text-sm">{d.next_action_date ?? '-'}</td>
                     <td className="py-3 pr-4 text-gray-500 text-sm">{d.next_action ?? '-'}</td>
                     <td className="py-3">
-                      <button onClick={(e) => { e.stopPropagation(); setEditToC(d); setShowToCForm(true) }} className="text-xs text-blue-600 hover:text-blue-800 font-bold">編集</button>
+                      <button onClick={(e) => { e.stopPropagation(); setEditToC(d); setShowToCForm(true) }} className="text-xs text-navy hover:text-[#152f5a] font-bold">編集</button>
                     </td>
                   </tr>
                 ))}
@@ -415,7 +420,7 @@ export default function MemberDetailPage() {
           members={members}
           initial={editToB}
           defaultMemberId={id}
-          onClose={() => { setShowToBForm(false); setEditToB(null) }}
+          onClose={() => { setShowToBForm(false); setEditToB(null); fetchAll() }}
           onSaved={() => { setShowToBForm(false); setEditToB(null); fetchAll() }}
         />
       )}
@@ -426,7 +431,7 @@ export default function MemberDetailPage() {
           members={members}
           initial={editToC}
           defaultMemberId={id}
-          onClose={() => { setShowToCForm(false); setEditToC(null) }}
+          onClose={() => { setShowToCForm(false); setEditToC(null); fetchAll() }}
           onSaved={() => { setShowToCForm(false); setEditToC(null); fetchAll() }}
         />
       )}

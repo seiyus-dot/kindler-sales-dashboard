@@ -135,8 +135,8 @@ export default function DealsPage() {
     if (!status) return 'bg-gray-100 text-gray-500'
     if (status === '受注') return 'bg-green-100 text-green-700'
     if (status === '失注') return 'bg-red-100 text-red-600'
-    if (['交渉中', '提案済'].includes(status)) return 'bg-blue-100 text-blue-700'
-    if (['商談中', 'アポ取得'].includes(status)) return 'bg-purple-100 text-purple-700'
+    if (['交渉中', '提案済'].includes(status)) return 'bg-[#e8eeff] text-navy'
+    if (['商談中', 'アポ取得'].includes(status)) return 'bg-[#f0eeff] text-[#4a3a8e]'
     if (status === '保留') return 'bg-amber-100 text-amber-700'
     return 'bg-gray-100 text-gray-600'
   }
@@ -152,7 +152,7 @@ export default function DealsPage() {
       type={type}
       value={draft[k] ?? ''}
       onChange={e => set(k, e.target.value)}
-      className="w-full border border-blue-300 rounded px-2 py-1 text-base focus:outline-none focus:ring-2 focus:ring-blue-400 bg-blue-50"
+      className="w-full border border-[#b8c8e8] rounded px-2 py-1 text-base focus:outline-none focus:ring-2 focus:ring-navy bg-[#f0f4ff]"
     />
   )
 
@@ -160,7 +160,7 @@ export default function DealsPage() {
     <select
       value={draft[k] ?? ''}
       onChange={e => set(k, e.target.value)}
-      className="w-full border border-blue-300 rounded px-2 py-1 text-base focus:outline-none focus:ring-2 focus:ring-blue-400 bg-blue-50"
+      className="w-full border border-[#b8c8e8] rounded px-2 py-1 text-base focus:outline-none focus:ring-2 focus:ring-navy bg-[#f0f4ff]"
     >
       <option value="">-</option>
       {options.map(o => <option key={o}>{o}</option>)}
@@ -171,7 +171,7 @@ export default function DealsPage() {
     <select
       value={draft.member_id ?? ''}
       onChange={e => set('member_id', e.target.value)}
-      className="w-full border border-blue-300 rounded px-2 py-1 text-base focus:outline-none focus:ring-2 focus:ring-blue-400 bg-blue-50"
+      className="w-full border border-[#b8c8e8] rounded px-2 py-1 text-base focus:outline-none focus:ring-2 focus:ring-navy bg-[#f0f4ff]"
     >
       <option value="">-</option>
       {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
@@ -193,12 +193,12 @@ export default function DealsPage() {
         const prob = d.win_probability ?? null
         if (amt === null || prob === null) return <span className="text-gray-300">-</span>
         const val = Math.round(amt * prob / 100)
-        return <span className="text-right block font-mono text-blue-600 font-medium">{val.toLocaleString()}</span>
+        return <span className="text-right block font-mono text-navy font-medium">{val.toLocaleString()}</span>
       }
       case 'win_probability': {
         const pct = d.win_probability ?? null
         if (pct === null) return <span className="text-gray-300">-</span>
-        const color = pct >= 70 ? 'bg-green-500' : pct >= 40 ? 'bg-blue-500' : 'bg-gray-300'
+        const color = pct >= 70 ? 'bg-green-500' : pct >= 40 ? 'bg-navy' : 'bg-gray-300'
         return (
           <div className="flex items-center gap-2">
             <div className="w-14 bg-gray-100 h-1.5 rounded overflow-hidden flex-shrink-0">
@@ -223,7 +223,7 @@ export default function DealsPage() {
       }
       case 'video_url': {
         if (!d.video_url) return <span className="text-gray-300">—</span>
-        return <a href={d.video_url} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline text-sm">動画</a>
+        return <a href={d.video_url} target="_blank" rel="noreferrer" className="text-navy hover:underline text-sm">動画</a>
       }
       case 'minutes_text': {
         const text = d.minutes_text
@@ -317,7 +317,7 @@ export default function DealsPage() {
           <AIImport members={members} onImported={fetchAll} />
           <button
             onClick={() => { setEditTarget(null); setShowForm(true) }}
-            className="bg-blue-600 text-white px-4 py-2 rounded-sm text-base font-medium hover:bg-blue-700 transition"
+            className="bg-navy text-white px-4 py-2 rounded-lg text-base font-medium hover:bg-[#152f5a] transition"
           >
             + 新規追加
           </button>
@@ -335,7 +335,7 @@ export default function DealsPage() {
             onClick={() => setActiveTab(tab.key)}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               activeTab === tab.key
-                ? 'border-blue-600 text-blue-600'
+                ? 'border-navy text-navy'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
@@ -349,36 +349,36 @@ export default function DealsPage() {
         <div className="space-y-6">
           {/* KPIカード */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
-              <p className="text-xs text-gray-400 font-medium">着金合計</p>
-              <p className="text-2xl font-black text-gray-900 mt-1 font-mono">{paidTotal.toLocaleString()}<span className="text-sm font-normal text-gray-400 ml-1">万円</span></p>
+            <div className="bg-white border border-[#e0e6f0] rounded-xl p-5 shadow-sm" style={{ borderTop: '3px solid #1a3a6e' }}>
+              <p className="text-xs text-[#8a96b0] font-bold uppercase tracking-widest mb-1">着金合計</p>
+              <p className="text-2xl font-black text-[#1a2540] mt-1 font-mono">{paidTotal.toLocaleString()}<span className="text-sm font-normal text-[#aab0c8] ml-1">万円</span></p>
             </div>
-            <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
-              <p className="text-xs text-gray-400 font-medium">パイプライン</p>
-              <p className="text-2xl font-black text-gray-900 mt-1 font-mono">{pipeline.toLocaleString()}<span className="text-sm font-normal text-gray-400 ml-1">万円</span></p>
+            <div className="bg-white border border-[#e0e6f0] rounded-xl p-5 shadow-sm" style={{ borderTop: '3px solid #1a3a6e' }}>
+              <p className="text-xs text-[#8a96b0] font-bold uppercase tracking-widest mb-1">パイプライン</p>
+              <p className="text-2xl font-black text-[#1a2540] mt-1 font-mono">{pipeline.toLocaleString()}<span className="text-sm font-normal text-[#aab0c8] ml-1">万円</span></p>
             </div>
-            <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
-              <p className="text-xs text-gray-400 font-medium">加重パイプライン</p>
-              <p className="text-2xl font-black text-blue-600 mt-1 font-mono">{weightedPipeline.toLocaleString()}<span className="text-sm font-normal text-gray-400 ml-1">万円</span></p>
+            <div className="bg-white border border-[#e0e6f0] rounded-xl p-5 shadow-sm" style={{ borderTop: '3px solid #b8902a' }}>
+              <p className="text-xs text-[#8a96b0] font-bold uppercase tracking-widest mb-1">加重パイプライン</p>
+              <p className="text-2xl font-black text-navy mt-1 font-mono">{weightedPipeline.toLocaleString()}<span className="text-sm font-normal text-[#aab0c8] ml-1">万円</span></p>
             </div>
-            <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
-              <p className="text-xs text-gray-400 font-medium">受注率</p>
-              <p className="text-2xl font-black text-emerald-600 mt-1 font-mono">{winRate}<span className="text-sm font-normal text-gray-400 ml-1">%</span></p>
-              <p className="text-xs text-gray-300 mt-0.5">受注 {wonDeals.length} / 失注 {lostDeals.length}</p>
+            <div className="bg-white border border-[#e0e6f0] rounded-xl p-5 shadow-sm" style={{ borderTop: '3px solid #2a7a4a' }}>
+              <p className="text-xs text-[#8a96b0] font-bold uppercase tracking-widest mb-1">受注率</p>
+              <p className="text-2xl font-black text-[#2a7a4a] mt-1 font-mono">{winRate}<span className="text-sm font-normal text-[#aab0c8] ml-1">%</span></p>
+              <p className="text-xs text-[#aab0c8] mt-0.5">受注 {wonDeals.length} / 失注 {lostDeals.length}</p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* ステータス別件数 */}
-            <div className="bg-white border border-gray-200 rounded p-5">
-              <p className="text-sm font-bold text-gray-600 mb-4">ステータス別件数</p>
+            <div className="bg-white border border-[#e0e6f0] rounded-xl p-5">
+              <p className="text-xs font-bold text-[#8a96b0] uppercase tracking-widest mb-4">ステータス別件数</p>
               <div className="space-y-2">
                 {statusBreakdown.map(({ status, count }) => {
                   const max = Math.max(...statusBreakdown.map(x => x.count))
                   const pct = Math.round(count / max * 100)
                   const color = status === '受注' ? 'bg-green-500'
                     : status === '失注' ? 'bg-red-400'
-                    : ['クロージング', '見積提出'].includes(status) ? 'bg-blue-500'
+                    : ['クロージング', '見積提出'].includes(status) ? 'bg-navy'
                     : 'bg-gray-300'
                   return (
                     <div key={status} className="flex items-center gap-2">
@@ -394,13 +394,13 @@ export default function DealsPage() {
             </div>
 
             {/* 担当者別パイプライン */}
-            <div className="bg-white border border-gray-200 rounded p-5">
-              <p className="text-sm font-bold text-gray-600 mb-4">担当者別パイプライン</p>
+            <div className="bg-white border border-[#e0e6f0] rounded-xl p-5">
+              <p className="text-xs font-bold text-[#8a96b0] uppercase tracking-widest mb-4">担当者別パイプライン</p>
               <div className="space-y-3">
                 {memberBreakdown.map(m => (
                   <div key={m.name} className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded bg-blue-100 flex items-center justify-center text-blue-700 font-black text-xs">{m.name[0]}</div>
+                      <div className="w-7 h-7 rounded-lg bg-[#e8eeff] flex items-center justify-center text-navy font-black text-xs">{m.name[0]}</div>
                       <span className="text-sm font-medium text-gray-700">{m.name}</span>
                     </div>
                     <div className="text-right">
@@ -413,8 +413,8 @@ export default function DealsPage() {
             </div>
 
             {/* サービス別 */}
-            <div className="bg-white border border-gray-200 rounded p-5">
-              <p className="text-sm font-bold text-gray-600 mb-4">サービス別</p>
+            <div className="bg-white border border-[#e0e6f0] rounded-xl p-5">
+              <p className="text-xs font-bold text-[#8a96b0] uppercase tracking-widest mb-4">サービス別</p>
               <div className="space-y-3">
                 {serviceBreakdown.map(s => (
                   <div key={s.name} className="flex items-center justify-between">
@@ -441,12 +441,12 @@ export default function DealsPage() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="企業名で検索..."
-              className="border border-gray-200 rounded-sm px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 w-44"
+              className="border border-[#e0e6f0] rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy w-44"
             />
             <select
               value={filterMember}
               onChange={e => setFilterMember(e.target.value)}
-              className="border border-gray-200 rounded-sm px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="border border-[#e0e6f0] rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy"
             >
               <option value="">担当者: 全員</option>
               {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
@@ -454,7 +454,7 @@ export default function DealsPage() {
             <select
               value={filterStatus}
               onChange={e => setFilterStatus(e.target.value)}
-              className="border border-gray-200 rounded-sm px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="border border-[#e0e6f0] rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy"
             >
               <option value="">ステータス: 全て</option>
               {TOB_STATUSES.map(s => <option key={s}>{s}</option>)}
@@ -462,7 +462,7 @@ export default function DealsPage() {
             <select
               value={filterPriority}
               onChange={e => setFilterPriority(e.target.value)}
-              className="border border-gray-200 rounded-sm px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="border border-[#e0e6f0] rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy"
             >
               <option value="">優先度: 全て</option>
               {PRIORITIES.map(p => <option key={p}>{p}</option>)}
@@ -478,10 +478,10 @@ export default function DealsPage() {
             <span className="ml-auto text-sm text-gray-400">{activeDeals.length}件</span>
           </div>
 
-          <div className="bg-white border border-gray-200 rounded overflow-x-auto">
+          <div className="bg-white border border-[#e0e6f0] rounded-xl overflow-x-auto">
             <table className="w-full text-base">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
+                <tr className="bg-[#f8f9fd] border-b border-[#e0e6f0]">
                   {tobCols.map(col => (
                     <th key={col.column_key} className={`text-left px-4 py-3 text-sm text-gray-400 font-semibold uppercase tracking-wider whitespace-nowrap ${TOB_COL_MIN_WIDTH[col.column_key] ?? ''}`}>
                       {col.label}
@@ -496,23 +496,26 @@ export default function DealsPage() {
                 ) : activeDeals.map(deal => {
                   const editing = editingId === deal.id
                   return (
-                    <tr key={deal.id} className={`border-b border-gray-100 ${editing ? 'bg-blue-50/40' : 'hover:bg-gray-50'}`}>
+                    <tr
+                      key={deal.id}
+                      onClick={() => { if (!editing) { setEditTarget(deal); setShowForm(true) } }}
+                      className={`border-b border-[#e0e6f0] ${editing ? 'bg-[#f0f4ff]/40' : 'hover:bg-[#f8f9fd] cursor-pointer'}`}
+                    >
                       {tobCols.map(col => (
                         <td key={col.column_key} className={`px-4 py-2 ${TOB_COL_MIN_WIDTH[col.column_key] ?? ''} ${TOB_COL_NOWRAP.has(col.column_key) ? '' : 'whitespace-nowrap'}`}>
                           {editing ? renderEditCell(col.column_key) : renderViewCell(col.column_key, deal)}
                         </td>
                       ))}
-                      <td className="px-4 py-2">
+                      <td className="px-4 py-2" onClick={e => e.stopPropagation()}>
                         <div className="flex gap-2 justify-end whitespace-nowrap">
                           {editing ? (
                             <>
-                              <button onClick={() => setShowConfirm(true)} className="text-sm text-white bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded transition">保存</button>
+                              <button onClick={() => setShowConfirm(true)} className="text-sm text-white bg-navy hover:bg-[#152f5a] px-2 py-1 rounded transition">保存</button>
                               <button onClick={cancelEdit} className="text-sm text-gray-500 hover:text-gray-700">取消</button>
                             </>
                           ) : (
                             <>
-                              <button onClick={() => startEdit(deal)} className="text-sm text-blue-500 hover:underline">編集</button>
-                              <button onClick={() => { setEditTarget(deal); setShowForm(true) }} className="text-sm text-gray-400 hover:underline">詳細</button>
+                              <button onClick={() => startEdit(deal)} className="text-sm text-navy hover:underline">編集</button>
                               <button onClick={() => deleteDeal(deal.id)} className="text-sm text-red-400 hover:underline">削除</button>
                             </>
                           )}
@@ -536,7 +539,7 @@ export default function DealsPage() {
               <button onClick={() => setShowConfirm(false)} className="flex-1 px-4 py-2 text-base text-gray-500 border border-gray-200 rounded-sm hover:bg-gray-50 transition">
                 キャンセル
               </button>
-              <button onClick={confirmSave} disabled={saving} className="flex-1 px-4 py-2 text-base text-white bg-blue-600 rounded-sm hover:bg-blue-700 disabled:opacity-50 transition">
+              <button onClick={confirmSave} disabled={saving} className="flex-1 px-4 py-2 text-base text-white bg-navy rounded-lg hover:bg-[#152f5a] disabled:opacity-50 transition">
                 {saving ? '保存中...' : '保存する'}
               </button>
             </div>

@@ -20,19 +20,19 @@ const TOB_FUNNEL_STAGES = ['リード', 'アポ取得', '商談中', '提案済'
 const TOC_FUNNEL_STAGES = ['相談予約', 'ヒアリング', '提案中', 'クロージング', '相談済']
 
 function StatCard({
-  title, value, sub, icon: Icon, colorClass, change, isPositive
+  title, value, sub, icon: Icon, accentColor = '#1a3a6e', change, isPositive
 }: {
   title: string; value: string; sub?: string; icon: React.ElementType
-  colorClass: string; change?: string; isPositive?: boolean
+  accentColor?: string; change?: string; isPositive?: boolean
 }) {
   return (
-    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all">
-      <div className="flex justify-between items-start mb-4">
-        <div className={`p-2 rounded-xl ${colorClass}`}>
-          <Icon size={20} />
+    <div className="bg-white p-5 rounded-xl border border-[#e0e6f0] shadow-sm hover:shadow-md transition-all" style={{ borderTop: `3px solid ${accentColor}` }}>
+      <div className="flex justify-between items-start mb-3">
+        <div className="p-2 rounded-lg" style={{ background: accentColor + '15', color: accentColor }}>
+          <Icon size={18} />
         </div>
         {change && (
-          <div className={`flex items-center text-xs font-bold ${isPositive ? 'text-emerald-600' : 'text-rose-500'}`}>
+          <div className={`flex items-center text-xs font-bold ${isPositive ? 'text-[#2a7a4a]' : 'text-rose-500'}`}>
             {isPositive
               ? <ArrowUpRight size={14} className="mr-0.5" />
               : <ArrowDownRight size={14} className="mr-0.5" />}
@@ -40,9 +40,9 @@ function StatCard({
           </div>
         )}
       </div>
-      <p className="text-slate-400 text-sm font-medium">{title}</p>
-      <h3 className="text-2xl font-bold text-slate-900 mt-1 font-mono">{value}</h3>
-      {sub && <p className="text-xs text-slate-300 mt-0.5">{sub}</p>}
+      <p className="text-[#8a96b0] text-xs font-bold uppercase tracking-widest mb-1">{title}</p>
+      <h3 className="text-2xl font-bold text-[#1a2540] font-mono">{value}</h3>
+      {sub && <p className="text-xs text-[#aab0c8] mt-0.5">{sub}</p>}
     </div>
   )
 }
@@ -276,7 +276,7 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">ダッシュボード</h1>
+          <h1 className="text-2xl font-bold text-[#1a2540] tracking-tight">ダッシュボード</h1>
           <p className="text-slate-400 text-sm mt-0.5">表示中: {viewLabel}　最終更新: {latest?.log_date ?? '-'}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 lg:gap-3">
@@ -284,7 +284,7 @@ export default function DashboardPage() {
           <div className="relative">
             <button
               onClick={() => setShowAddMenu(v => !v)}
-              className="px-4 py-1.5 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition"
+              className="px-4 py-2 bg-navy text-white text-sm font-bold rounded-lg hover:bg-[#152f5a] transition"
             >
               + 新規案件
             </button>
@@ -292,7 +292,7 @@ export default function DashboardPage() {
               <div className="absolute right-0 top-full mt-1 bg-white border border-gray-100 rounded-xl shadow-lg z-20 overflow-hidden w-32">
                 <button
                   onClick={() => { setEditingTob(null); setShowTobForm(true); setShowAddMenu(false) }}
-                  className="w-full text-left px-4 py-2.5 text-sm text-blue-600 font-medium hover:bg-blue-50 transition"
+                  className="w-full text-left px-4 py-2.5 text-sm text-navy font-medium hover:bg-[#f0f4ff] transition"
                 >
                   法人案件
                 </button>
@@ -305,31 +305,31 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+          <div className="flex items-center gap-1 bg-[#f0f2fa] p-1 rounded-lg border border-[#e0e6f0]">
             <button
               onClick={() => { setPeriod('month'); setSelectedMonth(s => shiftMonth(s, -1)) }}
-              className="px-2 py-1.5 text-sm font-bold text-slate-500 hover:text-slate-700 rounded-lg transition"
+              className="px-2 py-1.5 text-sm font-bold text-[#8a96b0] hover:text-[#1a2540] rounded-lg transition"
             >&lt;</button>
             <button
               onClick={() => setPeriod('month')}
               className={`px-3 py-1.5 text-sm font-bold rounded-lg transition-all ${
-                period === 'month' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                period === 'month' ? 'bg-white text-navy shadow-sm' : 'text-[#8a96b0] hover:text-[#1a2540]'
               }`}
             >{selectedMonth}</button>
             <button
               onClick={() => { setPeriod('month'); setSelectedMonth(s => shiftMonth(s, 1)) }}
-              className="px-2 py-1.5 text-sm font-bold text-slate-500 hover:text-slate-700 rounded-lg transition"
+              className="px-2 py-1.5 text-sm font-bold text-[#8a96b0] hover:text-[#1a2540] rounded-lg transition"
             >&gt;</button>
           </div>
           <button
             onClick={() => setPeriod('all')}
-            className={`px-4 py-2 text-sm font-bold rounded-xl border transition-all ${
+            className={`px-4 py-2 text-sm font-bold rounded-lg border transition-all ${
               period === 'all'
-                ? 'bg-white text-emerald-600 border-slate-200 shadow-sm'
-                : 'bg-slate-100 text-slate-500 border-slate-200 hover:text-slate-700'
+                ? 'bg-white text-navy border-[#e0e6f0] shadow-sm'
+                : 'bg-[#f0f2fa] text-[#8a96b0] border-[#e0e6f0] hover:text-[#1a2540]'
             }`}
           >全体</button>
-          <div className="flex gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+          <div className="flex gap-1 bg-[#f0f2fa] p-1 rounded-lg border border-[#e0e6f0]">
             {([
               { key: 'all', label: '全社' },
               { key: 'tob', label: '法人' },
@@ -340,10 +340,10 @@ export default function DashboardPage() {
                 onClick={() => setView(v.key)}
                 className={`px-4 py-1.5 text-sm font-bold rounded-lg transition-all ${
                   view === v.key
-                    ? v.key === 'tob' ? 'bg-white text-blue-600 shadow-sm'
-                      : v.key === 'toc' ? 'bg-white text-pink-600 shadow-sm'
-                      : 'bg-white text-indigo-600 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700'
+                    ? v.key === 'tob' ? 'bg-white text-navy shadow-sm'
+                      : v.key === 'toc' ? 'bg-white text-[#9a3a5a] shadow-sm'
+                      : 'bg-white text-navy shadow-sm'
+                    : 'text-[#8a96b0] hover:text-[#1a2540]'
                 }`}
               >
                 {v.label}
@@ -377,7 +377,7 @@ export default function DashboardPage() {
                   }
                   className="flex items-center gap-1.5 bg-white border border-amber-200 rounded-lg px-3 py-1.5 text-xs hover:border-amber-400 hover:shadow-sm transition"
                 >
-                  <span className={`font-bold ${d.type === '法人' ? 'text-blue-600' : 'text-pink-600'}`}>{d.type}</span>
+                  <span className={`font-bold ${d.type === '法人' ? 'text-navy' : 'text-[#9a3a5a]'}`}>{d.type}</span>
                   <span className="text-gray-700">{d.label}</span>
                   <span className="text-gray-400">{d.member}</span>
                   <span className="text-amber-600 font-bold">{days}日放置</span>
@@ -396,17 +396,17 @@ export default function DashboardPage() {
         {/* 着金済み売上 — クリックで明細表示 */}
         <button
           onClick={() => setShowPaidDetail(v => !v)}
-          className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all text-left"
+          className="bg-white p-5 rounded-xl border border-[#e0e6f0] shadow-sm hover:shadow-md transition-all text-left" style={{ borderTop: '3px solid #2a7a4a' }}
         >
-          <div className="flex justify-between items-start mb-4">
-            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600"><CreditCard size={20} /></div>
-            <span className="text-xs font-bold text-emerald-600">+実績 {showPaidDetail ? '▲' : '▼'}</span>
+          <div className="flex justify-between items-start mb-3">
+            <div className="p-2 rounded-lg" style={{ background: '#2a7a4a15', color: '#2a7a4a' }}><CreditCard size={18} /></div>
+            <span className="text-xs font-bold text-[#2a7a4a]">+実績 {showPaidDetail ? '▲' : '▼'}</span>
           </div>
-          <p className="text-slate-400 text-sm font-medium">着金済み売上</p>
-          <h3 className="text-2xl font-bold text-slate-900 mt-1 font-mono">{paidTotal.toLocaleString()}万円</h3>
+          <p className="text-[#8a96b0] text-xs font-bold uppercase tracking-widest mb-1">着金済み売上</p>
+          <h3 className="text-2xl font-bold text-[#1a2540] font-mono">{paidTotal.toLocaleString()}万円</h3>
           <div className="mt-2 space-y-0.5">
-            <p className="text-xs text-slate-400">法人 <span className="font-bold text-slate-600">{paidTobTotal.toLocaleString()}万</span>（{tobPaid.length}件）</p>
-            <p className="text-xs text-slate-400">個人（AI CAMP） <span className="font-bold text-slate-600">{paidAicampTotal.toLocaleString()}万</span>（{paidAicamp.length}件）</p>
+            <p className="text-xs text-[#aab0c8]">法人 <span className="font-bold text-[#1a2540]">{paidTobTotal.toLocaleString()}万</span>（{tobPaid.length}件）</p>
+            <p className="text-xs text-[#aab0c8]">個人（AI CAMP） <span className="font-bold text-[#1a2540]">{paidAicampTotal.toLocaleString()}万</span>（{paidAicamp.length}件）</p>
           </div>
         </button>
         <StatCard
@@ -414,21 +414,21 @@ export default function DashboardPage() {
           value={`${weightedPipeline.toLocaleString()}万円`}
           sub={`原価合計 ${rawPipeline.toLocaleString()}万円 / 進行中 ${activeDeals.length}件`}
           icon={TrendingUp}
-          colorClass="bg-indigo-50 text-indigo-600"
+          accentColor="#1a3a6e"
         />
         <StatCard
           title={view === 'toc' ? '個人 進行中' : '法人 進行中'}
           value={`${view === 'toc' ? activeToc.filter(d => !['受注','失注'].includes(d.status??'')).length : activeTob.filter(d => !['受注','失注'].includes(d.status??'')).length}件`}
           sub="受注・失注除く"
           icon={view === 'toc' ? User : Briefcase}
-          colorClass={view === 'toc' ? 'bg-pink-50 text-pink-600' : 'bg-blue-50 text-blue-600'}
+          accentColor={view === 'toc' ? '#9a3a5a' : '#1a3a6e'}
         />
         <StatCard
           title="受注率"
           value={`${winRate}%`}
           sub={`受注 ${wonCount}件 / 全 ${allDeals.length}件`}
           icon={Target}
-          colorClass="bg-amber-50 text-amber-600"
+          accentColor="#b8902a"
           change={wonCount > 0 ? `受注${wonCount}件` : undefined}
           isPositive={true}
         />
@@ -436,24 +436,24 @@ export default function DashboardPage() {
 
       {/* 着金明細パネル */}
       {showPaidDetail && (
-        <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-            <h3 className="font-bold text-slate-900">着金明細 — {period === 'month' ? `${selectedMonth.slice(5)}月` : '全期間'}</h3>
+        <div className="bg-white border border-[#e0e6f0] rounded-xl shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-[#e0e6f0] flex items-center justify-between">
+            <h3 className="text-xs font-bold text-[#8a96b0] uppercase tracking-widest">着金明細 — {period === 'month' ? `${selectedMonth.slice(5)}月` : '全期間'}</h3>
             <button onClick={() => setShowPaidDetail(false)} className="text-slate-400 hover:text-slate-600 text-lg">✕</button>
           </div>
           <div className="overflow-x-auto max-h-72 overflow-y-auto">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 sticky top-0">
+              <thead className="bg-[#f8f9fd] sticky top-0">
                 <tr>
                   {['区分', '名称', '担当', '着金日', '金額（万円）'].map(h => (
-                    <th key={h} className="px-4 py-2 text-left text-xs font-semibold text-slate-400">{h}</th>
+                    <th key={h} className="px-4 py-2 text-left text-xs font-semibold text-[#8a96b0]">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
+              <tbody className="divide-y divide-[#f0f2fa]">
                 {tobPaid.map(d => (
-                  <tr key={d.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-2"><span className="text-xs bg-blue-50 text-blue-600 font-bold px-1.5 py-0.5 rounded">法人</span></td>
+                  <tr key={d.id} className="hover:bg-[#f8f9fd]">
+                    <td className="px-4 py-2"><span className="text-xs bg-[#f0f4ff] text-navy font-bold px-1.5 py-0.5 rounded">法人</span></td>
                     <td className="px-4 py-2 text-slate-700 font-medium text-xs">{d.company_name}</td>
                     <td className="px-4 py-2 text-slate-400 text-xs">{d.member?.name ?? '-'}</td>
                     <td className="px-4 py-2 text-slate-400 text-xs font-mono">{d.payment_date ?? '-'}</td>
@@ -461,8 +461,8 @@ export default function DashboardPage() {
                   </tr>
                 ))}
                 {paidAicamp.map(d => (
-                  <tr key={d.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-2"><span className="text-xs bg-pink-50 text-pink-600 font-bold px-1.5 py-0.5 rounded">個人（AI CAMP）</span></td>
+                  <tr key={d.id} className="hover:bg-[#f8f9fd]">
+                    <td className="px-4 py-2"><span className="text-xs bg-pink-50 text-[#9a3a5a] font-bold px-1.5 py-0.5 rounded">個人（AI CAMP）</span></td>
                     <td className="px-4 py-2 text-slate-700 font-medium text-xs">{d.name ?? d.line_name ?? '-'}</td>
                     <td className="px-4 py-2 text-slate-400 text-xs">{members.find(m => m.id === d.member_id)?.name ?? '-'}</td>
                     <td className="px-4 py-2 text-slate-400 text-xs font-mono">{d.payment_date ?? d.consultation_date?.slice(0, 10) ?? '-'}</td>
@@ -480,30 +480,30 @@ export default function DashboardPage() {
 
       {/* Charts Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="col-span-1 lg:col-span-8 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-          <h3 className="font-bold text-slate-900 mb-6">月次 着金額推移（万円）</h3>
+        <div className="col-span-1 lg:col-span-8 bg-white p-6 rounded-xl border border-[#e0e6f0] shadow-sm">
+          <h3 className="text-xs font-bold text-[#8a96b0] uppercase tracking-widest mb-4">月次 着金額推移（万円）</h3>
           <ResponsiveContainer width="100%" height={280}>
             <AreaChart data={monthlyData}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 13, fill: '#94a3b8', fontWeight: 700 }} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 13, fill: '#94a3b8', fontWeight: 700 }} tickFormatter={v => `${v}万`} />
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef0f8" />
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 13, fill: '#8a96b0', fontWeight: 700 }} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 13, fill: '#8a96b0', fontWeight: 700 }} tickFormatter={v => `${v}万`} />
               <Tooltip formatter={(v: number) => `${v.toLocaleString()}万円`} />
               <Legend verticalAlign="top" align="right" height={36} />
-              <Area type="monotone" name="法人" dataKey="法人" stackId="1" stroke="#6366f1" fill="#6366f1" fillOpacity={0.5} />
-              <Area type="monotone" name="個人（AI CAMP）" dataKey="個人（AI CAMP）" stackId="1" stroke="#ec4899" fill="#ec4899" fillOpacity={0.5} />
+              <Area type="monotone" name="法人" dataKey="法人" stackId="1" stroke="#1a3a6e" fill="#1a3a6e" fillOpacity={0.5} />
+              <Area type="monotone" name="個人（AI CAMP）" dataKey="個人（AI CAMP）" stackId="1" stroke="#b8902a" fill="#b8902a" fillOpacity={0.5} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
 
-        <div className="col-span-1 lg:col-span-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-          <h3 className="font-bold text-slate-900 mb-6">
+        <div className="col-span-1 lg:col-span-4 bg-white p-6 rounded-xl border border-[#e0e6f0] shadow-sm">
+          <h3 className="text-xs font-bold text-[#8a96b0] uppercase tracking-widest mb-4">
             {view === 'all' ? `着金比率（${period === 'month' ? '当月' : '全体'}）` : 'ステータス内訳'}
           </h3>
           <ResponsiveContainer width="100%" height={240}>
             <PieChart>
               <Pie data={pieData} innerRadius={60} outerRadius={85} paddingAngle={4} dataKey="value">
                 {pieData.map((_, i) => (
-                  <Cell key={i} fill={['#6366f1', '#ec4899'][i % 2]} />
+                  <Cell key={i} fill={['#1a3a6e', '#b8902a'][i % 2]} />
                 ))}
               </Pie>
               <Tooltip formatter={(v: number) => view === 'all' ? `${v.toLocaleString()}万円` : `${v}件`} />
@@ -515,8 +515,8 @@ export default function DashboardPage() {
 
       {/* Charts Row 2 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-          <h3 className="font-bold text-slate-900 mb-6">
+        <div className="bg-white p-6 rounded-xl border border-[#e0e6f0] shadow-sm">
+          <h3 className="text-xs font-bold text-[#8a96b0] uppercase tracking-widest mb-4">
             {view === 'all' ? 'サービス別 着金額（万円）' : '担当者別 着金額（万円）'}
           </h3>
           {(view === 'all' ? servicePaid : memberPaid).length === 0 ? (
@@ -525,9 +525,9 @@ export default function DashboardPage() {
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={view === 'all' ? servicePaid : memberPaid} layout="vertical" margin={{ right: 60 }}>
                 <XAxis type="number" hide domain={[0, (dataMax: number) => Math.ceil(dataMax * 1.4)]} />
-                <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={110} tick={{ fontSize: 12, fill: '#64748b', fontWeight: 700 }} />
+                <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={110} tick={{ fontSize: 12, fill: '#8a96b0', fontWeight: 700 }} />
                 <Tooltip formatter={(v: number) => `${v.toLocaleString()}万円`} />
-                <Bar dataKey="金額" radius={[0, 4, 4, 0]} barSize={20} fill={view === 'all' ? '#ec4899' : '#6366f1'}>
+                <Bar dataKey="金額" radius={[0, 4, 4, 0]} barSize={20} fill={view === 'all' ? '#b8902a' : '#1a3a6e'}>
                   <LabelList dataKey="金額" position="right" formatter={(v: number) => `${v.toLocaleString()}万`} style={{ fontSize: 12, fill: '#64748b', fontWeight: 700 }} />
                 </Bar>
               </BarChart>
@@ -535,9 +535,9 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-slate-100">
-            <h3 className="font-bold text-slate-900">
+        <div className="bg-white rounded-xl border border-[#e0e6f0] shadow-sm overflow-hidden">
+          <div className="p-6 border-b border-[#e0e6f0]">
+            <h3 className="text-xs font-bold text-[#8a96b0] uppercase tracking-widest">
               {alerts.length > 0 ? `期日アラート（${alerts.length}件）` : '直近アクション'}
             </h3>
           </div>
@@ -548,19 +548,19 @@ export default function DashboardPage() {
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 text-slate-400 text-xs uppercase font-bold">
+                <thead className="bg-[#f8f9fd] text-[#8a96b0] text-xs uppercase font-bold">
                   <tr>
                     <th className="px-5 py-3">案件</th>
                     <th className="px-5 py-3">アクション</th>
                     <th className="px-5 py-3 text-right">期日</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-[#e0e6f0]">
                   {alerts.map(a => (
-                    <tr key={a.id} className="hover:bg-slate-50 transition-colors group">
+                    <tr key={a.id} className="hover:bg-[#f8f9fd] transition-colors group">
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-2">
-                          <span className={`text-xs px-1.5 py-0.5 rounded font-bold ${a.type === '法人' ? 'bg-blue-50 text-blue-600' : 'bg-pink-50 text-pink-600'}`}>
+                          <span className={`text-xs px-1.5 py-0.5 rounded font-bold ${a.type === '法人' ? 'bg-[#f0f4ff] text-navy' : 'bg-pink-50 text-[#9a3a5a]'}`}>
                             {a.type}
                           </span>
                           <span className="font-medium text-slate-700 text-xs">{a.label}</span>
@@ -574,7 +574,7 @@ export default function DashboardPage() {
                             if (a.type === '法人') { setEditingTob(tobDeals.find(d => d.id === a.id) ?? null); setShowTobForm(true) }
                             else { setEditingToc(tocDeals.find(d => d.id === a.id) ?? null); setShowTocForm(true) }
                           }}
-                          className="text-xs text-indigo-400 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition font-medium"
+                          className="text-xs text-navy opacity-60 hover:opacity-100 opacity-0 group-hover:opacity-60 transition font-medium"
                         >
                           編集
                         </button>
@@ -591,18 +591,18 @@ export default function DashboardPage() {
       {/* ファネル & 失注分析 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
         {/* パイプラインファネル */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+        <div className="bg-white p-6 rounded-xl border border-[#e0e6f0] shadow-sm">
           <div className="flex items-center justify-between mb-5">
-            <h3 className="font-bold text-slate-900">パイプライン ファネル</h3>
-            <div className="flex gap-1 bg-slate-100 p-0.5 rounded-lg">
+            <h3 className="text-xs font-bold text-[#8a96b0] uppercase tracking-widest">パイプライン ファネル</h3>
+            <div className="flex gap-1 bg-[#f0f2fa] p-0.5 rounded-lg border border-[#e0e6f0]">
               {(['tob', 'toc'] as FunnelView[]).map(v => (
                 <button
                   key={v}
                   onClick={() => setFunnelView(v)}
                   className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${
                     funnelView === v
-                      ? v === 'tob' ? 'bg-white text-blue-600 shadow-sm' : 'bg-white text-pink-600 shadow-sm'
-                      : 'text-slate-400 hover:text-slate-600'
+                      ? v === 'tob' ? 'bg-white text-navy shadow-sm' : 'bg-white text-[#9a3a5a] shadow-sm'
+                      : 'text-[#8a96b0] hover:text-[#1a2540]'
                   }`}
                 >
                   {v === 'tob' ? '法人' : '個人'}
@@ -624,10 +624,10 @@ export default function DashboardPage() {
                   )}
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-slate-500 font-medium w-20 flex-shrink-0 text-right">{d.stage}</span>
-                    <div className="flex-1 bg-slate-50 rounded-full h-7 overflow-hidden">
+                    <div className="flex-1 bg-[#f8f9fd] rounded-full h-7 overflow-hidden">
                       <div
-                        className={`h-full rounded-full flex items-center justify-end pr-2 transition-all ${funnelView === 'tob' ? 'bg-indigo-500' : 'bg-pink-500'}`}
-                        style={{ width: `${width}%` }}
+                        className={`h-full rounded-full flex items-center justify-end pr-2 transition-all`}
+                        style={{ background: funnelView === 'tob' ? '#1a3a6e' : '#9a3a5a', width: `${width}%` }}
                       >
                         <span className="text-xs font-bold text-white">{d.count}</span>
                       </div>
@@ -640,15 +640,15 @@ export default function DashboardPage() {
               <p className="text-slate-400 text-sm text-center py-8">データがありません</p>
             )}
           </div>
-          <div className="mt-4 pt-4 border-t border-slate-100 flex gap-4 text-xs text-slate-400">
+          <div className="mt-4 pt-4 border-t border-[#e0e6f0] flex gap-4 text-xs text-[#8a96b0]">
             <span>受注: <span className="font-bold text-green-600">{(funnelView === 'tob' ? tobDeals : tocDeals).filter(d => d.status === '受注').length}件</span></span>
             <span>失注: <span className="font-bold text-red-500">{(funnelView === 'tob' ? tobDeals : tocDeals).filter(d => d.status === '失注').length}件</span></span>
           </div>
         </div>
 
         {/* 失注理由分析 */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-          <h3 className="font-bold text-slate-900 mb-5">失注理由 分布</h3>
+        <div className="bg-white p-6 rounded-xl border border-[#e0e6f0] shadow-sm">
+          <h3 className="text-xs font-bold text-[#8a96b0] uppercase tracking-widest mb-4">失注理由 分布</h3>
           {lossReasonData.length === 0 ? (
             <div className="flex items-center justify-center h-40 text-slate-400 text-sm text-center">
               <div>
@@ -660,7 +660,7 @@ export default function DashboardPage() {
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={lossReasonData} layout="vertical" margin={{ right: 50 }}>
                 <XAxis type="number" hide allowDecimals={false} />
-                <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={90} tick={{ fontSize: 12, fill: '#64748b', fontWeight: 700 }} />
+                <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={90} tick={{ fontSize: 12, fill: '#8a96b0', fontWeight: 700 }} />
                 <Tooltip formatter={(v: number) => `${v}件`} />
                 <Bar dataKey="件数" radius={[0, 4, 4, 0]} barSize={20} fill="#f43f5e">
                   <LabelList dataKey="件数" position="right" style={{ fontSize: 12, fill: '#64748b', fontWeight: 700 }} />

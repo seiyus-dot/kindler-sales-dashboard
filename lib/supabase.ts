@@ -219,3 +219,21 @@ export type WeeklyLog = {
   cumulative_orders: number
   memo?: string
 }
+
+export type AiCoachClient = {
+  id: string
+  name: string
+  plan: string
+  startDate: string
+  phase: string
+  goals: string
+  items: AiCoachItem[]
+}
+
+export type AiCoachItem = {
+  id: string
+  label: string
+  start: string
+  end: string
+  colorIdx: number
+}

@@ -35,6 +35,7 @@ export default function DealActions({
     member_id: defaultMemberId ?? '',
   })
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
 
   // 失注分析
   const [showExtract, setShowExtract] = useState(false)
@@ -47,18 +48,20 @@ export default function DealActions({
   useEffect(() => { fetchActions() }, [dealId])
 
   async function fetchActions() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('deal_actions')
       .select('*, member:members!member_id(name)')
       .eq('deal_id', dealId)
       .order('action_date', { ascending: false })
-    if (data) setActions(data)
+    if (error) console.error('fetchActions error:', error)
+    setActions(data ?? [])
   }
 
   async function addAction() {
     if (!form.action_type || !form.action_date) return
     setSaving(true)
-    await supabase.from('deal_actions').insert({
+    setSaveError('')
+    const { error } = await supabase.from('deal_actions').insert({
       deal_id: dealId,
       deal_type: dealType,
       action_type: form.action_type,
@@ -67,6 +70,10 @@ export default function DealActions({
       member_id: form.member_id || null,
     })
     setSaving(false)
+    if (error) {
+      setSaveError(error.message)
+      return
+    }
     setShowForm(false)
     setForm({ action_type: '', action_date: new Date().toISOString().slice(0, 10), notes: '', member_id: defaultMemberId ?? '' })
     fetchActions()
@@ -280,6 +287,7 @@ export default function DealActions({
               placeholder="商談内容・メモなどを記録"
             />
           </div>
+          {saveError && <p className="text-xs text-red-500">{saveError}</p>}
           <div className="flex gap-2">
             <button
               onClick={addAction}
@@ -288,7 +296,7 @@ export default function DealActions({
             >
               {saving ? '保存中...' : '記録する'}
             </button>
-            <button onClick={() => setShowForm(false)} className="text-xs text-gray-400 hover:text-gray-600">
+            <button onClick={() => { setShowForm(false); setSaveError('') }} className="text-xs text-gray-400 hover:text-gray-600">
               キャンセル
             </button>
           </div>

@@ -6,7 +6,12 @@ const config: Config = {
     './components/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
-    extend: {},
+    extend: {
+      colors: {
+        navy: '#1a3a6e',
+        gold: '#b8902a',
+      },
+    },
   },
   plugins: [],
 }

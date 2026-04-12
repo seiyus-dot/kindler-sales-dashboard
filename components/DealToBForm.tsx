@@ -62,6 +62,14 @@ export default function DealToBForm({ members, initial, onClose, onSaved, defaul
   const [saving, setSaving] = useState(false)
   const [generatingMinutes, setGeneratingMinutes] = useState(false)
   const [error, setError] = useState('')
+  const [registering, setRegistering] = useState(false)
+  const [advisorId, setAdvisorId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!initial) return
+    supabase.from('aicoach_clients').select('id').eq('name', initial.company_name).maybeSingle()
+      .then(({ data }) => { if (data) setAdvisorId(data.id) })
+  }, [initial])
 
   const set = (key: string, val: string) => setForm(f => ({ ...f, [key]: val }))
 
@@ -102,6 +110,20 @@ export default function DealToBForm({ members, initial, onClose, onSaved, defaul
     setSaving(false)
     if (err) { setError(err.message); return }
     onSaved()
+  }
+
+  async function registerAsAdvisor() {
+    if (!form.company_name) return
+    setRegistering(true)
+    const { data } = await supabase.from('aicoach_clients').insert({
+      name: form.company_name,
+      plan: '6ヶ月',
+      start_date: new Date().toISOString().split('T')[0],
+      phase: 'ヒアリング',
+      goals: '',
+    }).select().single()
+    if (data) setAdvisorId(data.id)
+    setRegistering(false)
   }
 
   async function generateMinutes() {
@@ -311,6 +333,18 @@ export default function DealToBForm({ members, initial, onClose, onSaved, defaul
             {error && <p className="mx-6 mb-2 text-sm text-red-500 bg-red-50 border border-red-200 rounded-sm px-3 py-2">{error}</p>}
 
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100">
+              {initial && (
+                advisorId ? (
+                  <a href="/advisor" className="px-4 py-2 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-sm hover:bg-green-100 transition">
+                    顧問登録済み →
+                  </a>
+                ) : (
+                  <button onClick={registerAsAdvisor} disabled={registering}
+                    className="px-4 py-2 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-sm hover:bg-amber-100 disabled:opacity-50 transition">
+                    {registering ? '登録中...' : 'AI顧問として登録'}
+                  </button>
+                )
+              )}
               <button onClick={onClose} className="px-4 py-2 text-base text-gray-500 hover:text-gray-700 transition">キャンセル</button>
               <button
                 onClick={handleSubmit}
