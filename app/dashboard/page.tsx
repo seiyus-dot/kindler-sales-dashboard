@@ -353,8 +353,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* 放置案件アラート */}
-      {staleDeals.length > 0 && (
+      {/* 放置案件アラート（全社ビューでは非表示） */}
+      {view !== 'all' && staleDeals.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
           <div className="flex items-center gap-2 mb-3">
             <AlertTriangle size={16} className="text-amber-500" />
