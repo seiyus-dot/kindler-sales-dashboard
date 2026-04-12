@@ -371,30 +371,30 @@ export default function AICampPage() {
   if (loading) return <div className="flex items-center justify-center h-64 text-gray-400">読み込み中...</div>
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 lg:space-y-6">
       {/* ヘッダー */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-0">
         <div>
-          <h1 className="text-2xl font-black text-gray-900 tracking-tight">AI CAMP</h1>
-          <p className="text-sm text-gray-400 mt-0.5">ロードマップ作成会 商談管理</p>
+          <h1 className="text-xl lg:text-2xl font-black text-gray-900 tracking-tight">AI CAMP</h1>
+          <p className="text-xs lg:text-sm text-gray-400 mt-0.5">ロードマップ作成会 商談管理</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 lg:gap-3 flex-wrap">
           <input
             type="month"
             value={month}
             onChange={e => setMonth(e.target.value)}
-            className="border border-gray-200 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+            className="border border-gray-200 rounded px-2 lg:px-3 py-1.5 text-xs lg:text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 flex-shrink-0"
           />
           <button
             onClick={() => setShowSourceMaster(true)}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 border border-gray-200 rounded-sm hover:bg-gray-50 transition"
+            className="flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 lg:py-2 text-xs lg:text-sm text-gray-600 border border-gray-200 rounded-sm hover:bg-gray-50 transition whitespace-nowrap"
           >
             流入経路マスタ
           </button>
           <AIImport members={members} onImported={fetchAll} />
           <button
             onClick={() => { setEditTarget(null); setShowForm(true) }}
-            className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 transition"
+            className="bg-blue-600 text-white px-3 lg:px-4 py-1.5 lg:py-2 rounded text-xs lg:text-sm font-medium hover:bg-blue-700 transition whitespace-nowrap"
           >
             + 商談追加
           </button>
@@ -402,7 +402,7 @@ export default function AICampPage() {
       </div>
 
       {/* タブ */}
-      <div className="flex gap-1 border-b border-gray-200 -mx-6 px-6">
+      <div className="flex gap-1 border-b border-gray-200 -mx-4 lg:-mx-6 px-4 lg:px-6 overflow-x-auto scrollbar-hide">
         {([
           { key: 'overview', label: '概要' },
           { key: 'ads',      label: '広告' },
@@ -411,7 +411,7 @@ export default function AICampPage() {
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === tab.key
                 ? 'border-blue-600 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -423,25 +423,25 @@ export default function AICampPage() {
       </div>
 
       {activeTab === 'overview' && (<>
-      {/* 売上サマリー */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-white border border-gray-200 rounded p-5">
+      {/* 売上サマリー - スマホ横スクロール */}
+      <div className="flex lg:grid lg:grid-cols-3 gap-3 lg:gap-4 overflow-x-auto scrollbar-hide -mx-4 px-4 lg:mx-0 lg:px-0 lg:overflow-x-visible snap-x snap-mandatory lg:snap-none pb-1">
+        <div className="bg-white border border-gray-200 rounded p-4 lg:p-5 min-w-[180px] flex-shrink-0 lg:flex-shrink lg:min-w-0 snap-start">
           <p className="text-xs font-bold text-gray-400 mb-1">全体売上</p>
-          <p className="text-3xl font-black font-mono text-gray-900">
+          <p className="text-xl lg:text-3xl font-black font-mono text-gray-900 break-all">
             ¥{totalRevenue.toLocaleString()}
           </p>
           <p className="text-xs text-gray-400 mt-1">成約 {contracted.length}件</p>
         </div>
-        <div className="bg-white border border-gray-200 rounded p-5">
+        <div className="bg-white border border-gray-200 rounded p-4 lg:p-5 min-w-[180px] flex-shrink-0 lg:flex-shrink lg:min-w-0 snap-start">
           <p className="text-xs font-bold text-gray-400 mb-1">広告リスト売上</p>
-          <p className="text-3xl font-black font-mono text-blue-600">
+          <p className="text-xl lg:text-3xl font-black font-mono text-blue-600 break-all">
             ¥{metaRevenue.toLocaleString()}
           </p>
           <p className="text-xs text-gray-400 mt-1">Meta広告経由 {metaContracted.length}件</p>
         </div>
-        <div className="bg-white border border-gray-200 rounded p-5">
+        <div className="bg-white border border-gray-200 rounded p-4 lg:p-5 min-w-[180px] flex-shrink-0 lg:flex-shrink lg:min-w-0 snap-start">
           <p className="text-xs font-bold text-gray-400 mb-1">その他売上</p>
-          <p className="text-3xl font-black font-mono text-gray-600">
+          <p className="text-xl lg:text-3xl font-black font-mono text-gray-600 break-all">
             ¥{nonMetaRevenue.toLocaleString()}
           </p>
           <p className="text-xs text-gray-400 mt-1">広告以外 {contracted.length - metaContracted.length}件</p>
@@ -449,28 +449,28 @@ export default function AICampPage() {
       </div>
 
       {/* 目標進捗 */}
-      <div className="bg-white border border-gray-200 rounded p-5 space-y-4">
-        <div className="flex items-center justify-between">
+      <div className="bg-white border border-gray-200 rounded p-4 lg:p-5 space-y-4">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-0">
           <span className="text-sm font-bold text-gray-500">{monthLabel} 成約目標</span>
           {editingGoal ? (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 lg:gap-3 flex-wrap">
               <div className="flex items-center gap-1.5 text-xs text-gray-500">
                 <span>AI CAMP</span>
                 <input type="number" value={goalInput} onChange={e => setGoalInput(e.target.value)}
-                  className="w-16 border border-blue-300 rounded px-2 py-1 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                  className="w-14 lg:w-16 border border-blue-300 rounded px-2 py-1 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-blue-400" />
                 <span>件</span>
               </div>
               <div className="flex items-center gap-1.5 text-xs text-gray-500">
                 <span>プロダクト</span>
                 <input type="number" value={productGoalInput} onChange={e => setProductGoalInput(e.target.value)}
-                  className="w-16 border border-blue-300 rounded px-2 py-1 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                  className="w-14 lg:w-16 border border-blue-300 rounded px-2 py-1 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-blue-400" />
                 <span>件</span>
               </div>
               <button onClick={saveGoal} className="text-sm text-white bg-blue-600 px-3 py-1 rounded hover:bg-blue-700 transition">保存</button>
               <button onClick={() => setEditingGoal(false)} className="text-sm text-gray-400 hover:text-gray-600">取消</button>
             </div>
           ) : (
-            <button onClick={() => setEditingGoal(true)} className="text-xs text-blue-500 hover:underline">目標を変更</button>
+            <button onClick={() => setEditingGoal(true)} className="text-xs text-blue-500 hover:underline self-start lg:self-auto">目標を変更</button>
           )}
         </div>
         {[
@@ -498,17 +498,17 @@ export default function AICampPage() {
       </div>
 
       {/* サマリーKPI */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 lg:gap-4">
         {[
           { label: '成約数', value: contracted.length, unit: '件', color: 'text-green-600' },
           { label: '実商談数', value: conducted.length, unit: '件', color: 'text-gray-800' },
           { label: 'キャンセル率', value: cancelRate, unit: '%', color: cancelRate > 20 ? 'text-red-500' : 'text-gray-800' },
           { label: '成約率', value: contractRate, unit: '%', color: 'text-blue-600' },
         ].map(k => (
-          <div key={k.label} className="bg-white border border-gray-200 rounded p-4">
+          <div key={k.label} className="bg-white border border-gray-200 rounded p-3 lg:p-4">
             <p className="text-xs text-gray-400 font-bold mb-1">{k.label}</p>
-            <p className={`text-2xl font-black font-mono ${k.color}`}>
-              {k.value}<span className="text-sm font-bold text-gray-400 ml-0.5">{k.unit}</span>
+            <p className={`text-xl lg:text-2xl font-black font-mono ${k.color}`}>
+              {k.value}<span className="text-xs lg:text-sm font-bold text-gray-400 ml-0.5">{k.unit}</span>
             </p>
           </div>
         ))}
