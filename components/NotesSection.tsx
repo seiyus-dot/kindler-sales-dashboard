@@ -226,6 +226,7 @@ export function NotesSection({ clientId }: { clientId: string }) {
   const [files, setFiles] = useState<AiCoachFile[]>([])
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [addError, setAddError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const newTitleRef = useRef<HTMLInputElement>(null)
 
@@ -256,10 +257,15 @@ export function NotesSection({ clientId }: { clientId: string }) {
   const addNote = async () => {
     const t = newTitle.trim()
     if (!t) return
-    const { data } = await supabase
+    setAddError(null)
+    const { data, error } = await supabase
       .from('aicoach_notes')
       .insert({ client_id: clientId, title: t, content: '', note_date: newDate || null, sort_order: 0 })
       .select().single()
+    if (error) {
+      setAddError(`保存に失敗しました: ${error.message}`)
+      return
+    }
     if (data) {
       setNotes(prev => [data, ...prev])
       setExpandedId(data.id)
@@ -322,6 +328,9 @@ export function NotesSection({ clientId }: { clientId: string }) {
       {/* Add note form */}
       {addingNote && (
         <div style={{ background: '#f8f9fd', border: '1.5px solid #d8e0f0', borderRadius: 10, padding: '12px 14px', marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {addError && (
+            <div style={{ fontSize: 11, color: '#c04a30', background: '#fff4f4', border: '1px solid #f4c0b8', borderRadius: 6, padding: '6px 10px' }}>{addError}</div>
+          )}
           <input
             ref={newTitleRef}
             value={newTitle}
