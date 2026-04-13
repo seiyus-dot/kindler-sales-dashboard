@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
-import { UserPlus, Trash2, Shield, User } from 'lucide-react'
+import { UserPlus, Trash2, Shield, User, Pencil } from 'lucide-react'
 
 type AllowedEmail = {
   email: string
@@ -18,12 +18,15 @@ const ALL_PAGES = [
   { href: '/settings', label: 'マスタ設定' },
   { href: '/knowledge', label: '営業ナレッジ' },
   { href: '/aicamp', label: 'AI CAMP' },
+  { href: '/utage', label: 'UTAGE' },
+  { href: '/advisor', label: 'AI顧問管理' },
 ]
 
 export default function InvitesPage() {
   const [invites, setInvites] = useState<AllowedEmail[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [editTarget, setEditTarget] = useState<AllowedEmail | null>(null)
   const [newEmail, setNewEmail] = useState('')
   const [newRole, setNewRole] = useState<'admin' | 'member'>('member')
   const [newPages, setNewPages] = useState<string[]>(['/aicamp'])
@@ -47,7 +50,31 @@ export default function InvitesPage() {
     fetchInvites()
   }, [fetchInvites])
 
-  const handleAdd = async () => {
+  function openAdd() {
+    setEditTarget(null)
+    setNewEmail('')
+    setNewRole('member')
+    setNewPages(['/aicamp'])
+    setError(null)
+    setShowForm(true)
+  }
+
+  function openEdit(invite: AllowedEmail) {
+    setEditTarget(invite)
+    setNewEmail(invite.email)
+    setNewRole(invite.role)
+    setNewPages(invite.allowed_pages ?? ['/aicamp'])
+    setError(null)
+    setShowForm(true)
+  }
+
+  function closeForm() {
+    setShowForm(false)
+    setEditTarget(null)
+    setError(null)
+  }
+
+  const handleSave = async () => {
     if (!newEmail) return
     setSaving(true)
     setError(null)
@@ -56,13 +83,10 @@ export default function InvitesPage() {
       .from('allowed_emails')
       .upsert({ email: newEmail.toLowerCase().trim(), role: newRole, allowed_pages: pages }, { onConflict: 'email' })
     if (err) {
-      setError('追加に失敗しました。RLSポリシーの設定が必要かもしれません。')
+      setError('保存に失敗しました。RLSポリシーの設定が必要かもしれません。')
     } else {
       await fetchInvites()
-      setNewEmail('')
-      setNewRole('member')
-      setNewPages(['/aicamp'])
-      setShowForm(false)
+      closeForm()
     }
     setSaving(false)
   }
@@ -85,9 +109,10 @@ export default function InvitesPage() {
         <div>
           <h1 className="text-xl font-bold text-slate-900">招待管理</h1>
           <p className="text-sm text-slate-500 mt-1">アクセスを許可するGoogleアカウントを管理します</p>
+          <p className="text-xs text-amber-600 mt-1">権限を変更した場合、対象ユーザーは一度ログアウトして再ログインするまで反映されません</p>
         </div>
         <button
-          onClick={() => setShowForm(true)}
+          onClick={openAdd}
           className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 transition-colors"
         >
           <UserPlus size={16} />
@@ -97,7 +122,9 @@ export default function InvitesPage() {
 
       {showForm && (
         <div className="bg-white border border-slate-200 rounded-2xl p-6 mb-6 shadow-sm">
-          <h2 className="text-base font-semibold text-slate-900 mb-4">新しい招待</h2>
+          <h2 className="text-base font-semibold text-slate-900 mb-4">
+            {editTarget ? '権限を編集' : '新しい招待'}
+          </h2>
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">{error}</div>
           )}
@@ -110,6 +137,7 @@ export default function InvitesPage() {
                 onChange={e => setNewEmail(e.target.value)}
                 placeholder="example@gmail.com"
                 className="input w-full"
+                disabled={!!editTarget}
               />
             </div>
             <div>
@@ -151,14 +179,14 @@ export default function InvitesPage() {
             )}
             <div className="flex gap-3 pt-2">
               <button
-                onClick={handleAdd}
+                onClick={handleSave}
                 disabled={saving || !newEmail}
                 className="px-5 py-2 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
               >
-                {saving ? '追加中...' : '追加する'}
+                {saving ? '保存中...' : '保存する'}
               </button>
               <button
-                onClick={() => { setShowForm(false); setError(null) }}
+                onClick={closeForm}
                 className="px-5 py-2 text-slate-600 rounded-xl text-sm font-medium hover:bg-slate-100 transition-colors"
               >
                 キャンセル
@@ -199,12 +227,20 @@ export default function InvitesPage() {
                       : (invite.allowed_pages ?? []).map(p => ALL_PAGES.find(x => x.href === p)?.label ?? p).join('・')}
                   </td>
                   <td className="px-5 py-4 text-right">
-                    <button
-                      onClick={() => handleDelete(invite.email)}
-                      className="text-slate-300 hover:text-red-500 transition-colors p-1"
-                    >
-                      <Trash2 size={15} />
-                    </button>
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => openEdit(invite)}
+                        className="text-slate-300 hover:text-indigo-500 transition-colors p-1"
+                      >
+                        <Pencil size={15} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(invite.email)}
+                        className="text-slate-300 hover:text-red-500 transition-colors p-1"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

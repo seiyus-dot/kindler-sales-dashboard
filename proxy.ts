@@ -29,9 +29,10 @@ export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname
   const isLoginPage = pathname === '/login'
   const isAuthCallback = pathname.startsWith('/auth/callback')
+  const isPreview = pathname.startsWith('/preview')
 
   // 未ログイン → ログインページへ
-  if (!user && !isLoginPage && !isAuthCallback) {
+  if (!user && !isLoginPage && !isAuthCallback && !isPreview) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
