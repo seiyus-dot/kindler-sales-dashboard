@@ -72,6 +72,7 @@ const SCHEMAS = {
       '確定': '成約', '入金待ち': '保留', 'キャンセル': 'キャンセル', 'キャンセル済み': 'キャンセル',
       '成約': '成約', '失注': '失注', 'ドタキャン': 'ドタキャン', 'ドタキャン（無断）': 'ドタキャン',
       '保留': '保留', '参加予定': '相談予約', '未登録': '相談予約',
+      '申込済': '予定',
     } as Record<string, string>,
   },
 }
@@ -85,7 +86,32 @@ const KNOWN_FORMATS: {
   mappings: Record<string, string | null>
 }[] = [
   {
-    // AI CAMP 個別相談会申込者CSVエクスポート
+    // 個別相談会申込者CSVエクスポート（AI CAMP / Product AI CAMP フォーム出力、新フォーマット）
+    matchHeaders: ['日付', '実施日時', '担当者', '氏名', 'ふりがな', '申込URL', '申込状態', '登録状態'],
+    targetTable: 'aicamp_consultations',
+    reason: '個別相談会申込者CSV（AI CAMP / Product AI CAMP フォーム出力）（ルールベース判定）',
+    mappings: {
+      '日付':           null,
+      '実施日時':       'consultation_date',
+      '担当者':         'member_id',
+      '氏名':           'name',
+      'ふりがな':       null,
+      'メールアドレス': null,
+      '電話番号':       null,
+      '性別':           'customer_attribute',
+      '年齢':           'age',
+      '職業':           'occupation',
+      '月収':           'monthly_income',
+      'AIの知識・経験': 'ai_experience',
+      '叶えたいこと':   'motivation',
+      '申込URL':        'minutes_url',
+      '申込状態':       'status',
+      '登録状態':       null,
+      'キャンセル':     null,
+    },
+  },
+  {
+    // AI CAMP 個別相談会申込者CSVエクスポート（旧フォーマット）
     matchHeaders: ['申込日時', '日程', '担当者', 'お名前', 'フリガナ', '参加URL', '参加状況', '成約状況', 'キャンセル理由'],
     targetTable: 'aicamp_consultations',
     reason: 'AI CAMP 個別相談会申込者CSVフォーマット（ルールベース判定）',

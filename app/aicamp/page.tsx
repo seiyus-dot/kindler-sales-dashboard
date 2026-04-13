@@ -111,6 +111,8 @@ export default function AICampPage() {
   const [newWeek, setNewWeek] = useState({ week_label: '', ad_spend: '', list_count: '', consultation_count: '', seated_count: '' })
   const [activeTab, setActiveTab] = useState<'overview' | 'ads' | 'applications' | 'deals'>('overview')
   const [filterServiceType, setFilterServiceType] = useState('')
+  const [rangeStart, setRangeStart] = useState('')
+  const [rangeEnd, setRangeEnd] = useState('')
   const [showColSettings, setShowColSettings] = useState(false)
   const [visibleCols, setVisibleCols] = useState<Set<ColKey>>(() => {
     if (typeof window !== 'undefined') {
@@ -328,6 +330,9 @@ export default function AICampPage() {
   const filtered = consultations.filter(c => {
     if (filterMember && c.member_id !== filterMember) return false
     if (filterStatus && c.status !== filterStatus) return false
+    const d = c.consultation_date?.slice(0, 10) ?? ''
+    if (rangeStart && d && d < rangeStart) return false
+    if (rangeEnd && d && d > rangeEnd) return false
     return true
   })
 
@@ -952,6 +957,9 @@ export default function AICampPage() {
       {activeTab === 'applications' && (() => {
         const applications = consultations.filter(c => {
           if (filterServiceType && (c.service_type ?? 'AI CAMP') !== filterServiceType) return false
+          const d = c.consultation_date?.slice(0, 10) ?? ''
+          if (rangeStart && d && d < rangeStart) return false
+          if (rangeEnd && d && d > rangeEnd) return false
           return true
         })
         return (
@@ -967,8 +975,21 @@ export default function AICampPage() {
                   <option value="">サービス: 全て</option>
                   {SERVICE_TYPES.map(s => <option key={s}>{s}</option>)}
                 </select>
-                {filterServiceType && (
-                  <button onClick={() => setFilterServiceType('')} className="text-xs text-gray-400 hover:text-gray-600 px-1">×</button>
+                <input
+                  type="date"
+                  value={rangeStart}
+                  onChange={e => setRangeStart(e.target.value)}
+                  className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none"
+                />
+                <span className="text-xs text-gray-400">〜</span>
+                <input
+                  type="date"
+                  value={rangeEnd}
+                  onChange={e => setRangeEnd(e.target.value)}
+                  className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none"
+                />
+                {(filterServiceType || rangeStart || rangeEnd) && (
+                  <button onClick={() => { setFilterServiceType(''); setRangeStart(''); setRangeEnd('') }} className="text-xs text-gray-400 hover:text-gray-600 px-1">✕ クリア</button>
                 )}
                 <AIImport members={members} onImported={fetchAll} />
               </div>
@@ -1064,7 +1085,7 @@ export default function AICampPage() {
               </button>
             )}
           </div>
-          <div className="flex gap-2 items-center">
+          <div className="flex gap-2 items-center flex-wrap">
             <select value={filterMember} onChange={e => setFilterMember(e.target.value)} className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none">
               <option value="">担当者: 全員</option>
               {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
@@ -1073,8 +1094,21 @@ export default function AICampPage() {
               <option value="">ステータス: 全て</option>
               {['予定', '成約', '失注', '保留', 'ドタキャン', 'キャンセル'].map(s => <option key={s}>{s}</option>)}
             </select>
-            {(filterMember || filterStatus) && (
-              <button onClick={() => { setFilterMember(''); setFilterStatus('') }} className="text-xs text-gray-400 hover:text-gray-600 px-1">✕</button>
+            <input
+              type="date"
+              value={rangeStart}
+              onChange={e => setRangeStart(e.target.value)}
+              className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none"
+            />
+            <span className="text-xs text-gray-400">〜</span>
+            <input
+              type="date"
+              value={rangeEnd}
+              onChange={e => setRangeEnd(e.target.value)}
+              className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none"
+            />
+            {(filterMember || filterStatus || rangeStart || rangeEnd) && (
+              <button onClick={() => { setFilterMember(''); setFilterStatus(''); setRangeStart(''); setRangeEnd('') }} className="text-xs text-gray-400 hover:text-gray-600 px-1">✕ クリア</button>
             )}
             {/* 列設定 */}
             <div className="relative">

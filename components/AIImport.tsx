@@ -460,12 +460,15 @@ export default function AIImport({ members, onImported }: Props) {
                         return (
                           <tr
                             key={i}
-                            onClick={() => toggleRow(i)}
+                            onClick={e => {
+                              if ((e.target as HTMLInputElement).type === 'checkbox') return
+                              toggleRow(i)
+                            }}
                             className={`border-b cursor-pointer transition-colors ${
                               isDup ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-indigo-50'
                             } ${!checked ? 'opacity-40' : ''}`}
                           >
-                            <td className="px-2 py-1.5 text-center" onClick={e => { e.stopPropagation(); toggleRow(i) }}>
+                            <td className="px-2 py-1.5 text-center">
                               <input type="checkbox" checked={checked} onChange={() => toggleRow(i)} className="rounded" />
                             </td>
                             {Object.entries(row).filter(([k]) => k !== '_isDuplicate').map(([k, v]) => (
