@@ -25,3 +25,38 @@
 .animate-shimmer {
   animation: shimmer 2s infinite;
 }
+
+/* ── TipTap notes editor ─────────────────────────────── */
+.tiptap-notes {
+  outline: none;
+  min-height: 180px;
+  font-size: 13px;
+  color: #1a2540;
+  line-height: 1.7;
+}
+.tiptap-notes p { margin: 0 0 6px; }
+.tiptap-notes h1 { font-size: 19px; font-weight: 700; margin: 14px 0 6px; color: #1a2540; }
+.tiptap-notes h2 { font-size: 15px; font-weight: 700; margin: 12px 0 5px; color: #1a2540; }
+.tiptap-notes h3 { font-size: 13px; font-weight: 700; margin: 10px 0 4px; color: #1a2540; }
+.tiptap-notes ul { list-style: disc; padding-left: 20px; margin: 4px 0; }
+.tiptap-notes ol { list-style: decimal; padding-left: 20px; margin: 4px 0; }
+.tiptap-notes li { margin: 2px 0; }
+.tiptap-notes strong { font-weight: 700; }
+.tiptap-notes em { font-style: italic; }
+.tiptap-notes s { text-decoration: line-through; }
+
+/* Table */
+.tiptap-notes table { border-collapse: collapse; width: 100%; margin: 10px 0; table-layout: fixed; }
+.tiptap-notes td, .tiptap-notes th { border: 1px solid #d0d8ec; padding: 6px 10px; font-size: 12px; position: relative; }
+.tiptap-notes th { background: #f0f4ff; font-weight: 700; }
+.tiptap-notes .selectedCell::after { content: ''; position: absolute; inset: 0; background: rgba(26,58,110,0.08); pointer-events: none; z-index: 2; }
+
+/* Placeholder */
+.tiptap-notes p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #b0b8cc;
+  pointer-events: none;
+  height: 0;
+  font-style: italic;
+}

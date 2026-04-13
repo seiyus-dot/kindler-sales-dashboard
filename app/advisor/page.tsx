@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { AiCoachClient, AiCoachItem } from '@/lib/supabase'
+import { NotesSection } from '@/components/NotesSection'
 
 // ── helpers ───────────────────────────────────────────────
 const todayStr = () => new Date().toISOString().split('T')[0]
@@ -559,6 +560,7 @@ function DetailView({ client, isMobile, onBack, onEdit, onUpdateItems }: { clien
         )}
       </div>
       <GanttView client={client} isMobile={isMobile} onUpdateItems={onUpdateItems} />
+      <NotesSection clientId={client.id} />
     </div>
   )
 }

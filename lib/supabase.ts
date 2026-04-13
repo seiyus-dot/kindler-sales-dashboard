@@ -237,3 +237,20 @@ export type AiCoachItem = {
   end: string
   colorIdx: number
 }
+
+export type AiCoachNote = {
+  id: string
+  client_id: string
+  content: string
+  updated_at: string
+}
+
+export type AiCoachFile = {
+  id: string
+  client_id: string
+  name: string
+  storage_path: string
+  size: number
+  mime_type: string
+  created_at: string
+}
