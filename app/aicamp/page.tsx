@@ -345,20 +345,6 @@ export default function AICampPage() {
   const aicampContracted = contracted.filter(c => (c.service_type ?? 'AI CAMP') === 'AI CAMP')
   const productContracted = contracted.filter(c => c.service_type === 'プロダクト AI CAMP')
 
-  // 広告タブ用：選択サービスでフィルタリング
-  const adFilteredWeekly = adWeekly.filter(r => (r.service_type ?? 'プロダクト AI CAMP') === adServiceType)
-  const adFilteredContracted = contracted.filter(c =>
-    adServiceType === 'AI CAMP'
-      ? (c.service_type ?? 'AI CAMP') === 'AI CAMP'
-      : c.service_type === 'プロダクト AI CAMP'
-  )
-  const adFilteredMetaContracted = adFilteredContracted.filter(c => c.source?.toLowerCase().includes('meta'))
-  const adFilteredMetaRevenue = adFilteredMetaContracted.reduce((s, c) => s + (c.payment_amount ?? 0), 0)
-  const adFilteredConsultations = consultations.filter(c =>
-    adServiceType === 'AI CAMP'
-      ? (c.service_type ?? 'AI CAMP') === 'AI CAMP'
-      : c.service_type === 'プロダクト AI CAMP'
-  )
   const held = consultations.filter(c => c.status === '保留')
   const conducted = consultations.filter(c => ['成約', '失注', '保留'].includes(c.status ?? ''))
   const cancelled = consultations.filter(c => ['ドタキャン', 'キャンセル'].includes(c.status ?? ''))
@@ -367,6 +353,20 @@ export default function AICampPage() {
   const contractRate = conducted.length > 0 ? Math.round(contracted.length / conducted.length * 100) : 0
   const totalRevenue = contracted.reduce((s, c) => s + (c.payment_amount ?? 0), 0)
   const metaRevenue = metaContracted.reduce((s, c) => s + (c.payment_amount ?? 0), 0)
+
+  // 広告タブ用：選択サービスでフィルタリング
+  const adFilteredWeekly = adWeekly.filter(r => (r.service_type ?? 'プロダクト AI CAMP') === adServiceType)
+  const adFilteredContracted = contracted.filter(c =>
+    adServiceType === 'AI CAMP'
+      ? (c.service_type ?? 'AI CAMP') === 'AI CAMP'
+      : c.service_type === 'プロダクト AI CAMP'
+  )
+  const adFilteredMetaRevenue = metaRevenue
+  const adFilteredConsultations = consultations.filter(c =>
+    adServiceType === 'AI CAMP'
+      ? (c.service_type ?? 'AI CAMP') === 'AI CAMP'
+      : c.service_type === 'プロダクト AI CAMP'
+  )
   const nonMetaRevenue = totalRevenue - metaRevenue
   const progressPct = contractGoal > 0 ? Math.min(Math.round(aicampContracted.length / contractGoal * 100), 100) : 0
   const productProgressPct = productContractGoal > 0 ? Math.min(Math.round(productContracted.length / productContractGoal * 100), 100) : 0
@@ -565,7 +565,7 @@ export default function AICampPage() {
         const cpa = totalListCount > 0 ? Math.round(totalAdSpend / totalListCount) : null
         const meetingCpa = totalConsultation > 0 ? Math.round(totalAdSpend / totalConsultation) : null
         const seatedCpa = totalSeated > 0 ? Math.round(totalAdSpend / totalSeated) : null
-        const cpo = adFilteredMetaContracted.length > 0 ? Math.round(totalAdSpend / adFilteredMetaContracted.length) : null
+        const cpo = metaContracted.length > 0 ? Math.round(totalAdSpend / metaContracted.length) : null
         const roas = totalAdSpend > 0 ? Math.round(adFilteredMetaRevenue / totalAdSpend * 100) : null
 
         const adCols = ['期間', '広告費[円]', 'リスト数[人]', '面談申込数[人]', '着座数[人]', '']
@@ -673,7 +673,7 @@ export default function AICampPage() {
                     { label: 'リスト数', value: totalListCount, unit: '人', color: 'bg-blue-500' },
                     { label: '面談申込', value: totalConsultation, unit: '人', color: 'bg-indigo-500', prev: totalListCount },
                     { label: '着座', value: totalSeated, unit: '人', color: 'bg-violet-500', prev: totalConsultation },
-                    { label: '成約(Meta)', value: adFilteredMetaContracted.length, unit: '件', color: 'bg-green-500', prev: totalSeated },
+                    { label: '成約(Meta)', value: metaContracted.length, unit: '件', color: 'bg-green-500', prev: totalSeated },
                   ]
                   const max = totalListCount
                   return (
@@ -712,7 +712,7 @@ export default function AICampPage() {
                   { label: 'CPA', value: cpa ? `¥${cpa.toLocaleString()}` : '-', sub: '広告費÷リスト数' },
                   { label: '面談申込CPA', value: meetingCpa ? `¥${meetingCpa.toLocaleString()}` : '-', sub: '広告費÷面談申込数' },
                   { label: '着座単価', value: seatedCpa ? `¥${seatedCpa.toLocaleString()}` : '-', sub: '広告費÷着座数' },
-                  { label: 'CPO', value: cpo ? `¥${cpo.toLocaleString()}` : '-', sub: `広告費÷Meta成約${adFilteredMetaContracted.length}件` },
+                  { label: 'CPO', value: cpo ? `¥${cpo.toLocaleString()}` : '-', sub: `広告費÷Meta成約${metaContracted.length}件` },
                   { label: 'ROAS', value: roas !== null ? `${roas}%` : '-', sub: `売上÷広告費`, color: roas !== null ? (roas >= 100 ? 'text-green-600' : roas >= 60 ? 'text-amber-500' : 'text-red-500') : 'text-gray-300' },
                 ].map(k => (
                   <div key={k.label}>
