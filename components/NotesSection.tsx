@@ -291,7 +291,7 @@ export function NotesSection({ clientId }: { clientId: string }) {
     const path = `${clientId}/${Date.now()}_${file.name}`
     const { error } = await supabase.storage.from('aicoach-files').upload(path, file)
     if (error) {
-      setUploadError('アップロードに失敗しました（ストレージバケット「aicoach-files」が必要です）')
+      setUploadError(`アップロードに失敗しました: ${error.message}`)
     } else {
       const { data } = await supabase
         .from('aicoach_files')
