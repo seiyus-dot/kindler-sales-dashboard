@@ -288,7 +288,8 @@ export function NotesSection({ clientId }: { clientId: string }) {
     if (!file) return
     setUploading(true)
     setUploadError(null)
-    const path = `${clientId}/${Date.now()}_${file.name}`
+    const ext = file.name.includes('.') ? file.name.split('.').pop() : ''
+    const path = `${clientId}/${Date.now()}${ext ? '.' + ext : ''}`
     const { error } = await supabase.storage.from('aicoach-files').upload(path, file)
     if (error) {
       setUploadError(`アップロードに失敗しました: ${error.message}`)
