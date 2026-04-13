@@ -109,7 +109,8 @@ export default function AICampPage() {
   const [adSaving, setAdSaving] = useState(false)
   const [showAddWeek, setShowAddWeek] = useState(false)
   const [newWeek, setNewWeek] = useState({ week_label: '', ad_spend: '', list_count: '', consultation_count: '', seated_count: '' })
-  const [activeTab, setActiveTab] = useState<'overview' | 'ads' | 'deals'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'ads' | 'applications' | 'deals'>('overview')
+  const [filterServiceType, setFilterServiceType] = useState('')
   const [showColSettings, setShowColSettings] = useState(false)
   const [visibleCols, setVisibleCols] = useState<Set<ColKey>>(() => {
     if (typeof window !== 'undefined') {
@@ -404,9 +405,10 @@ export default function AICampPage() {
       {/* タブ */}
       <div className="flex gap-1 border-b border-gray-200 -mx-4 lg:-mx-6 px-4 lg:px-6 overflow-x-auto scrollbar-hide">
         {([
-          { key: 'overview', label: '概要' },
-          { key: 'ads',      label: '広告' },
-          { key: 'deals',    label: '商談一覧' },
+          { key: 'overview',      label: '概要' },
+          { key: 'ads',           label: '広告' },
+          { key: 'applications',  label: '申し込み一覧' },
+          { key: 'deals',         label: '商談一覧' },
         ] as const).map(tab => (
           <button
             key={tab.key}
@@ -627,7 +629,7 @@ export default function AICampPage() {
             {/* ファネル */}
             {adWeekly.length > 0 && totalListCount > 0 && (
               <div className="border-t border-gray-100 px-5 py-4">
-                <p className="text-xs font-bold text-gray-500 mb-3">広告ファネル</p>
+                <p className="text-xs font-bold text-gray-500 mb-3">LINEファネル</p>
                 {(() => {
                   const stages = [
                     { label: 'リスト数', value: totalListCount, unit: '人', color: 'bg-blue-500' },
@@ -730,7 +732,7 @@ export default function AICampPage() {
             </div>
             {/* ファネル */}
             <div className="border-t border-gray-100 px-5 py-4">
-              <p className="text-xs font-bold text-gray-500 mb-4">広告ファネル（{monthLabel}）</p>
+              <p className="text-xs font-bold text-gray-500 mb-4">LINEファネル（{monthLabel}）</p>
               {(() => {
                 const funnelSteps = [
                   { label: 'リーチ', value: days.reduce((s,d) => s + d.reach, 0), color: 'bg-indigo-400', desc: '広告を見たユニーク人数' },
@@ -946,6 +948,106 @@ export default function AICampPage() {
         </div>
       )}
       </>)}
+
+      {activeTab === 'applications' && (() => {
+        const applications = consultations.filter(c => {
+          if (filterServiceType && (c.service_type ?? 'AI CAMP') !== filterServiceType) return false
+          return true
+        })
+        return (
+          <div className="bg-white border border-gray-200 rounded">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 px-5 py-3 border-b border-gray-100">
+              <h2 className="text-sm font-bold text-gray-700">申し込み一覧 ({applications.length}件)</h2>
+              <div className="flex gap-2 items-center flex-wrap">
+                <select
+                  value={filterServiceType}
+                  onChange={e => setFilterServiceType(e.target.value)}
+                  className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none"
+                >
+                  <option value="">サービス: 全て</option>
+                  {SERVICE_TYPES.map(s => <option key={s}>{s}</option>)}
+                </select>
+                {filterServiceType && (
+                  <button onClick={() => setFilterServiceType('')} className="text-xs text-gray-400 hover:text-gray-600 px-1">×</button>
+                )}
+                <AIImport members={members} onImported={fetchAll} />
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">実施日時</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">サービス</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">担当者</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">氏名</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">年齢</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">職業</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">月収</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap min-w-[160px]">叶えたいこと</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">Zoom</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">ステータス</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {applications.length === 0 ? (
+                    <tr><td colSpan={11} className="text-center py-10 text-gray-400">申し込みがありません</td></tr>
+                  ) : applications.map(c => (
+                    <tr key={c.id} className="border-b border-gray-50 hover:bg-gray-50">
+                      <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-600">
+                        {c.consultation_date
+                          ? new Date(c.consultation_date).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                          : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{c.service_type ?? 'AI CAMP'}</td>
+                      <td className="px-4 py-3 text-xs text-gray-700 whitespace-nowrap">{(c.member as any)?.name ?? '-'}</td>
+                      <td className="px-4 py-3 text-xs font-medium text-gray-800 whitespace-nowrap">{c.name ?? '-'}</td>
+                      <td className="px-4 py-3 text-xs text-gray-500 font-mono whitespace-nowrap">{c.age ?? '-'}</td>
+                      <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{c.occupation ?? '-'}</td>
+                      <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{c.monthly_income ?? '-'}</td>
+                      <td className="px-4 py-3 text-xs text-gray-400 max-w-[200px]">
+                        <span className="line-clamp-2">{c.motivation ?? '-'}</span>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {c.minutes_url
+                          ? <a href={c.minutes_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline">Zoom</a>
+                          : <span className="text-xs text-gray-300">-</span>}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[c.status ?? '予定'] ?? 'bg-gray-100 text-gray-500'}`}>
+                          {c.status ?? '予定'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                        <div className="flex gap-2 items-center">
+                          <select
+                            defaultValue={c.status ?? '予定'}
+                            onChange={async e => {
+                              await supabase.from('aicamp_consultations').update({ status: e.target.value }).eq('id', c.id)
+                              fetchAll()
+                            }}
+                            className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none"
+                            onClick={e => e.stopPropagation()}
+                          >
+                            {CONSULTATION_STATUSES.map(s => <option key={s}>{s}</option>)}
+                          </select>
+                          <button
+                            onClick={() => { setEditTarget(c); setShowForm(true) }}
+                            className="text-xs text-blue-500 hover:underline whitespace-nowrap"
+                          >
+                            詳細編集
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      })()}
 
       {activeTab === 'deals' && (
       <div className="bg-white border border-gray-200 rounded">
