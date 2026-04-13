@@ -241,7 +241,11 @@ export type AiCoachItem = {
 export type AiCoachNote = {
   id: string
   client_id: string
+  title: string
   content: string
+  note_date: string | null
+  sort_order: number
+  created_at: string
   updated_at: string
 }
 
