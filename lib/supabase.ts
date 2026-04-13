@@ -159,6 +159,7 @@ export type AICampConsultation = {
   expectation?: string
   question?: string
   service_type?: string
+  applied_at?: string
   created_at: string
   updated_at: string
   member?: Member
@@ -180,6 +181,7 @@ export type AICampAdWeekly = {
   consultation_count?: number
   seated_count?: number
   sort_order: number
+  service_type?: string
   created_at: string
 }
 

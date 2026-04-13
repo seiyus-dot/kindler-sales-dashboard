@@ -109,10 +109,12 @@ export default function AICampPage() {
   const [adSaving, setAdSaving] = useState(false)
   const [showAddWeek, setShowAddWeek] = useState(false)
   const [newWeek, setNewWeek] = useState({ week_label: '', ad_spend: '', list_count: '', consultation_count: '', seated_count: '' })
+  const [adServiceType, setAdServiceType] = useState<'AI CAMP' | 'プロダクト AI CAMP'>('プロダクト AI CAMP')
   const [activeTab, setActiveTab] = useState<'overview' | 'ads' | 'applications' | 'deals'>('overview')
   const [filterServiceType, setFilterServiceType] = useState('')
   const [rangeStart, setRangeStart] = useState('')
   const [rangeEnd, setRangeEnd] = useState('')
+  const [appView, setAppView] = useState<'list' | 'calendar'>('list')
   const [showColSettings, setShowColSettings] = useState(false)
   const [visibleCols, setVisibleCols] = useState<Set<ColKey>>(() => {
     if (typeof window !== 'undefined') {
@@ -216,7 +218,8 @@ export default function AICampPage() {
       list_count: parseInt(newWeek.list_count) || 0,
       consultation_count: newWeek.consultation_count ? parseInt(newWeek.consultation_count) : null,
       seated_count: newWeek.seated_count ? parseInt(newWeek.seated_count) : null,
-      sort_order: adWeekly.length,
+      sort_order: adWeekly.filter(r => (r.service_type ?? 'プロダクト AI CAMP') === adServiceType).length,
+      service_type: adServiceType,
     })
     setAdSaving(false)
     setShowAddWeek(false)
@@ -341,6 +344,21 @@ export default function AICampPage() {
   const metaContracted = contracted.filter(c => c.source?.toLowerCase().includes('meta'))
   const aicampContracted = contracted.filter(c => (c.service_type ?? 'AI CAMP') === 'AI CAMP')
   const productContracted = contracted.filter(c => c.service_type === 'プロダクト AI CAMP')
+
+  // 広告タブ用：選択サービスでフィルタリング
+  const adFilteredWeekly = adWeekly.filter(r => (r.service_type ?? 'プロダクト AI CAMP') === adServiceType)
+  const adFilteredContracted = contracted.filter(c =>
+    adServiceType === 'AI CAMP'
+      ? (c.service_type ?? 'AI CAMP') === 'AI CAMP'
+      : c.service_type === 'プロダクト AI CAMP'
+  )
+  const adFilteredMetaContracted = adFilteredContracted.filter(c => c.source?.toLowerCase().includes('meta'))
+  const adFilteredMetaRevenue = adFilteredMetaContracted.reduce((s, c) => s + (c.payment_amount ?? 0), 0)
+  const adFilteredConsultations = consultations.filter(c =>
+    adServiceType === 'AI CAMP'
+      ? (c.service_type ?? 'AI CAMP') === 'AI CAMP'
+      : c.service_type === 'プロダクト AI CAMP'
+  )
   const held = consultations.filter(c => c.status === '保留')
   const conducted = consultations.filter(c => ['成約', '失注', '保留'].includes(c.status ?? ''))
   const cancelled = consultations.filter(c => ['ドタキャン', 'キャンセル'].includes(c.status ?? ''))
@@ -523,17 +541,32 @@ export default function AICampPage() {
       </>)}
 
       {activeTab === 'ads' && (<>
+      {/* サービス切り替えトグル */}
+      <div className="flex gap-1 bg-gray-100 rounded p-1 w-fit">
+        {(['プロダクト AI CAMP', 'AI CAMP'] as const).map(st => (
+          <button
+            key={st}
+            onClick={() => setAdServiceType(st)}
+            className={`px-4 py-1.5 rounded text-xs font-medium transition-colors ${
+              adServiceType === st ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {st}
+          </button>
+        ))}
+      </div>
+
       {/* 広告数値 */}
       {(() => {
-        const totalAdSpend = adWeekly.reduce((s, r) => s + r.ad_spend, 0)
-        const totalListCount = adWeekly.reduce((s, r) => s + r.list_count, 0)
-        const totalConsultation = adWeekly.reduce((s, r) => s + (r.consultation_count ?? 0), 0)
-        const totalSeated = adWeekly.reduce((s, r) => s + (r.seated_count ?? 0), 0)
+        const totalAdSpend = adFilteredWeekly.reduce((s, r) => s + r.ad_spend, 0)
+        const totalListCount = adFilteredWeekly.reduce((s, r) => s + r.list_count, 0)
+        const totalConsultation = adFilteredWeekly.reduce((s, r) => s + (r.consultation_count ?? 0), 0)
+        const totalSeated = adFilteredWeekly.reduce((s, r) => s + (r.seated_count ?? 0), 0)
         const cpa = totalListCount > 0 ? Math.round(totalAdSpend / totalListCount) : null
         const meetingCpa = totalConsultation > 0 ? Math.round(totalAdSpend / totalConsultation) : null
         const seatedCpa = totalSeated > 0 ? Math.round(totalAdSpend / totalSeated) : null
-        const cpo = metaContracted.length > 0 ? Math.round(totalAdSpend / metaContracted.length) : null
-        const roas = totalAdSpend > 0 ? Math.round(metaRevenue / totalAdSpend * 100) : null
+        const cpo = adFilteredMetaContracted.length > 0 ? Math.round(totalAdSpend / adFilteredMetaContracted.length) : null
+        const roas = totalAdSpend > 0 ? Math.round(adFilteredMetaRevenue / totalAdSpend * 100) : null
 
         const adCols = ['期間', '広告費[円]', 'リスト数[人]', '面談申込数[人]', '着座数[人]', '']
 
@@ -560,9 +593,9 @@ export default function AICampPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {adWeekly.length === 0 && !showAddWeek ? (
+                  {adFilteredWeekly.length === 0 && !showAddWeek ? (
                     <tr><td colSpan={6} className="text-center py-6 text-gray-400 text-xs">「週を追加」から入力してください</td></tr>
-                  ) : adWeekly.map(row => {
+                  ) : adFilteredWeekly.map(row => {
                     const editing = adEditId === row.id
                     return (
                       <tr key={row.id} className={`border-b border-gray-50 ${editing ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
@@ -617,7 +650,7 @@ export default function AICampPage() {
                   )}
 
                   {/* 合計行 */}
-                  {adWeekly.length > 0 && (
+                  {adFilteredWeekly.length > 0 && (
                     <tr className="bg-gray-50 border-t border-gray-200 font-bold">
                       <td className="px-4 py-3 text-gray-500 text-xs">合計</td>
                       <td className="px-4 py-3 font-mono text-gray-800">¥{totalAdSpend.toLocaleString()}</td>
@@ -632,7 +665,7 @@ export default function AICampPage() {
             </div>
 
             {/* ファネル */}
-            {adWeekly.length > 0 && totalListCount > 0 && (
+            {adFilteredWeekly.length > 0 && totalListCount > 0 && (
               <div className="border-t border-gray-100 px-5 py-4">
                 <p className="text-xs font-bold text-gray-500 mb-3">LINEファネル</p>
                 {(() => {
@@ -640,7 +673,7 @@ export default function AICampPage() {
                     { label: 'リスト数', value: totalListCount, unit: '人', color: 'bg-blue-500' },
                     { label: '面談申込', value: totalConsultation, unit: '人', color: 'bg-indigo-500', prev: totalListCount },
                     { label: '着座', value: totalSeated, unit: '人', color: 'bg-violet-500', prev: totalConsultation },
-                    { label: '成約(Meta)', value: metaContracted.length, unit: '件', color: 'bg-green-500', prev: totalSeated },
+                    { label: '成約(Meta)', value: adFilteredMetaContracted.length, unit: '件', color: 'bg-green-500', prev: totalSeated },
                   ]
                   const max = totalListCount
                   return (
@@ -673,13 +706,13 @@ export default function AICampPage() {
             )}
 
             {/* KPI */}
-            {adWeekly.length > 0 && (
+            {adFilteredWeekly.length > 0 && (
               <div className="border-t border-gray-100 px-5 py-4 grid grid-cols-2 sm:grid-cols-5 gap-4">
                 {[
                   { label: 'CPA', value: cpa ? `¥${cpa.toLocaleString()}` : '-', sub: '広告費÷リスト数' },
                   { label: '面談申込CPA', value: meetingCpa ? `¥${meetingCpa.toLocaleString()}` : '-', sub: '広告費÷面談申込数' },
                   { label: '着座単価', value: seatedCpa ? `¥${seatedCpa.toLocaleString()}` : '-', sub: '広告費÷着座数' },
-                  { label: 'CPO', value: cpo ? `¥${cpo.toLocaleString()}` : '-', sub: `広告費÷Meta成約${metaContracted.length}件` },
+                  { label: 'CPO', value: cpo ? `¥${cpo.toLocaleString()}` : '-', sub: `広告費÷Meta成約${adFilteredMetaContracted.length}件` },
                   { label: 'ROAS', value: roas !== null ? `${roas}%` : '-', sub: `売上÷広告費`, color: roas !== null ? (roas >= 100 ? 'text-green-600' : roas >= 60 ? 'text-amber-500' : 'text-red-500') : 'text-gray-300' },
                 ].map(k => (
                   <div key={k.label}>
@@ -789,9 +822,9 @@ export default function AICampPage() {
                     adSetMap[key].impressions += r.impressions ?? 0
                     adSetMap[key].registrations += r.registrations_completed ?? 0
                   })
-                  // 登録経路別に相談・成約を集計（registration_source = ad_set_name）
+                  // 登録経路別に相談・成約を集計（registration_source = ad_set_name、選択サービスでフィルタ）
                   const srcMap: Record<string, { consultations: number; contracted: number }> = {}
-                  consultations.forEach(c => {
+                  adFilteredConsultations.forEach(c => {
                     const key = c.registration_source || ''
                     if (!key) return
                     if (!srcMap[key]) srcMap[key] = { consultations: 0, contracted: 0 }
@@ -957,15 +990,42 @@ export default function AICampPage() {
       {activeTab === 'applications' && (() => {
         const applications = consultations.filter(c => {
           if (filterServiceType && (c.service_type ?? 'AI CAMP') !== filterServiceType) return false
-          const d = c.consultation_date?.slice(0, 10) ?? ''
+          const d = (c.applied_at ?? c.consultation_date)?.slice(0, 10) ?? ''
           if (rangeStart && d && d < rangeStart) return false
           if (rangeEnd && d && d > rangeEnd) return false
           return true
         })
+
+        // カレンダー計算
+        const [calY, calMo] = month.split('-').map(Number)
+        const daysInMonth = new Date(calY, calMo, 0).getDate()
+        const firstDow = new Date(calY, calMo - 1, 1).getDay()
+        const byAppliedDate: Record<string, typeof applications> = {}
+        applications.forEach(c => {
+          const d = c.applied_at?.slice(0, 10)
+          if (!d) return
+          if (!byAppliedDate[d]) byAppliedDate[d] = []
+          byAppliedDate[d].push(c)
+        })
+
         return (
           <div className="bg-white border border-gray-200 rounded">
+            {/* ヘッダー */}
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 px-5 py-3 border-b border-gray-100">
-              <h2 className="text-sm font-bold text-gray-700">申し込み一覧 ({applications.length}件)</h2>
+              <div className="flex items-center gap-3">
+                <h2 className="text-sm font-bold text-gray-700">申し込み一覧 ({applications.length}件)</h2>
+                <div className="flex gap-0.5 bg-gray-100 p-0.5 rounded text-xs">
+                  {(['list', 'calendar'] as const).map(v => (
+                    <button
+                      key={v}
+                      onClick={() => setAppView(v)}
+                      className={`px-3 py-1 rounded font-medium transition ${appView === v ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}
+                    >
+                      {v === 'list' ? 'リスト' : 'カレンダー'}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="flex gap-2 items-center flex-wrap">
                 <select
                   value={filterServiceType}
@@ -975,97 +1035,143 @@ export default function AICampPage() {
                   <option value="">サービス: 全て</option>
                   {SERVICE_TYPES.map(s => <option key={s}>{s}</option>)}
                 </select>
-                <input
-                  type="date"
-                  value={rangeStart}
-                  onChange={e => setRangeStart(e.target.value)}
-                  className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none"
-                />
-                <span className="text-xs text-gray-400">〜</span>
-                <input
-                  type="date"
-                  value={rangeEnd}
-                  onChange={e => setRangeEnd(e.target.value)}
-                  className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none"
-                />
+                {appView === 'list' && (<>
+                  <input type="date" value={rangeStart} onChange={e => setRangeStart(e.target.value)} className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none" />
+                  <span className="text-xs text-gray-400">〜</span>
+                  <input type="date" value={rangeEnd} onChange={e => setRangeEnd(e.target.value)} className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none" />
+                </>)}
                 {(filterServiceType || rangeStart || rangeEnd) && (
                   <button onClick={() => { setFilterServiceType(''); setRangeStart(''); setRangeEnd('') }} className="text-xs text-gray-400 hover:text-gray-600 px-1">✕ クリア</button>
                 )}
                 <AIImport members={members} onImported={fetchAll} />
               </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-100">
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">実施日時</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">サービス</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">担当者</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">氏名</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">年齢</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">職業</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">月収</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap min-w-[160px]">叶えたいこと</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">Zoom</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">ステータス</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {applications.length === 0 ? (
-                    <tr><td colSpan={11} className="text-center py-10 text-gray-400">申し込みがありません</td></tr>
-                  ) : applications.map(c => (
-                    <tr key={c.id} className="border-b border-gray-50 hover:bg-gray-50">
-                      <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-600">
-                        {c.consultation_date
-                          ? new Date(c.consultation_date).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-                          : '-'}
-                      </td>
-                      <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{c.service_type ?? 'AI CAMP'}</td>
-                      <td className="px-4 py-3 text-xs text-gray-700 whitespace-nowrap">{(c.member as any)?.name ?? '-'}</td>
-                      <td className="px-4 py-3 text-xs font-medium text-gray-800 whitespace-nowrap">{c.name ?? '-'}</td>
-                      <td className="px-4 py-3 text-xs text-gray-500 font-mono whitespace-nowrap">{c.age ?? '-'}</td>
-                      <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{c.occupation ?? '-'}</td>
-                      <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{c.monthly_income ?? '-'}</td>
-                      <td className="px-4 py-3 text-xs text-gray-400 max-w-[200px]">
-                        <span className="line-clamp-2">{c.motivation ?? '-'}</span>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        {c.minutes_url
-                          ? <a href={c.minutes_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline">Zoom</a>
-                          : <span className="text-xs text-gray-300">-</span>}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[c.status ?? '予定'] ?? 'bg-gray-100 text-gray-500'}`}>
-                          {c.status ?? '予定'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
-                        <div className="flex gap-2 items-center">
-                          <select
-                            defaultValue={c.status ?? '予定'}
-                            onChange={async e => {
-                              await supabase.from('aicamp_consultations').update({ status: e.target.value }).eq('id', c.id)
-                              fetchAll()
-                            }}
-                            className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none"
-                            onClick={e => e.stopPropagation()}
-                          >
-                            {CONSULTATION_STATUSES.map(s => <option key={s}>{s}</option>)}
-                          </select>
-                          <button
-                            onClick={() => { setEditTarget(c); setShowForm(true) }}
-                            className="text-xs text-blue-500 hover:underline whitespace-nowrap"
-                          >
-                            詳細編集
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+
+            {/* カレンダービュー */}
+            {appView === 'calendar' && (
+              <div className="p-4">
+                <div className="grid grid-cols-7 gap-px bg-gray-200 rounded overflow-hidden text-xs">
+                  {['日', '月', '火', '水', '木', '金', '土'].map(d => (
+                    <div key={d} className={`bg-gray-50 text-center py-1.5 font-semibold ${d === '日' ? 'text-red-400' : d === '土' ? 'text-blue-400' : 'text-gray-500'}`}>{d}</div>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                  {Array.from({ length: firstDow }).map((_, i) => (
+                    <div key={`empty-${i}`} className="bg-white min-h-[80px]" />
+                  ))}
+                  {Array.from({ length: daysInMonth }).map((_, i) => {
+                    const day = i + 1
+                    const dateStr = `${calY}-${String(calMo).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+                    const entries = byAppliedDate[dateStr] ?? []
+                    const dow = (firstDow + i) % 7
+                    const isToday = dateStr === new Date().toISOString().slice(0, 10)
+                    return (
+                      <div key={day} className="bg-white min-h-[80px] p-1">
+                        <div className={`text-right mb-1 font-semibold w-6 h-6 flex items-center justify-center rounded-full ml-auto text-xs
+                          ${isToday ? 'bg-blue-600 text-white' : dow === 0 ? 'text-red-400' : dow === 6 ? 'text-blue-400' : 'text-gray-600'}`}>
+                          {day}
+                        </div>
+                        <div className="space-y-0.5">
+                          {entries.map(c => (
+                            <div
+                              key={c.id}
+                              className="bg-blue-50 border border-blue-100 rounded px-1 py-0.5 cursor-pointer hover:bg-blue-100 transition"
+                              onClick={() => { setEditTarget(c); setShowForm(true) }}
+                            >
+                              <p className="font-medium text-gray-800 truncate" style={{ fontSize: '10px' }}>{c.name ?? '-'}</p>
+                              {c.consultation_date && (
+                                <p className="text-blue-500 truncate" style={{ fontSize: '9px' }}>
+                                  実施 {new Date(c.consultation_date).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+                {Object.keys(byAppliedDate).length === 0 && (
+                  <p className="text-center text-gray-400 text-xs py-6">申し込み日時データがありません（CSVを再インポートすると表示されます）</p>
+                )}
+              </div>
+            )}
+
+            {/* リストビュー */}
+            {appView === 'list' && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-100">
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">申し込み日時</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">実施日時</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">サービス</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">担当者</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">氏名</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">年齢</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">職業</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">月収</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap min-w-[160px]">叶えたいこと</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">Zoom</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">ステータス</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {applications.length === 0 ? (
+                      <tr><td colSpan={12} className="text-center py-10 text-gray-400">申し込みがありません</td></tr>
+                    ) : applications.map(c => (
+                      <tr key={c.id} className="border-b border-gray-50 hover:bg-gray-50">
+                        <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-400">
+                          {c.applied_at ? new Date(c.applied_at).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-600">
+                          {c.consultation_date ? new Date(c.consultation_date).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{c.service_type ?? 'AI CAMP'}</td>
+                        <td className="px-4 py-3 text-xs text-gray-700 whitespace-nowrap">{(c.member as any)?.name ?? '-'}</td>
+                        <td className="px-4 py-3 text-xs font-medium text-gray-800 whitespace-nowrap">{c.name ?? '-'}</td>
+                        <td className="px-4 py-3 text-xs text-gray-500 font-mono whitespace-nowrap">{c.age ?? '-'}</td>
+                        <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{c.occupation ?? '-'}</td>
+                        <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{c.monthly_income ?? '-'}</td>
+                        <td className="px-4 py-3 text-xs text-gray-400 max-w-[200px]">
+                          <span className="line-clamp-2">{c.motivation ?? '-'}</span>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {c.minutes_url
+                            ? <a href={c.minutes_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline">Zoom</a>
+                            : <span className="text-xs text-gray-300">-</span>}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[c.status ?? '予定'] ?? 'bg-gray-100 text-gray-500'}`}>
+                            {c.status ?? '予定'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                          <div className="flex gap-2 items-center">
+                            <select
+                              defaultValue={c.status ?? '予定'}
+                              onChange={async e => {
+                                await supabase.from('aicamp_consultations').update({ status: e.target.value }).eq('id', c.id)
+                                fetchAll()
+                              }}
+                              className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none"
+                              onClick={e => e.stopPropagation()}
+                            >
+                              {CONSULTATION_STATUSES.map(s => <option key={s}>{s}</option>)}
+                            </select>
+                            <button
+                              onClick={() => { setEditTarget(c); setShowForm(true) }}
+                              className="text-xs text-blue-500 hover:underline whitespace-nowrap"
+                            >
+                              詳細編集
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )
       })()}
