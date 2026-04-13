@@ -533,7 +533,7 @@ export default function AICampPage() {
         const meetingCpa = totalConsultation > 0 ? Math.round(totalAdSpend / totalConsultation) : null
         const seatedCpa = totalSeated > 0 ? Math.round(totalAdSpend / totalSeated) : null
         const cpo = metaContracted.length > 0 ? Math.round(totalAdSpend / metaContracted.length) : null
-        const roas = totalAdSpend > 0 ? Math.round(totalRevenue / totalAdSpend * 100) : null
+        const roas = totalAdSpend > 0 ? Math.round(metaRevenue / totalAdSpend * 100) : null
 
         const adCols = ['期間', '広告費[円]', 'リスト数[人]', '面談申込数[人]', '着座数[人]', '']
 
