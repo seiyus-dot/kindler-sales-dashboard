@@ -268,7 +268,8 @@ export default function DealsPage() {
   const wonDeals = useMemo(() => tobDeals.filter(d => d.status === '受注'), [tobDeals])
   const lostDeals = useMemo(() => tobDeals.filter(d => d.status === '失注'), [tobDeals])
   const inProgressDeals = useMemo(() => tobDeals.filter(d => !['受注', '失注'].includes(d.status ?? '')), [tobDeals])
-  const paidTotal = useMemo(() => wonDeals.filter(d => d.payment_date).reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0), [wonDeals])
+  const salesTotal = useMemo(() => wonDeals.filter(d => d.payment_date).reduce((s, d) => s + (d.contract_amount ?? 0), 0), [wonDeals])
+  const paidTotal = useMemo(() => wonDeals.filter(d => d.payment_date).reduce((s, d) => s + (d.actual_amount ?? 0), 0), [wonDeals])
   const pipeline = useMemo(() => inProgressDeals.reduce((s, d) => s + (d.expected_amount ?? 0), 0), [inProgressDeals])
   const weightedPipeline = useMemo(() => inProgressDeals.reduce((s, d) => s + Math.round((d.expected_amount ?? 0) * (d.win_probability ?? 0) / 100), 0), [inProgressDeals])
   const winRate = useMemo(() => (wonDeals.length + lostDeals.length) > 0 ? Math.round(wonDeals.length / (wonDeals.length + lostDeals.length) * 100) : 0, [wonDeals, lostDeals])
@@ -348,10 +349,16 @@ export default function DealsPage() {
       {activeTab === 'overview' && (
         <div className="space-y-6">
           {/* KPIカード */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-white border border-[#e0e6f0] rounded-xl p-5 shadow-sm" style={{ borderTop: '3px solid #1a3a6e' }}>
-              <p className="text-xs text-[#8a96b0] font-bold uppercase tracking-widest mb-1">着金合計</p>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="bg-white border border-[#e0e6f0] rounded-xl p-5 shadow-sm" style={{ borderTop: '3px solid #2a7a4a' }}>
+              <p className="text-xs text-[#8a96b0] font-bold uppercase tracking-widest mb-1">売上</p>
+              <p className="text-2xl font-black text-[#1a2540] mt-1 font-mono">{salesTotal.toLocaleString()}<span className="text-sm font-normal text-[#aab0c8] ml-1">万円</span></p>
+              <p className="text-xs text-[#aab0c8] mt-0.5">受注 {wonDeals.filter(d => d.payment_date && d.contract_amount).length}件</p>
+            </div>
+            <div className="bg-white border border-[#e0e6f0] rounded-xl p-5 shadow-sm" style={{ borderTop: '3px solid #1a6e6e' }}>
+              <p className="text-xs text-[#8a96b0] font-bold uppercase tracking-widest mb-1">着金額</p>
               <p className="text-2xl font-black text-[#1a2540] mt-1 font-mono">{paidTotal.toLocaleString()}<span className="text-sm font-normal text-[#aab0c8] ml-1">万円</span></p>
+              <p className="text-xs text-[#aab0c8] mt-0.5">着金済み {wonDeals.filter(d => d.payment_date && d.actual_amount).length}件</p>
             </div>
             <div className="bg-white border border-[#e0e6f0] rounded-xl p-5 shadow-sm" style={{ borderTop: '3px solid #1a3a6e' }}>
               <p className="text-xs text-[#8a96b0] font-bold uppercase tracking-widest mb-1">パイプライン</p>

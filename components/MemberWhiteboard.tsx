@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { supabase, Member, MemberMonthlyGoal, AICampConsultation, DealToB, DealToC } from '@/lib/supabase'
+import { supabase, Member, MemberMonthlyGoal, AICampConsultation, DealToB } from '@/lib/supabase'
 import { CheckCircle2, Target, Edit2, Save, X } from 'lucide-react'
 
 type MemberProgress = {
@@ -13,7 +13,6 @@ export default function MemberWhiteboard({
   members,
   goals,
   tobDeals,
-  tocDeals,
   aicampDeals,
   month,
   onSaved
@@ -21,7 +20,6 @@ export default function MemberWhiteboard({
   members: Member[]
   goals: MemberMonthlyGoal[]
   tobDeals: DealToB[]
-  tocDeals: DealToC[]
   aicampDeals: AICampConsultation[]
   month: string
   onSaved: () => void

@@ -1,20 +1,20 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { supabase, Member, DealToB, DealToC, DealAction, ACTION_TYPES, AICampConsultation } from '@/lib/supabase'
+import { supabase, Member, DealToB, DealAction, ACTION_TYPES, AICampConsultation, CONSULTATION_STATUSES } from '@/lib/supabase'
 import Link from 'next/link'
 import { Plus } from 'lucide-react'
 import DealToBForm from '@/components/DealToBForm'
-import DealToCForm from '@/components/DealToCForm'
+import AICampConsultationForm from '@/components/AICampConsultationForm'
 
 const TOB_STATUSES = ['アポ取得', '商談中', '提案済', '交渉中', '見積提出', 'リード', '受注', '失注', '保留']
-const TOC_STATUSES = ['相談予約', 'ヒアリング', '提案中', 'クロージング', '相談済', '受注', '失注', '保留']
+const AICAMP_ACTIVE_STATUSES = ['予定', '保留']
 
 function statusBadge(status?: string) {
   const s = status ?? ''
-  if (s === '受注') return 'bg-green-100 text-green-700'
-  if (s === '失注') return 'bg-red-100 text-red-600'
+  if (s === '受注' || s === '成約') return 'bg-green-100 text-green-700'
+  if (s === '失注' || s === 'ドタキャン' || s === 'キャンセル') return 'bg-red-100 text-red-600'
   if (['クロージング', '見積提出'].includes(s)) return 'bg-[#e8eeff] text-navy'
   if (s === '保留') return 'bg-amber-100 text-amber-700'
   return 'bg-gray-100 text-gray-600'
@@ -25,14 +25,13 @@ export default function MemberDetailPage() {
   const [member, setMember] = useState<Member | null>(null)
   const [members, setMembers] = useState<Member[]>([])
   const [tobDeals, setTobDeals] = useState<DealToB[]>([])
-  const [tocDeals, setTocDeals] = useState<DealToC[]>([])
   const [aicampDeals, setAicampDeals] = useState<AICampConsultation[]>([])
   const [actions, setActions] = useState<DealAction[]>([])
   const [loading, setLoading] = useState(true)
   const [showToBForm, setShowToBForm] = useState(false)
-  const [showToCForm, setShowToCForm] = useState(false)
   const [editToB, setEditToB] = useState<DealToB | null>(null)
-  const [editToC, setEditToC] = useState<DealToC | null>(null)
+  const [showAICampForm, setShowAICampForm] = useState(false)
+  const [editAICamp, setEditAICamp] = useState<AICampConsultation | null>(null)
 
   useEffect(() => {
     fetchAll()
@@ -40,27 +39,23 @@ export default function MemberDetailPage() {
   }, [id])
 
   async function fetchAll() {
-    const [memberRes, membersRes, tobRes, tocRes, aicampRes] = await Promise.all([
+    const [memberRes, membersRes, tobRes, aicampRes] = await Promise.all([
       supabase.from('members').select('*').eq('id', id).single(),
       supabase.from('members').select('*').order('sort_order'),
       supabase.from('deals_tob').select('*').eq('member_id', id).order('created_at', { ascending: false }),
-      supabase.from('deals_toc').select('*').eq('member_id', id).order('created_at', { ascending: false }),
-      supabase.from('aicamp_consultations').select('*').eq('member_id', id),
+      supabase.from('aicamp_consultations').select('*').eq('member_id', id).order('consultation_date', { ascending: false }),
     ])
     if (memberRes.data) setMember(memberRes.data)
     if (membersRes.data) setMembers(membersRes.data)
     const tob: DealToB[] = tobRes.data ?? []
-    const toc: DealToC[] = tocRes.data ?? []
     setTobDeals(tob)
-    setTocDeals(toc)
     setAicampDeals(aicampRes.data ?? [])
 
-    const dealIds = [...tob.map(d => d.id), ...toc.map(d => d.id)]
-    if (dealIds.length > 0) {
+    if (tob.length > 0) {
       const { data: actionsData } = await supabase
         .from('deal_actions')
         .select('*')
-        .in('deal_id', dealIds)
+        .in('deal_id', tob.map(d => d.id))
         .order('action_date', { ascending: false })
       if (actionsData) setActions(actionsData)
     } else {
@@ -82,34 +77,35 @@ export default function MemberDetailPage() {
   const currentMonth = new Date().toISOString().slice(0, 7)
 
   const tobActive = tobDeals.filter(d => !['受注', '失注'].includes(d.status ?? '')).length
-  const tocActive = tocDeals.filter(d => !['受注', '失注'].includes(d.status ?? '')).length
-  const pipeline = [...tobDeals, ...tocDeals]
+  const aicampActive = aicampDeals.filter(d => AICAMP_ACTIVE_STATUSES.includes(d.status ?? '')).length
+
+  const pipeline = tobDeals
     .filter(d => !['受注', '失注'].includes(d.status ?? ''))
     .reduce((s, d) => s + (d.expected_amount ?? 0), 0)
-  const paidAmount = [...tobDeals, ...tocDeals]
-    .filter(d => d.payment_date)
-    .reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0) +
-    aicampDeals.filter(d => d.status === '成約' && d.payment_date)
-      .reduce((s, d) => s + Math.round((d.payment_amount ?? 0) / 10000), 0)
-  const wonCount = tobDeals.filter(d => d.status === '受注').length + tocDeals.filter(d => d.status === '受注').length
-  const totalDeals = tobDeals.length + tocDeals.length
+
+  const paidAmount =
+    tobDeals.filter(d => d.payment_date).reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0) +
+    aicampDeals.filter(d => d.status === '成約' && d.payment_date).reduce((s, d) => s + Math.round((d.payment_amount ?? 0) / 10000), 0)
+
+  const wonCount = tobDeals.filter(d => d.status === '受注').length + aicampDeals.filter(d => d.status === '成約').length
+  const totalDeals = tobDeals.length + aicampDeals.length
   const winRate = totalDeals > 0 ? Math.round((wonCount / totalDeals) * 100) : 0
 
   const alerts = [
     ...tobDeals
       .filter(d => d.next_action_date && d.next_action_date >= today && d.next_action_date <= in7)
       .map(d => ({ id: d.id, label: d.company_name, action: d.next_action, date: d.next_action_date!, type: '法人' as const })),
-    ...tocDeals
-      .filter(d => d.next_action_date && d.next_action_date >= today && d.next_action_date <= in7)
-      .map(d => ({ id: d.id, label: d.name, action: d.next_action, date: d.next_action_date!, type: '個人' as const })),
+    ...aicampDeals
+      .filter(d => d.reply_deadline && d.reply_deadline >= today && d.reply_deadline <= in7)
+      .map(d => ({ id: d.id, label: d.name ?? '-', action: '返答期限', date: d.reply_deadline!, type: 'AI CAMP' as const })),
   ].sort((a, b) => a.date.localeCompare(b.date))
 
   const tobStatusCounts = TOB_STATUSES.map(s => ({ status: s, count: tobDeals.filter(d => d.status === s).length })).filter(x => x.count > 0)
-  const tocStatusCounts = TOC_STATUSES.map(s => ({ status: s, count: tocDeals.filter(d => d.status === s).length })).filter(x => x.count > 0)
+  const aicampStatusCounts = CONSULTATION_STATUSES.map(s => ({ status: s, count: aicampDeals.filter(d => d.status === s).length })).filter(x => x.count > 0)
 
   const totalActions = actions.length
   const thisMonthActions = actions.filter(a => a.action_date.startsWith(currentMonth)).length
-  const activeDealsCount = tobActive + tocActive
+  const activeDealsCount = tobActive + aicampActive
   const actionsPerDeal = activeDealsCount > 0 ? (totalActions / activeDealsCount).toFixed(1) : '-'
 
   const actionTypeCounts = ACTION_TYPES.map(t => ({
@@ -119,11 +115,9 @@ export default function MemberDetailPage() {
 
   const recentActions = actions.slice(0, 5)
 
-  const allMemberDeals = [...tobDeals, ...tocDeals]
   const stageDistribution = [
-    '初回接触', 'アポ取得', '商談中', '提案済', '交渉中', '見積提出', 'クロージング',
-    '相談予約', 'ヒアリング', '提案中', '相談済'
-  ].map(s => ({ stage: s, count: allMemberDeals.filter(d => d.status === s).length }))
+    'アポ取得', '商談中', '提案済', '交渉中', '見積提出',
+  ].map(s => ({ stage: s, count: tobDeals.filter(d => d.status === s).length }))
     .filter(d => d.count > 0)
 
   return (
@@ -139,11 +133,11 @@ export default function MemberDetailPage() {
         </div>
       </div>
 
-      {/* 結果KPI - スマホ横スクロール */}
+      {/* 結果KPI */}
       <div className="flex lg:grid lg:grid-cols-5 gap-3 lg:gap-4 overflow-x-auto scrollbar-hide pb-2 -mx-4 px-4 lg:mx-0 lg:px-0 lg:overflow-x-visible snap-x snap-mandatory lg:snap-none">
         {[
           { label: '進行中（法人）', value: tobActive, unit: '件', accent: 'text-navy', bg: 'bg-[#f0f4ff]' },
-          { label: '進行中（個人）', value: tocActive, unit: '件', accent: 'text-[#1a6e6e]', bg: 'bg-[#f0f8ff]' },
+          { label: '進行中（AI CAMP）', value: aicampActive, unit: '件', accent: 'text-[#1a6e6e]', bg: 'bg-[#f0f8ff]' },
           { label: '期待売上', value: pipeline.toLocaleString(), unit: '万円', accent: 'text-[#1a2540]', bg: 'bg-white' },
           { label: '着金済み', value: paidAmount.toLocaleString(), unit: '万円', accent: 'text-[#2a7a4a]', bg: 'bg-[#f0f8f4]' },
           { label: '受注率', value: winRate, unit: '%', accent: 'text-[#b8902a]', bg: 'bg-[#fdf8f0]' },
@@ -210,8 +204,8 @@ export default function MemberDetailPage() {
           <h3 className="text-xs font-black text-[#8a96b0] uppercase tracking-widest mb-4 lg:mb-5">直近のアクション</h3>
           <div className="space-y-3">
             {recentActions.map(a => {
-              const deal = [...tobDeals, ...tocDeals].find(d => d.id === a.deal_id)
-              const dealLabel = deal ? ('company_name' in deal ? deal.company_name : deal.name) : '-'
+              const deal = tobDeals.find(d => d.id === a.deal_id)
+              const dealLabel = deal?.company_name ?? '-'
               return (
                 <div key={a.id} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 text-sm">
                   <div className="flex items-center gap-2">
@@ -232,7 +226,7 @@ export default function MemberDetailPage() {
       {/* ファネル */}
       {stageDistribution.length > 0 && (
         <div className="bg-white rounded-xl border border-[#e0e6f0] shadow-sm p-4 lg:p-7">
-          <h3 className="text-xs font-black text-[#8a96b0] uppercase tracking-widest mb-4 lg:mb-5">ステージ分布</h3>
+          <h3 className="text-xs font-black text-[#8a96b0] uppercase tracking-widest mb-4 lg:mb-5">ステージ分布（法人）</h3>
           <div className="space-y-2">
             {stageDistribution.map(({ stage, count }) => {
               const maxCount = Math.max(...stageDistribution.map(d => d.count), 1)
@@ -264,7 +258,9 @@ export default function MemberDetailPage() {
           <div className="space-y-2 lg:space-y-3">
             {alerts.map(deal => (
               <div key={deal.id} className="flex flex-wrap items-center gap-2 lg:gap-4 text-sm lg:text-base bg-amber-50 rounded px-3 lg:px-4 py-2.5 lg:py-3">
-                <span className={`px-2 py-0.5 rounded text-xs font-bold ${deal.type === '法人' ? 'bg-[#e8eeff] text-navy' : 'bg-cyan-100 text-[#1a6e6e]'}`}>
+                <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                  deal.type === '法人' ? 'bg-[#e8eeff] text-navy' : 'bg-green-100 text-green-700'
+                }`}>
                   {deal.type}
                 </span>
                 <span className="font-bold text-gray-800 text-sm">{deal.label}</span>
@@ -294,12 +290,12 @@ export default function MemberDetailPage() {
           )}
         </div>
         <div className="bg-white rounded-xl border border-[#e0e6f0] shadow-sm p-4 lg:p-7">
-          <h3 className="text-xs font-black text-[#8a96b0] uppercase tracking-widest mb-4 lg:mb-5">個人 ステータス内訳</h3>
-          {tocStatusCounts.length === 0 ? (
-            <p className="text-base text-gray-400 text-center py-4">案件なし</p>
+          <h3 className="text-xs font-black text-[#8a96b0] uppercase tracking-widest mb-4 lg:mb-5">商談 ステータス内訳</h3>
+          {aicampStatusCounts.length === 0 ? (
+            <p className="text-base text-gray-400 text-center py-4">相談なし</p>
           ) : (
             <div className="space-y-3">
-              {tocStatusCounts.map(({ status, count }) => (
+              {aicampStatusCounts.map(({ status, count }) => (
                 <div key={status} className="flex items-center justify-between">
                   <span className={`px-2 py-0.5 rounded text-xs font-bold ${statusBadge(status)}`}>{status}</span>
                   <span className="text-base font-black font-mono text-gray-700">{count}件</span>
@@ -362,49 +358,57 @@ export default function MemberDetailPage() {
         )}
       </div>
 
-      {/* 個人案件テーブル */}
+      {/* AI CAMP相談一覧 */}
       <div className="bg-white rounded border border-gray-100 shadow-sm p-7">
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
-            個人案件 ({tocDeals.length}件)
+            商談一覧 ({aicampDeals.length}件)
           </h3>
           <button
-            onClick={() => { setEditToC(null); setShowToCForm(true) }}
-            className="flex items-center gap-1.5 text-xs font-bold text-[#1a6e6e] hover:text-[#155a5a] bg-[#f0f8ff] hover:bg-[#e0f4ff] px-3 py-1.5 rounded transition-colors"
+            onClick={() => { setEditAICamp(null); setShowAICampForm(true) }}
+            className="flex items-center gap-1.5 text-xs font-bold text-green-700 hover:text-green-800 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded transition-colors"
           >
             <Plus size={13} />
-            個人案件を追加
+            相談を追加
           </button>
         </div>
-        {tocDeals.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-6">案件がありません</p>
+        {aicampDeals.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-6">相談がありません</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-base">
+            <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
-                  {['氏名', 'ステータス', '見込み金額', '受注確度', '次回期日', '次回アクション', ''].map(h => (
-                    <th key={h} className="text-left text-xs font-black text-gray-400 uppercase tracking-wider pb-3 pr-4">{h}</th>
+                  {['実施日時', 'サービス', '氏名', 'LINE名', '流入経路', '登録経路', 'ステータス', '着金額', ''].map(h => (
+                    <th key={h} className="text-left text-xs font-black text-gray-400 uppercase tracking-wider pb-3 pr-4 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {tocDeals.map(d => (
+                {aicampDeals.map(d => (
                   <tr
                     key={d.id}
-                    onClick={() => { setEditToC(d); setShowToCForm(true) }}
+                    onClick={() => { setEditAICamp(d); setShowAICampForm(true) }}
                     className="hover:bg-gray-50 transition-colors cursor-pointer"
                   >
-                    <td className="py-3 pr-4 font-medium text-gray-800">{d.name}</td>
+                    <td className="py-3 pr-4 text-gray-500 whitespace-nowrap">{d.consultation_date ? d.consultation_date.slice(0, 16).replace('T', ' ') : '-'}</td>
+                    <td className="py-3 pr-4 text-gray-600 whitespace-nowrap">{d.service_type ?? '-'}</td>
+                    <td className="py-3 pr-4 font-medium text-gray-800 whitespace-nowrap">{d.name ?? '-'}</td>
+                    <td className="py-3 pr-4 text-gray-500 whitespace-nowrap">{d.line_name ?? '-'}</td>
+                    <td className="py-3 pr-4 text-gray-500">{d.source ?? '-'}</td>
+                    <td className="py-3 pr-4 text-gray-500">{d.registration_source ?? '-'}</td>
                     <td className="py-3 pr-4">
-                      {d.status && <span className={`px-2 py-0.5 rounded text-xs font-bold ${statusBadge(d.status)}`}>{d.status}</span>}
+                      {d.status && (
+                        <span className={`px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap ${
+                          { '成約': 'bg-green-100 text-green-700', '失注': 'bg-red-100 text-red-600', '保留': 'bg-amber-100 text-amber-700', 'ドタキャン': 'bg-red-50 text-red-400', 'キャンセル': 'bg-gray-100 text-gray-500', '予定': 'bg-blue-100 text-blue-600' }[d.status] ?? 'bg-gray-100 text-gray-600'
+                        }`}>{d.status}</span>
+                      )}
                     </td>
-                    <td className="py-3 pr-4 font-mono text-gray-700">{d.expected_amount?.toLocaleString() ?? '-'}万円</td>
-                    <td className="py-3 pr-4 font-mono text-gray-500">{d.win_probability != null ? `${d.win_probability}%` : '-'}</td>
-                    <td className="py-3 pr-4 text-gray-500 text-sm">{d.next_action_date ?? '-'}</td>
-                    <td className="py-3 pr-4 text-gray-500 text-sm">{d.next_action ?? '-'}</td>
+                    <td className="py-3 pr-4 font-mono text-gray-700 whitespace-nowrap">
+                      {d.payment_amount != null ? `¥${d.payment_amount.toLocaleString()}` : '-'}
+                    </td>
                     <td className="py-3">
-                      <button onClick={(e) => { e.stopPropagation(); setEditToC(d); setShowToCForm(true) }} className="text-xs text-navy hover:text-[#152f5a] font-bold">編集</button>
+                      <button onClick={(e) => { e.stopPropagation(); setEditAICamp(d); setShowAICampForm(true) }} className="text-xs text-green-700 hover:text-green-800 font-bold">編集</button>
                     </td>
                   </tr>
                 ))}
@@ -425,18 +429,15 @@ export default function MemberDetailPage() {
         />
       )}
 
-      {/* 個人案件フォームモーダル */}
-      {showToCForm && (
-        <DealToCForm
+      {/* AI CAMP相談フォームモーダル */}
+      {showAICampForm && (
+        <AICampConsultationForm
           members={members}
-          initial={editToC}
-          defaultMemberId={id}
-          onClose={() => { setShowToCForm(false); setEditToC(null); fetchAll() }}
-          onSaved={() => { setShowToCForm(false); setEditToC(null); fetchAll() }}
+          initial={editAICamp}
+          onClose={() => { setShowAICampForm(false); setEditAICamp(null); fetchAll() }}
+          onSaved={() => { setShowAICampForm(false); setEditAICamp(null); fetchAll() }}
         />
       )}
-
-
     </div>
   )
 }

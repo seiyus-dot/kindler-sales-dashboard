@@ -1,23 +1,20 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { supabase, WeeklyLog, DealToB, DealToC, AICampConsultation, Member } from '@/lib/supabase'
+import { supabase, WeeklyLog, DealToB, AICampConsultation, Member } from '@/lib/supabase'
 import DealToBForm from '@/components/DealToBForm'
-import DealToCForm from '@/components/DealToCForm'
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, Legend, LabelList
 } from 'recharts'
 import {
-  TrendingUp, Briefcase, User, CreditCard, ArrowUpRight, ArrowDownRight, Target, AlertTriangle
+  TrendingUp, Briefcase, CreditCard, ArrowUpRight, ArrowDownRight, Target, AlertTriangle
 } from 'lucide-react'
 
-type View = 'all' | 'tob' | 'toc'
+type View = 'all' | 'tob'
 type Period = 'month' | 'all'
-type FunnelView = 'tob' | 'toc'
 
 const TOB_FUNNEL_STAGES = ['リード', 'アポ取得', '商談中', '提案済', '交渉中', '見積提出', 'クロージング']
-const TOC_FUNNEL_STAGES = ['相談予約', 'ヒアリング', '提案中', 'クロージング', '相談済']
 
 function StatCard({
   title, value, sub, icon: Icon, accentColor = '#1a3a6e', change, isPositive
@@ -60,17 +57,13 @@ function recentMonths(n: number): string[] {
 export default function DashboardPage() {
   const [logs, setLogs] = useState<WeeklyLog[]>([])
   const [tobDeals, setTobDeals] = useState<DealToB[]>([])
-  const [tocDeals, setTocDeals] = useState<DealToC[]>([])
   const [aicampDeals, setAicampDeals] = useState<AICampConsultation[]>([])
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState<View>('all')
   const [period, setPeriod] = useState<Period>('month')
-  const [funnelView, setFunnelView] = useState<FunnelView>('tob')
   const [showTobForm, setShowTobForm] = useState(false)
-  const [showTocForm, setShowTocForm] = useState(false)
   const [editingTob, setEditingTob] = useState<DealToB | null>(null)
-  const [editingToc, setEditingToc] = useState<DealToC | null>(null)
   const [showAddMenu, setShowAddMenu] = useState(false)
   const [showPaidDetail, setShowPaidDetail] = useState(false)
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7))
@@ -82,27 +75,21 @@ export default function DashboardPage() {
   }
 
   async function fetchDeals() {
-    const [tobRes, tocRes] = await Promise.all([
-      supabase.from('deals_tob').select('*, member:members!member_id(name)'),
-      supabase.from('deals_toc').select('*, member:members!member_id(name)'),
-    ])
-    if (tobRes.data) setTobDeals(tobRes.data)
-    if (tocRes.data) setTocDeals(tocRes.data)
+    const { data } = await supabase.from('deals_tob').select('*, member:members!member_id(name)')
+    if (data) setTobDeals(data)
   }
 
   useEffect(() => {
     async function fetchAll() {
-      const [logsRes, membersRes, tobRes, tocRes, aicampRes] = await Promise.all([
+      const [logsRes, membersRes, tobRes, aicampRes] = await Promise.all([
         supabase.from('weekly_logs').select('*').order('log_date'),
         supabase.from('members').select('*').order('sort_order'),
         supabase.from('deals_tob').select('*, member:members!member_id(name)'),
-        supabase.from('deals_toc').select('*, member:members!member_id(name)'),
         supabase.from('aicamp_consultations').select('*').eq('status', '成約'),
       ])
       if (logsRes.data) setLogs(logsRes.data)
       if (membersRes.data) setMembers(membersRes.data)
       if (tobRes.data) setTobDeals(tobRes.data)
-      if (tocRes.data) setTocDeals(tocRes.data)
       if (aicampRes.data) setAicampDeals(aicampRes.data)
       setLoading(false)
     }
@@ -111,26 +98,22 @@ export default function DashboardPage() {
 
   const latest = logs[logs.length - 1]
 
-  const activeTob = view === 'toc' ? [] : tobDeals
-  const activeToc = view === 'tob' ? [] : tocDeals
-  const allDeals = [...activeTob, ...activeToc]
+  const allDeals = tobDeals
 
   // KPI - 案件着金（deals_tocはaicamp移行済みのため除外）
-  const tobPaid = (view !== 'toc' ? tobDeals : []).filter(d =>
+  const tobPaid = tobDeals.filter(d =>
     d.payment_date && (period === 'all' || d.payment_date.startsWith(selectedMonth))
   )
   const paidDeals = tobPaid
   const paidTobTotal = tobPaid.reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0)
   const tobContractTotal = tobPaid.reduce((s, d) => s + (d.contract_amount ?? 0), 0)
-  const paidTocTotal = 0
-
   // aicamp_consultations の着金（円→万円）
   const paidAicamp = aicampDeals.filter(d =>
     d.payment_date && (period === 'all' || d.payment_date.startsWith(selectedMonth))
   )
   const paidAicampTotal = Math.round(paidAicamp.reduce((s, d) => s + (d.payment_amount ?? 0), 0) / 10000)
 
-  const paidTotal = paidTobTotal + paidTocTotal + paidAicampTotal
+  const paidTotal = paidTobTotal + paidAicampTotal
   const contractTotal = tobContractTotal + paidAicampTotal
 
   const activeDeals = allDeals.filter(d => !['受注', '失注'].includes(d.status ?? ''))
@@ -148,21 +131,19 @@ export default function DashboardPage() {
 
   // 放置案件（7日以上 updated_at が古い進行中案件）
   const staleThreshold = new Date(Date.now() - 7 * 86400000).toISOString()
-  const staleDeals = [
-    ...tobDeals.filter(d => !['受注', '失注'].includes(d.status ?? '') && d.updated_at < staleThreshold)
-      .map(d => ({ id: d.id, label: d.company_name, member: d.member?.name, type: '法人' as const, updatedAt: d.updated_at })),
-    ...tocDeals.filter(d => !['受注', '失注'].includes(d.status ?? '') && d.updated_at < staleThreshold)
-      .map(d => ({ id: d.id, label: d.name, member: d.member?.name, type: '個人' as const, updatedAt: d.updated_at })),
-  ].sort((a, b) => a.updatedAt.localeCompare(b.updatedAt))
+  const staleDeals = tobDeals
+    .filter(d => !['受注', '失注'].includes(d.status ?? '') && d.updated_at < staleThreshold)
+    .map(d => ({ id: d.id, label: d.company_name, member: d.member?.name, type: '法人' as const, updatedAt: d.updated_at }))
+    .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt))
 
-  // 月次着金チャート
+  // 月次売上チャート（法人はcontract_amount、AI CAMPはpayment_amount÷10000）
   const months6 = useMemo(() => recentMonths(6), [])
   const monthlyData = useMemo(() => {
     return months6.map(m => {
       const label = m.slice(5) + '月'
-      const tob = (view !== 'toc' ? tobDeals : [])
+      const tob = tobDeals
         .filter(d => d.payment_date?.startsWith(m))
-        .reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0)
+        .reduce((s, d) => s + (d.contract_amount ?? 0), 0)
       const aicamp = Math.round(
         aicampDeals
           .filter(d => d.payment_date?.startsWith(m))
@@ -170,7 +151,7 @@ export default function DashboardPage() {
       )
       return { name: label, 法人: tob, '個人（AI CAMP）': aicamp }
     })
-  }, [tobDeals, tocDeals, aicampDeals, months6, view])
+  }, [tobDeals, aicampDeals, months6])
 
   // 担当別着金（deals + aicamp合算）
   const memberPaid = useMemo(() => {
@@ -189,7 +170,7 @@ export default function DashboardPage() {
   // サービス別着金（deals_tob + aicamp_consultations）
   const servicePaid = useMemo(() => {
     // deals_tob のサービス別（万円単位、売上優先→着金→見込みの順）
-    const tobPaid = view === 'toc' ? [] : tobDeals.filter(d =>
+    const tobPaid = tobDeals.filter(d =>
       d.payment_date && (period === 'all' || d.payment_date.startsWith(selectedMonth))
     )
     const tobByService: Record<string, number> = {}
@@ -216,16 +197,12 @@ export default function DashboardPage() {
     })).filter(r => r.金額 > 0).sort((a, b) => b.金額 - a.金額)
   }, [tobDeals, aicampDeals, view, period, selectedMonth])
 
-  // パイチャート（paidTobTotal / paidTocTotal は上で算出済み）
   const pieData = view === 'all'
     ? [
         { name: '法人', value: paidTobTotal },
         { name: '個人（AI CAMP）', value: paidAicampTotal },
-        { name: '個人(旧)', value: paidTocTotal },
       ].filter(d => d.value > 0)
-    : view === 'tob'
-      ? [{ name: '受注', value: wonDealCount }, { name: '進行中', value: activeDeals.length }]
-      : [{ name: '受注', value: wonDealCount }, { name: '進行中', value: activeDeals.length }]
+    : [{ name: '受注', value: wonDealCount }, { name: '進行中', value: activeDeals.length }]
 
   // 期日アラート
   const today = new Date().toISOString().slice(0, 10)
@@ -233,45 +210,39 @@ export default function DashboardPage() {
   const alerts = [
     ...tobDeals.filter(d => d.next_action_date && d.next_action_date >= today && d.next_action_date <= in7)
       .map(d => ({ id: d.id, label: d.company_name, action: d.next_action, date: d.next_action_date!, member: d.member?.name, type: '法人' as const })),
-    ...tocDeals.filter(d => d.next_action_date && d.next_action_date >= today && d.next_action_date <= in7)
-      .map(d => ({ id: d.id, label: d.name, action: d.next_action, date: d.next_action_date!, member: d.member?.name, type: '個人' as const })),
     ...aicampDeals.filter(d => d.reply_deadline && d.reply_deadline >= today && d.reply_deadline <= in7)
       .map(d => ({ id: d.id, label: d.name ?? d.line_name ?? '不明', action: '返事期限', date: d.reply_deadline!, member: members.find(m => m.id === d.member_id)?.name, type: 'AI CAMP' as const })),
   ].sort((a, b) => a.date.localeCompare(b.date))
 
   // ファネルデータ
   const funnelData = useMemo(() => {
-    const stages = funnelView === 'tob' ? TOB_FUNNEL_STAGES : TOC_FUNNEL_STAGES
-    const deals = funnelView === 'tob' ? tobDeals : tocDeals
-    return stages.map((stage, i) => {
-      const count = deals.filter(d => d.status === stage).length
+    return TOB_FUNNEL_STAGES.map((stage, i) => {
+      const count = tobDeals.filter(d => d.status === stage).length
       const prevCount = i > 0
-        ? deals.filter(d => d.status === stages[i - 1]).length
+        ? tobDeals.filter(d => d.status === TOB_FUNNEL_STAGES[i - 1]).length
         : null
       const convRate = prevCount != null && prevCount > 0
         ? Math.round((count / prevCount) * 100)
         : null
       return { stage, count, convRate }
-    }).filter(d => d.count > 0 || d.stage === stages[0])
-  }, [tobDeals, tocDeals, funnelView])
+    }).filter(d => d.count > 0 || d.stage === TOB_FUNNEL_STAGES[0])
+  }, [tobDeals])
 
   // 失注理由分布
   const lossReasonData = useMemo(() => {
-    const lostTob = tobDeals.filter(d => d.status === '失注' && d.loss_reason)
-    const lostToc = tocDeals.filter(d => d.status === '失注' && d.loss_reason)
-    const all = [...lostTob, ...lostToc]
-    const reasons = Array.from(new Set(all.map(d => d.loss_reason!))).filter(Boolean)
+    const lost = tobDeals.filter(d => d.status === '失注' && d.loss_reason)
+    const reasons = Array.from(new Set(lost.map(d => d.loss_reason!))).filter(Boolean)
     return reasons.map(r => ({
       name: r,
-      件数: all.filter(d => d.loss_reason === r).length,
+      件数: lost.filter(d => d.loss_reason === r).length,
     })).sort((a, b) => b.件数 - a.件数)
-  }, [tobDeals, tocDeals])
+  }, [tobDeals])
 
   if (loading) return (
     <div className="flex items-center justify-center h-64 text-slate-400 text-base">読み込み中...</div>
   )
 
-  const viewLabel = view === 'all' ? '全社合算' : view === 'tob' ? '法人案件のみ' : '個人案件のみ'
+  const viewLabel = view === 'all' ? '全社合算' : '法人案件のみ'
 
   return (
     <div className="space-y-6 pb-8">
@@ -297,12 +268,6 @@ export default function DashboardPage() {
                   className="w-full text-left px-4 py-2.5 text-sm text-navy font-medium hover:bg-[#f0f4ff] transition"
                 >
                   法人案件
-                </button>
-                <button
-                  onClick={() => { setEditingToc(null); setShowTocForm(true); setShowAddMenu(false) }}
-                  className="w-full text-left px-4 py-2.5 text-sm text-pink-600 font-medium hover:bg-pink-50 transition"
-                >
-                  個人案件
                 </button>
               </div>
             )}
@@ -335,17 +300,12 @@ export default function DashboardPage() {
             {([
               { key: 'all', label: '全社' },
               { key: 'tob', label: '法人' },
-              { key: 'toc', label: '個人' },
             ] as { key: View; label: string }[]).map(v => (
               <button
                 key={v.key}
                 onClick={() => setView(v.key)}
                 className={`px-4 py-1.5 text-sm font-bold rounded-lg transition-all ${
-                  view === v.key
-                    ? v.key === 'tob' ? 'bg-white text-navy shadow-sm'
-                      : v.key === 'toc' ? 'bg-white text-[#9a3a5a] shadow-sm'
-                      : 'bg-white text-navy shadow-sm'
-                    : 'text-[#8a96b0] hover:text-[#1a2540]'
+                  view === v.key ? 'bg-white text-navy shadow-sm' : 'text-[#8a96b0] hover:text-[#1a2540]'
                 }`}
               >
                 {v.label}
@@ -367,19 +327,14 @@ export default function DashboardPage() {
           <div className="flex flex-wrap gap-2">
             {staleDeals.slice(0, 8).map(d => {
               const days = Math.floor((Date.now() - new Date(d.updatedAt).getTime()) / 86400000)
-              const fullDeal = d.type === '法人'
-                ? tobDeals.find(t => t.id === d.id)
-                : tocDeals.find(t => t.id === d.id)
+              const fullDeal = tobDeals.find(t => t.id === d.id)
               return (
                 <button
                   key={d.id}
-                  onClick={() => d.type === '法人'
-                    ? (setEditingTob(fullDeal as DealToB ?? null), setShowTobForm(true))
-                    : (setEditingToc(fullDeal as DealToC ?? null), setShowTocForm(true))
-                  }
+                  onClick={() => { setEditingTob(fullDeal ?? null); setShowTobForm(true) }}
                   className="flex items-center gap-1.5 bg-white border border-amber-200 rounded-lg px-3 py-1.5 text-xs hover:border-amber-400 hover:shadow-sm transition"
                 >
-                  <span className={`font-bold ${d.type === '法人' ? 'text-navy' : 'text-[#9a3a5a]'}`}>{d.type}</span>
+                  <span className="font-bold text-navy">{d.type}</span>
                   <span className="text-gray-700">{d.label}</span>
                   <span className="text-gray-400">{d.member}</span>
                   <span className="text-amber-600 font-bold">{days}日放置</span>
@@ -435,11 +390,11 @@ export default function DashboardPage() {
           />
         ) : (
           <StatCard
-            title={view === 'toc' ? '個人 進行中' : '法人 進行中'}
-            value={`${view === 'toc' ? activeToc.filter(d => !['受注','失注'].includes(d.status??'')).length : activeTob.filter(d => !['受注','失注'].includes(d.status??'')).length}件`}
+            title="法人 進行中"
+            value={`${tobDeals.filter(d => !['受注','失注'].includes(d.status??'')).length}件`}
             sub="受注・失注除く"
-            icon={view === 'toc' ? User : Briefcase}
-            accentColor={view === 'toc' ? '#9a3a5a' : '#1a3a6e'}
+            icon={Briefcase}
+            accentColor="#1a3a6e"
           />
         )}
         <StatCard
@@ -500,7 +455,7 @@ export default function DashboardPage() {
       {/* Charts Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="col-span-1 lg:col-span-8 bg-white p-6 rounded-xl border border-[#e0e6f0] shadow-sm">
-          <h3 className="text-xs font-bold text-[#8a96b0] uppercase tracking-widest mb-4">月次 着金額推移（万円）</h3>
+          <h3 className="text-xs font-bold text-[#8a96b0] uppercase tracking-widest mb-4">月次 売上推移（万円）</h3>
           <ResponsiveContainer width="100%" height={280}>
             <AreaChart data={monthlyData}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef0f8" />
@@ -508,8 +463,8 @@ export default function DashboardPage() {
               <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 13, fill: '#8a96b0', fontWeight: 700 }} tickFormatter={v => `${v}万`} />
               <Tooltip formatter={(v: number) => `${v.toLocaleString()}万円`} />
               <Legend verticalAlign="top" align="right" height={36} />
-              <Area type="monotone" name="法人" dataKey="法人" stackId="1" stroke="#1a3a6e" fill="#1a3a6e" fillOpacity={0.5} />
               <Area type="monotone" name="個人（AI CAMP）" dataKey="個人（AI CAMP）" stackId="1" stroke="#b8902a" fill="#b8902a" fillOpacity={0.5} />
+              <Area type="monotone" name="法人" dataKey="法人" stackId="1" stroke="#1a3a6e" fill="#1a3a6e" fillOpacity={0.5} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -591,7 +546,6 @@ export default function DashboardPage() {
                         <button
                           onClick={() => {
                             if (a.type === '法人') { setEditingTob(tobDeals.find(d => d.id === a.id) ?? null); setShowTobForm(true) }
-                            else { setEditingToc(tocDeals.find(d => d.id === a.id) ?? null); setShowTocForm(true) }
                           }}
                           className="text-xs text-navy opacity-60 hover:opacity-100 opacity-0 group-hover:opacity-60 transition font-medium"
                         >
@@ -613,21 +567,6 @@ export default function DashboardPage() {
         <div className="bg-white p-6 rounded-xl border border-[#e0e6f0] shadow-sm">
           <div className="flex items-center justify-between mb-5">
             <h3 className="text-xs font-bold text-[#8a96b0] uppercase tracking-widest">パイプライン ファネル</h3>
-            <div className="flex gap-1 bg-[#f0f2fa] p-0.5 rounded-lg border border-[#e0e6f0]">
-              {(['tob', 'toc'] as FunnelView[]).map(v => (
-                <button
-                  key={v}
-                  onClick={() => setFunnelView(v)}
-                  className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${
-                    funnelView === v
-                      ? v === 'tob' ? 'bg-white text-navy shadow-sm' : 'bg-white text-[#9a3a5a] shadow-sm'
-                      : 'text-[#8a96b0] hover:text-[#1a2540]'
-                  }`}
-                >
-                  {v === 'tob' ? '法人' : '個人'}
-                </button>
-              ))}
-            </div>
           </div>
           <div className="space-y-2">
             {funnelData.map((d, i) => {
@@ -646,7 +585,7 @@ export default function DashboardPage() {
                     <div className="flex-1 bg-[#f8f9fd] rounded-full h-7 overflow-hidden">
                       <div
                         className={`h-full rounded-full flex items-center justify-end pr-2 transition-all`}
-                        style={{ background: funnelView === 'tob' ? '#1a3a6e' : '#9a3a5a', width: `${width}%` }}
+                        style={{ background: '#1a3a6e', width: `${width}%` }}
                       >
                         <span className="text-xs font-bold text-white">{d.count}</span>
                       </div>
@@ -660,8 +599,8 @@ export default function DashboardPage() {
             )}
           </div>
           <div className="mt-4 pt-4 border-t border-[#e0e6f0] flex gap-4 text-xs text-[#8a96b0]">
-            <span>受注: <span className="font-bold text-green-600">{(funnelView === 'tob' ? tobDeals : tocDeals).filter(d => d.status === '受注').length}件</span></span>
-            <span>失注: <span className="font-bold text-red-500">{(funnelView === 'tob' ? tobDeals : tocDeals).filter(d => d.status === '失注').length}件</span></span>
+            <span>受注: <span className="font-bold text-green-600">{tobDeals.filter(d => d.status === '受注').length}件</span></span>
+            <span>失注: <span className="font-bold text-red-500">{tobDeals.filter(d => d.status === '失注').length}件</span></span>
           </div>
         </div>
 
@@ -697,14 +636,6 @@ export default function DashboardPage() {
           initial={editingTob}
           onClose={() => setShowTobForm(false)}
           onSaved={() => { setShowTobForm(false); fetchDeals() }}
-        />
-      )}
-      {showTocForm && (
-        <DealToCForm
-          members={members}
-          initial={editingToc}
-          onClose={() => setShowTocForm(false)}
-          onSaved={() => { setShowTocForm(false); fetchDeals() }}
         />
       )}
     </div>

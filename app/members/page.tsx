@@ -1,16 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase, Member, DealToB, DealToC, MemberMonthlyGoal, AICampConsultation } from '@/lib/supabase'
+import { supabase, Member, DealToB, MemberMonthlyGoal, AICampConsultation } from '@/lib/supabase'
 import Link from 'next/link'
 import MemberWhiteboard from '@/components/MemberWhiteboard'
 
 type MemberStat = {
   member: Member
   tobActive: number
-  tocActive: number
   tobPipeline: number
-  tocPipeline: number
   paidAmount: number
   wonCount: number
   alertCount: number
@@ -21,29 +19,25 @@ export default function MembersPage() {
   const [members, setMembers] = useState<Member[]>([])
   const [goals, setGoals] = useState<MemberMonthlyGoal[]>([])
   const [tobDeals, setTobDeals] = useState<DealToB[]>([])
-  const [tocDeals, setTocDeals] = useState<DealToC[]>([])
   const [aicampDeals, setAicampDeals] = useState<AICampConsultation[]>([])
   const [loading, setLoading] = useState(true)
   const currentMonth = new Date().toISOString().slice(0, 7) // YYYY-MM
 
   async function fetchAll() {
-    const [membersRes, tobRes, tocRes, goalsRes, aicampRes] = await Promise.all([
+    const [membersRes, tobRes, goalsRes, aicampRes] = await Promise.all([
       supabase.from('members').select('*').order('sort_order'),
       supabase.from('deals_tob').select('*'),
-      supabase.from('deals_toc').select('*'),
       supabase.from('member_monthly_goals').select('*').eq('month', currentMonth),
       supabase.from('aicamp_consultations').select('*'),
     ])
-    
+
     const mData: Member[] = membersRes.data ?? []
     const tobData: DealToB[] = tobRes.data ?? []
-    const tocData: DealToC[] = tocRes.data ?? []
     const gData: MemberMonthlyGoal[] = goalsRes.data ?? []
     const aData: AICampConsultation[] = aicampRes.data ?? []
 
     setMembers(mData)
     setTobDeals(tobData)
-    setTocDeals(tocData)
     setGoals(gData)
     setAicampDeals(aData)
 
@@ -52,36 +46,25 @@ export default function MembersPage() {
 
     const result: MemberStat[] = mData.map(m => {
       const tob = tobData.filter(d => d.member_id === m.id)
-      const toc = tocData.filter(d => d.member_id === m.id)
       const aicamp = aData.filter(d => d.member_id === m.id)
 
       const tobActive = tob.filter(d => !['受注', '失注'].includes(d.status ?? '')).length
-      const tocActive = toc.filter(d => !['受注', '失注'].includes(d.status ?? '')).length
 
       const tobPipeline = tob
         .filter(d => !['受注', '失注'].includes(d.status ?? ''))
         .reduce((s, d) => s + (d.expected_amount ?? 0), 0)
-      const tocPipeline = toc
-        .filter(d => !['受注', '失注'].includes(d.status ?? ''))
-        .reduce((s, d) => s + (d.expected_amount ?? 0), 0)
 
-        // 着金金額 (累計) - toB + toC + aicamp
-        const paidAmount = [
-          ...tob.filter(d => d.payment_date),
-          ...toc.filter(d => d.payment_date),
-        ].reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0) +
+      const paidAmount = tob.filter(d => d.payment_date)
+        .reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0) +
         aicamp.filter(d => d.status === '成約' && d.payment_date)
           .reduce((s, d) => s + Math.round((d.payment_amount ?? 0) / 10000), 0)
 
-        const wonCount = tob.filter(d => d.status === '受注').length + 
-                         aicamp.filter(d => d.status === '成約').length
+      const wonCount = tob.filter(d => d.status === '受注').length +
+                       aicamp.filter(d => d.status === '成約').length
 
-      const alertCount = [
-        ...tob.filter(d => d.next_action_date && d.next_action_date >= today && d.next_action_date <= in7),
-        ...toc.filter(d => d.next_action_date && d.next_action_date >= today && d.next_action_date <= in7),
-      ].length
+      const alertCount = tob.filter(d => d.next_action_date && d.next_action_date >= today && d.next_action_date <= in7).length
 
-      return { member: m, tobActive, tocActive, tobPipeline, tocPipeline, paidAmount, wonCount, alertCount }
+      return { member: m, tobActive, tobPipeline, paidAmount, wonCount, alertCount }
     })
 
     setStats(result)
@@ -104,11 +87,10 @@ export default function MembersPage() {
       </div>
 
       {/* ホワイトボード：4月度目標進捗 */}
-      <MemberWhiteboard 
+      <MemberWhiteboard
         members={members}
         goals={goals}
         tobDeals={tobDeals}
-        tocDeals={tocDeals}
         aicampDeals={aicampDeals}
         month={currentMonth}
         onSaved={fetchAll}
@@ -125,7 +107,7 @@ export default function MembersPage() {
                 <div>
                   <p className="text-base font-bold text-gray-900">{s.member.name}</p>
                   <p className="text-xs text-gray-400">
-                    法人 {s.tobActive}件 / 個人 {s.tocActive}件
+                    法人 {s.tobActive}件
                   </p>
                 </div>
                 {s.alertCount > 0 && (
@@ -139,7 +121,7 @@ export default function MembersPage() {
                 <div className="bg-gray-50 rounded p-3">
                   <p className="text-xs text-gray-400 font-bold mb-1">期待売上</p>
                   <p className="text-lg font-black font-mono text-gray-800">
-                    {(s.tobPipeline + s.tocPipeline).toLocaleString()}
+                    {s.tobPipeline.toLocaleString()}
                     <span className="text-sm font-bold text-gray-400 ml-0.5">万円</span>
                   </p>
                 </div>

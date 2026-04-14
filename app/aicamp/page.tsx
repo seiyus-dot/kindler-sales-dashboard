@@ -233,31 +233,6 @@ export default function AICampPage() {
     fetchAll()
   }
 
-  function startInlineEdit(c: AICampConsultation) {
-    setInlineEditId(c.id)
-    setInlineDraft({
-      consultation_date: c.consultation_date?.slice(0, 16) ?? '',
-      member_id: c.member_id ?? '',
-      service_type: c.service_type ?? 'AI CAMP',
-      line_name: c.line_name ?? '',
-      name: c.name ?? '',
-      age: c.age?.toString() ?? '',
-      source: c.source ?? '',
-      registration_source: c.registration_source ?? '',
-      status: c.status ?? '予定',
-      payment_amount: c.payment_amount?.toString() ?? '',
-      payment_date: c.payment_date ?? '',
-      payment_method: c.payment_method ?? '',
-      reply_deadline: c.reply_deadline ?? '',
-      occupation: c.occupation ?? '',
-      monthly_income: c.monthly_income ?? '',
-      ai_experience: c.ai_experience ?? '',
-      customer_attribute: c.customer_attribute ?? '',
-      motivation: c.motivation ?? '',
-      reason: c.reason ?? '',
-      minutes_url: c.minutes_url ?? '',
-    })
-  }
 
   async function saveInlineEdit(id: string) {
     setInlineSaving(true)
@@ -1277,8 +1252,8 @@ export default function AICampPage() {
               ) : filtered.map(c => {
                 const isEditing = inlineEditId === c.id
                 return (
-                  <tr key={c.id} className={`border-b border-gray-50 ${isEditing ? 'bg-blue-50' : selectedIds.has(c.id) ? 'bg-red-50' : 'hover:bg-gray-50 cursor-pointer'}`}
-                    onClick={!isEditing ? () => startInlineEdit(c) : undefined}
+                  <tr key={c.id} className={`border-b border-gray-50 ${selectedIds.has(c.id) ? 'bg-red-50' : 'hover:bg-gray-50 cursor-pointer'}`}
+                    onClick={() => { setEditTarget(c); setShowForm(true) }}
                   >
                     <td className="px-4 py-3 w-8" onClick={e => e.stopPropagation()}>
                       <input
