@@ -395,44 +395,53 @@ export default function DashboardPage() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-5">
-        {/* 売上 / 着金済み売上 — クリックで明細表示 */}
-        <button
-          onClick={() => setShowPaidDetail(v => !v)}
-          className="bg-white p-5 rounded-xl border border-[#e0e6f0] shadow-sm hover:shadow-md transition-all text-left" style={{ borderTop: '3px solid #2a7a4a' }}
-        >
+        {/* 売上カード */}
+        <div className="bg-white p-5 rounded-xl border border-[#e0e6f0] shadow-sm text-left" style={{ borderTop: '3px solid #2a7a4a' }}>
           <div className="flex justify-between items-start mb-3">
             <div className="p-2 rounded-lg" style={{ background: '#2a7a4a15', color: '#2a7a4a' }}><CreditCard size={18} /></div>
-            <span className="text-xs font-bold text-[#2a7a4a]">+実績 {showPaidDetail ? '▲' : '▼'}</span>
           </div>
-          <div className="flex items-end gap-3 mb-1">
-            <div>
-              <p className="text-[#8a96b0] text-xs font-bold uppercase tracking-widest">売上</p>
-              <h3 className="text-2xl font-bold text-[#1a2540] font-mono">{contractTotal.toLocaleString()}万円</h3>
-            </div>
-            <div className="pb-0.5">
-              <p className="text-[#8a96b0] text-xs font-bold">着金済み</p>
-              <p className="text-base font-bold text-[#8a96b0] font-mono">{paidTotal.toLocaleString()}万円</p>
-            </div>
-          </div>
+          <p className="text-[#8a96b0] text-xs font-bold uppercase tracking-widest mb-1">売上</p>
+          <h3 className="text-2xl font-bold text-[#1a2540] font-mono">{contractTotal.toLocaleString()}万円</h3>
           <div className="mt-2 space-y-0.5">
-            <p className="text-xs text-[#aab0c8]">法人 <span className="font-bold text-[#1a2540]">{tobContractTotal.toLocaleString()}万</span>／着 {paidTobTotal.toLocaleString()}万（{tobPaid.length}件）</p>
+            <p className="text-xs text-[#aab0c8]">法人 <span className="font-bold text-[#1a2540]">{tobContractTotal.toLocaleString()}万</span>（{tobPaid.length}件）</p>
+            <p className="text-xs text-[#aab0c8]">個人（AI CAMP） <span className="font-bold text-[#1a2540]">{paidAicampTotal.toLocaleString()}万</span>（{paidAicamp.length}件）</p>
+          </div>
+        </div>
+
+        {/* 着金済みカード — クリックで明細表示 */}
+        <button
+          onClick={() => setShowPaidDetail(v => !v)}
+          className="bg-white p-5 rounded-xl border border-[#e0e6f0] shadow-sm hover:shadow-md transition-all text-left" style={{ borderTop: '3px solid #3a6e4a' }}
+        >
+          <div className="flex justify-between items-start mb-3">
+            <div className="p-2 rounded-lg" style={{ background: '#3a6e4a15', color: '#3a6e4a' }}><CreditCard size={18} /></div>
+            <span className="text-xs font-bold text-[#3a6e4a]">+明細 {showPaidDetail ? '▲' : '▼'}</span>
+          </div>
+          <p className="text-[#8a96b0] text-xs font-bold uppercase tracking-widest mb-1">着金済み売上</p>
+          <h3 className="text-2xl font-bold text-[#1a2540] font-mono">{paidTotal.toLocaleString()}万円</h3>
+          <div className="mt-2 space-y-0.5">
+            <p className="text-xs text-[#aab0c8]">法人 <span className="font-bold text-[#1a2540]">{paidTobTotal.toLocaleString()}万</span>（{tobPaid.length}件）</p>
             <p className="text-xs text-[#aab0c8]">個人（AI CAMP） <span className="font-bold text-[#1a2540]">{paidAicampTotal.toLocaleString()}万</span>（{paidAicamp.length}件）</p>
           </div>
         </button>
-        <StatCard
-          title="加重パイプライン"
-          value={`${weightedPipeline.toLocaleString()}万円`}
-          sub={`原価合計 ${rawPipeline.toLocaleString()}万円 / 進行中 ${activeDeals.length}件`}
-          icon={TrendingUp}
-          accentColor="#1a3a6e"
-        />
-        <StatCard
-          title={view === 'toc' ? '個人 進行中' : '法人 進行中'}
-          value={`${view === 'toc' ? activeToc.filter(d => !['受注','失注'].includes(d.status??'')).length : activeTob.filter(d => !['受注','失注'].includes(d.status??'')).length}件`}
-          sub="受注・失注除く"
-          icon={view === 'toc' ? User : Briefcase}
-          accentColor={view === 'toc' ? '#9a3a5a' : '#1a3a6e'}
-        />
+
+        {view === 'all' ? (
+          <StatCard
+            title="加重パイプライン"
+            value={`${weightedPipeline.toLocaleString()}万円`}
+            sub={`原価合計 ${rawPipeline.toLocaleString()}万円 / 進行中 ${activeDeals.length}件`}
+            icon={TrendingUp}
+            accentColor="#1a3a6e"
+          />
+        ) : (
+          <StatCard
+            title={view === 'toc' ? '個人 進行中' : '法人 進行中'}
+            value={`${view === 'toc' ? activeToc.filter(d => !['受注','失注'].includes(d.status??'')).length : activeTob.filter(d => !['受注','失注'].includes(d.status??'')).length}件`}
+            sub="受注・失注除く"
+            icon={view === 'toc' ? User : Briefcase}
+            accentColor={view === 'toc' ? '#9a3a5a' : '#1a3a6e'}
+          />
+        )}
         <StatCard
           title="受注率"
           value={`${winRate}%`}
