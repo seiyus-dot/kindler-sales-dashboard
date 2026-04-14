@@ -24,10 +24,14 @@ export async function createDealFolder(companyName: string): Promise<string> {
   // 作成したフォルダをチーム全員に共有
   const domain = process.env.GOOGLE_DRIVE_SHARE_DOMAIN
   if (domain) {
-    await drive.permissions.create({
-      fileId: folderId,
-      requestBody: { role: 'writer', type: 'domain', domain },
-    })
+    try {
+      await drive.permissions.create({
+        fileId: folderId,
+        requestBody: { role: 'writer', type: 'domain', domain },
+      })
+    } catch (e) {
+      console.error('権限付与に失敗しました（フォルダは作成済み）:', e)
+    }
   }
 
   return folderId

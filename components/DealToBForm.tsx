@@ -119,7 +119,8 @@ export default function DealToBForm({ members, initial, onClose, onSaved, defaul
   async function handleFolderCreated(newFolderId: string) {
     setFolderId(newFolderId)
     if (initial) {
-      await supabase.from('deals_tob').update({ drive_folder_id: newFolderId }).eq('id', initial.id)
+      const { error } = await supabase.from('deals_tob').update({ drive_folder_id: newFolderId }).eq('id', initial.id)
+      if (error) alert('フォルダIDの保存に失敗しました: ' + error.message)
     }
   }
 
