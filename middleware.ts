@@ -3,6 +3,11 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
+  // APIルートは全てスキップ
+  if (request.nextUrl.pathname.startsWith('/api/')) {
+    return NextResponse.next({ request })
+  }
+
   let response = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -30,10 +35,6 @@ export async function middleware(request: NextRequest) {
   const isLoginPage = pathname === '/login'
   const isAuthCallback = pathname.startsWith('/auth/callback')
   const isPreview = pathname.startsWith('/preview')
-  const isApi = pathname.startsWith('/api/')
-
-  // APIルートはミドルウェアのチェックをスキップ
-  if (isApi) return response
 
   // 未ログイン → ログインページへ
   if (!user && !isLoginPage && !isAuthCallback && !isPreview) {
