@@ -22,7 +22,6 @@ export default function AICampConsultationForm({ members, initial, onClose, onSa
     source: initial?.source ?? '',
     registration_source: initial?.registration_source ?? '',
     status: initial?.status ?? '予定',
-    contract_amount: initial?.contract_amount?.toString() ?? '',
     payment_amount: initial?.payment_amount?.toString() ?? '',
     payment_date: initial?.payment_date ?? '',
     payment_method: initial?.payment_method ?? '',
@@ -79,7 +78,6 @@ export default function AICampConsultationForm({ members, initial, onClose, onSa
       source: form.source || null,
       registration_source: form.registration_source || null,
       status: form.status,
-      contract_amount: form.contract_amount ? parseInt(form.contract_amount) : null,
       payment_amount: form.payment_amount ? parseInt(form.payment_amount) : null,
       payment_date: form.payment_date || null,
       payment_method: form.payment_method || null,
@@ -178,9 +176,6 @@ export default function AICampConsultationForm({ members, initial, onClose, onSa
           {/* 成約情報 */}
           {isContracted && (
             <>
-              <Field label="契約金額（円）">
-                <input type="number" value={form.contract_amount} onChange={e => set('contract_amount', e.target.value)} className="input font-mono" placeholder="200000" />
-              </Field>
               <Field label="着金額（円）">
                 <input type="number" value={form.payment_amount} onChange={e => set('payment_amount', e.target.value)} className="input font-mono" placeholder="200000" />
               </Field>

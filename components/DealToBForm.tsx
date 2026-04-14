@@ -53,6 +53,7 @@ export default function DealToBForm({ members, initial, onClose, onSaved, defaul
     notes: initial?.notes ?? '',
     payment_date: initial?.payment_date ?? '',
     actual_amount: initial?.actual_amount?.toString() ?? '',
+    contract_amount: initial?.contract_amount?.toString() ?? '',
     loss_reason: initial?.loss_reason ?? '',
     loss_detail: initial?.loss_detail ?? '',
     sub_member_id: initial?.sub_member_id ?? '',
@@ -97,6 +98,7 @@ export default function DealToBForm({ members, initial, onClose, onSaved, defaul
       notes: form.notes || null,
       payment_date: form.payment_date || null,
       actual_amount: form.actual_amount ? parseInt(form.actual_amount) : null,
+      contract_amount: form.contract_amount ? parseInt(form.contract_amount) : null,
       loss_reason: form.loss_reason || null,
       loss_detail: form.loss_detail || null,
       sub_member_id: form.sub_member_id || null,
@@ -318,13 +320,16 @@ export default function DealToBForm({ members, initial, onClose, onSaved, defaul
               </div>
 
               <div className="col-span-2 border-t border-green-100 pt-4 mt-1">
-                <p className="text-sm font-bold text-green-600 mb-3">着金情報</p>
+                <p className="text-sm font-bold text-green-600 mb-3">売上・着金情報</p>
                 <div className="grid grid-cols-2 gap-4">
-                  <Field label="着金日">
-                    <input type="date" value={form.payment_date} onChange={e => set('payment_date', e.target.value)} className="input" />
+                  <Field label="売上（万円）">
+                    <input type="number" value={form.contract_amount} onChange={e => set('contract_amount', e.target.value)} className="input font-mono" placeholder="契約上の売上金額" />
                   </Field>
                   <Field label="着金額（万円）">
                     <input type="number" value={form.actual_amount} onChange={e => set('actual_amount', e.target.value)} className="input font-mono" placeholder="実際の入金額" />
+                  </Field>
+                  <Field label="着金日">
+                    <input type="date" value={form.payment_date} onChange={e => set('payment_date', e.target.value)} className="input" />
                   </Field>
                 </div>
               </div>

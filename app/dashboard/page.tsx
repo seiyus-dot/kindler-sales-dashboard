@@ -186,17 +186,17 @@ export default function DashboardPage() {
 
   // サービス別着金（deals_tob + aicamp_consultations）
   const servicePaid = useMemo(() => {
-    // deals_tob のサービス別（万円単位）
+    // deals_tob のサービス別（万円単位、売上優先→着金→見込みの順）
     const tobPaid = view === 'toc' ? [] : tobDeals.filter(d =>
       d.payment_date && (period === 'all' || d.payment_date.startsWith(selectedMonth))
     )
     const tobByService: Record<string, number> = {}
     for (const d of tobPaid) {
       const key = d.service ?? 'その他'
-      tobByService[key] = (tobByService[key] ?? 0) + (d.actual_amount ?? d.expected_amount ?? 0)
+      tobByService[key] = (tobByService[key] ?? 0) + (d.contract_amount ?? d.actual_amount ?? d.expected_amount ?? 0)
     }
 
-    // aicamp_consultations のサービス別（円→万円に変換、契約金額優先）
+    // aicamp_consultations のサービス別（円→万円に変換）
     const aicampPaid = aicampDeals.filter(d =>
       (d.payment_date && (period === 'all' || d.payment_date.startsWith(selectedMonth))) ||
       (d.consultation_date && (period === 'all' || d.consultation_date.startsWith(selectedMonth)))
@@ -204,8 +204,7 @@ export default function DashboardPage() {
     const aicampByService: Record<string, number> = {}
     for (const d of aicampPaid) {
       const key = d.service_type ?? '個人（AI CAMP）'
-      const amount = d.contract_amount ?? d.payment_amount ?? 0
-      aicampByService[key] = (aicampByService[key] ?? 0) + Math.round(amount / 10000)
+      aicampByService[key] = (aicampByService[key] ?? 0) + Math.round((d.payment_amount ?? 0) / 10000)
     }
 
     const allKeys = new Set([...Object.keys(tobByService), ...Object.keys(aicampByService)])

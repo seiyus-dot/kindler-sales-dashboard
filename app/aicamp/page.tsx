@@ -16,7 +16,6 @@ const AICAMP_COL_MIN_WIDTH: Record<string, string> = {
   source:               'min-w-[180px]',
   registration_source:  'min-w-[180px]',
   status:               'min-w-[100px]',
-  contract_amount:      'min-w-[90px]',
   payment_amount:       'min-w-[90px]',
   payment_date:         'min-w-[100px]',
   payment_method:       'min-w-[100px]',
@@ -40,9 +39,8 @@ const AICAMP_COLUMNS = [
   { key: 'age',               label: '年齢',     defaultVisible: false },
   { key: 'source',            label: '流入経路', defaultVisible: true },
   { key: 'registration_source', label: '登録経路', defaultVisible: true },
-  { key: 'status',            label: 'ステータス',  defaultVisible: true },
-  { key: 'contract_amount',   label: '契約金額',   defaultVisible: true },
-  { key: 'payment_amount',    label: '着金額',     defaultVisible: true },
+  { key: 'status',            label: 'ステータス', defaultVisible: true },
+  { key: 'payment_amount',    label: '着金額',    defaultVisible: true },
   { key: 'payment_date',      label: '着金日',   defaultVisible: false },
   { key: 'payment_method',    label: '支払方法', defaultVisible: false },
   { key: 'reply_deadline',    label: '返事期限', defaultVisible: false },
@@ -247,7 +245,6 @@ export default function AICampPage() {
       source: c.source ?? '',
       registration_source: c.registration_source ?? '',
       status: c.status ?? '予定',
-      contract_amount: c.contract_amount?.toString() ?? '',
       payment_amount: c.payment_amount?.toString() ?? '',
       payment_date: c.payment_date ?? '',
       payment_method: c.payment_method ?? '',
@@ -274,7 +271,6 @@ export default function AICampPage() {
       source: inlineDraft.source || null,
       registration_source: inlineDraft.registration_source || null,
       status: inlineDraft.status,
-      contract_amount: inlineDraft.contract_amount ? parseInt(inlineDraft.contract_amount) : null,
       payment_amount: inlineDraft.payment_amount ? parseInt(inlineDraft.payment_amount) : null,
       payment_date: inlineDraft.payment_date || null,
       payment_method: inlineDraft.payment_method || null,
@@ -356,7 +352,6 @@ export default function AICampPage() {
   const cancelRate = totalScheduled > 0 ? Math.round(cancelled.length / totalScheduled * 100) : 0
   const contractRate = conducted.length > 0 ? Math.round(contracted.length / conducted.length * 100) : 0
   const totalRevenue = contracted.reduce((s, c) => s + (c.payment_amount ?? 0), 0)
-  const totalContractRevenue = contracted.reduce((s, c) => s + (c.contract_amount ?? 0), 0)
   const metaRevenue = metaContracted.reduce((s, c) => s + (c.payment_amount ?? 0), 0)
 
   // 広告タブ用：選択サービスでフィルタリング
@@ -456,25 +451,25 @@ export default function AICampPage() {
       {/* 売上サマリー - スマホ横スクロール */}
       <div className="flex lg:grid lg:grid-cols-3 gap-3 lg:gap-4 overflow-x-auto scrollbar-hide -mx-4 px-4 lg:mx-0 lg:px-0 lg:overflow-x-visible snap-x snap-mandatory lg:snap-none pb-1">
         <div className="bg-white border border-gray-200 rounded p-4 lg:p-5 min-w-[180px] flex-shrink-0 lg:flex-shrink lg:min-w-0 snap-start">
-          <p className="text-xs font-bold text-gray-400 mb-1">売上</p>
+          <p className="text-xs font-bold text-gray-400 mb-1">全体売上</p>
           <p className="text-xl lg:text-3xl font-black font-mono text-gray-900 break-all">
-            ¥{totalContractRevenue.toLocaleString()}
-          </p>
-          <p className="text-xs text-gray-400 mt-1">成約 {contracted.length}件の契約金額合計</p>
-        </div>
-        <div className="bg-white border border-gray-200 rounded p-4 lg:p-5 min-w-[180px] flex-shrink-0 lg:flex-shrink lg:min-w-0 snap-start">
-          <p className="text-xs font-bold text-gray-400 mb-1">着金</p>
-          <p className="text-xl lg:text-3xl font-black font-mono text-blue-600 break-all">
             ¥{totalRevenue.toLocaleString()}
           </p>
-          <p className="text-xs text-gray-400 mt-1">入金確認済みの金額</p>
+          <p className="text-xs text-gray-400 mt-1">成約 {contracted.length}件</p>
         </div>
         <div className="bg-white border border-gray-200 rounded p-4 lg:p-5 min-w-[180px] flex-shrink-0 lg:flex-shrink lg:min-w-0 snap-start">
-          <p className="text-xs font-bold text-gray-400 mb-1">広告リスト着金</p>
-          <p className="text-xl lg:text-3xl font-black font-mono text-gray-600 break-all">
+          <p className="text-xs font-bold text-gray-400 mb-1">広告リスト売上</p>
+          <p className="text-xl lg:text-3xl font-black font-mono text-blue-600 break-all">
             ¥{metaRevenue.toLocaleString()}
           </p>
           <p className="text-xs text-gray-400 mt-1">Meta広告経由 {metaContracted.length}件</p>
+        </div>
+        <div className="bg-white border border-gray-200 rounded p-4 lg:p-5 min-w-[180px] flex-shrink-0 lg:flex-shrink lg:min-w-0 snap-start">
+          <p className="text-xs font-bold text-gray-400 mb-1">その他売上</p>
+          <p className="text-xl lg:text-3xl font-black font-mono text-gray-600 break-all">
+            ¥{nonMetaRevenue.toLocaleString()}
+          </p>
+          <p className="text-xs text-gray-400 mt-1">広告以外 {contracted.length - metaContracted.length}件</p>
         </div>
       </div>
 
@@ -1371,14 +1366,6 @@ export default function AICampPage() {
                             {c.status ?? '予定'}
                           </span>
                         )}
-                      </td>
-                    )}
-                    {visibleCols.has('contract_amount') && (
-                      <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
-                        {isEditing ? (
-                          <input type="number" value={inlineDraft.contract_amount} onChange={e => setDraft('contract_amount', e.target.value)}
-                            className="border border-blue-300 rounded px-2 py-1 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-blue-400 w-28" placeholder="円" />
-                        ) : <span className="font-mono text-gray-700">{c.contract_amount ? `¥${c.contract_amount.toLocaleString()}` : '-'}</span>}
                       </td>
                     )}
                     {visibleCols.has('payment_amount') && (

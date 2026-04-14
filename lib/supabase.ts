@@ -47,6 +47,7 @@ export type DealToB = {
   notes?: string
   payment_date?: string
   actual_amount?: number
+  contract_amount?: number
   loss_reason?: string
   loss_detail?: string
   sub_member_id?: string
@@ -144,7 +145,6 @@ export type AICampConsultation = {
   source?: string
   registration_source?: string
   status?: string
-  contract_amount?: number
   payment_amount?: number
   payment_date?: string
   payment_method?: string
