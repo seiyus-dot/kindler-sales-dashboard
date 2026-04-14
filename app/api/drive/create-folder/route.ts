@@ -4,6 +4,10 @@ import { createDealFolder } from '@/lib/google-drive'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+export async function GET() {
+  return NextResponse.json({ ok: true })
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { companyName } = await req.json()
