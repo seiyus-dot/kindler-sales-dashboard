@@ -196,7 +196,7 @@ export default function DashboardPage() {
       tobByService[key] = (tobByService[key] ?? 0) + (d.actual_amount ?? d.expected_amount ?? 0)
     }
 
-    // aicamp_consultations のサービス別（円→万円に変換）
+    // aicamp_consultations のサービス別（円→万円に変換、契約金額優先）
     const aicampPaid = aicampDeals.filter(d =>
       (d.payment_date && (period === 'all' || d.payment_date.startsWith(selectedMonth))) ||
       (d.consultation_date && (period === 'all' || d.consultation_date.startsWith(selectedMonth)))
@@ -204,7 +204,8 @@ export default function DashboardPage() {
     const aicampByService: Record<string, number> = {}
     for (const d of aicampPaid) {
       const key = d.service_type ?? '個人（AI CAMP）'
-      aicampByService[key] = (aicampByService[key] ?? 0) + Math.round((d.payment_amount ?? 0) / 10000)
+      const amount = d.contract_amount ?? d.payment_amount ?? 0
+      aicampByService[key] = (aicampByService[key] ?? 0) + Math.round(amount / 10000)
     }
 
     const allKeys = new Set([...Object.keys(tobByService), ...Object.keys(aicampByService)])
@@ -517,7 +518,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
         <div className="bg-white p-6 rounded-xl border border-[#e0e6f0] shadow-sm">
           <h3 className="text-xs font-bold text-[#8a96b0] uppercase tracking-widest mb-4">
-            {view === 'all' ? 'サービス別 着金額（万円）' : '担当者別 着金額（万円）'}
+            {view === 'all' ? 'サービス別 売上（万円）' : '担当者別 着金額（万円）'}
           </h3>
           {(view === 'all' ? servicePaid : memberPaid).length === 0 ? (
             <p className="text-slate-400 text-sm text-center py-12">着金データがありません</p>
