@@ -44,6 +44,8 @@ export async function listFolderFiles(folderId: string) {
     q: `'${folderId}' in parents and trashed = false`,
     fields: 'files(id, name, mimeType, modifiedTime, webViewLink, iconLink, size)',
     orderBy: 'modifiedTime desc',
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
   })
   return res.data.files ?? []
 }
