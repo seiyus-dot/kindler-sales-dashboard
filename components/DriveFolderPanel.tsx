@@ -68,9 +68,7 @@ export default function DriveFolderPanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ companyName }),
       })
-      const text = await res.text()
-      alert(`DEBUG: status=${res.status} body=${text}`)
-      const json = JSON.parse(text)
+      const json = await res.json()
       if (json.folderId) {
         onFolderCreated(json.folderId)
       } else {
