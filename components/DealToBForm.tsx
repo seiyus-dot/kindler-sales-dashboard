@@ -120,7 +120,11 @@ export default function DealToBForm({ members, initial, onClose, onSaved, defaul
     setFolderId(newFolderId)
     if (initial) {
       const { error } = await supabase.from('deals_tob').update({ drive_folder_id: newFolderId }).eq('id', initial.id)
-      if (error) alert('フォルダIDの保存に失敗しました: ' + error.message)
+      if (error) {
+        alert('フォルダIDの保存に失敗しました: ' + error.message)
+      } else {
+        onSaved()
+      }
     }
   }
 

@@ -18,6 +18,7 @@ export async function createDealFolder(companyName: string): Promise<string> {
       parents: [process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID!],
     },
     fields: 'id',
+    supportsAllDrives: true,
   })
   const folderId = res.data.id!
 
@@ -61,6 +62,7 @@ export async function uploadFileToDrive(
     },
     media: { mimeType, body },
     fields: 'id, webViewLink',
+    supportsAllDrives: true,
   })
   return res.data.webViewLink!
 }
