@@ -52,6 +52,8 @@ export default function DealsPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'deals'>('overview')
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7))
   const [latestMeetings, setLatestMeetings] = useState<Map<string, DealAction>>(new Map())
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   function shiftMonth(ym: string, delta: number): string {
     const [y, m] = ym.split('-').map(Number)
@@ -134,6 +136,32 @@ export default function DealsPage() {
     if (!confirm('削除しますか？')) return
     await supabase.from('deals_tob').delete().eq('id', id)
     fetchAll()
+  }
+
+  async function bulkDelete() {
+    if (selectedIds.size === 0) return
+    if (!confirm(`選択した ${selectedIds.size} 件を削除しますか？`)) return
+    setBulkDeleting(true)
+    await supabase.from('deals_tob').delete().in('id', Array.from(selectedIds))
+    setSelectedIds(new Set())
+    setBulkDeleting(false)
+    fetchAll()
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === activeDeals.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(activeDeals.map(d => d.id)))
+    }
   }
 
   const set = (k: string, v: string) => setDraft(d => ({ ...d, [k]: v }))
@@ -497,12 +525,29 @@ export default function DealsPage() {
               </button>
             )}
             <span className="ml-auto text-sm text-gray-400">{activeDeals.length}件</span>
+            {selectedIds.size > 0 && (
+              <button
+                onClick={bulkDelete}
+                disabled={bulkDeleting}
+                className="ml-2 px-3 py-1.5 text-sm font-bold text-white bg-red-500 hover:bg-red-600 rounded-lg transition disabled:opacity-50"
+              >
+                {bulkDeleting ? '削除中...' : `${selectedIds.size}件を削除`}
+              </button>
+            )}
           </div>
 
           <div className="bg-white border border-[#e0e6f0] rounded-xl overflow-x-auto">
             <table className="w-full text-base">
               <thead>
                 <tr className="bg-[#f8f9fd] border-b border-[#e0e6f0]">
+                  <th className="px-4 py-3 w-8">
+                    <input
+                      type="checkbox"
+                      checked={activeDeals.length > 0 && selectedIds.size === activeDeals.length}
+                      onChange={toggleSelectAll}
+                      className="cursor-pointer"
+                    />
+                  </th>
                   {tobCols.map(col => (
                     <th key={col.column_key} className={`text-left px-4 py-3 text-sm text-gray-400 font-semibold uppercase tracking-wider whitespace-nowrap ${TOB_COL_MIN_WIDTH[col.column_key] ?? ''}`}>
                       {col.label}
@@ -513,15 +558,23 @@ export default function DealsPage() {
               </thead>
               <tbody>
                 {activeDeals.length === 0 ? (
-                  <tr><td colSpan={tobCols.length + 1} className="text-center py-12 text-gray-400">案件がありません</td></tr>
+                  <tr><td colSpan={tobCols.length + 2} className="text-center py-12 text-gray-400">案件がありません</td></tr>
                 ) : activeDeals.map(deal => {
                   const editing = editingId === deal.id
                   return (
                     <tr
                       key={deal.id}
                       onClick={() => { if (!editing) { setEditTarget(deal); setShowForm(true) } }}
-                      className={`border-b border-[#e0e6f0] ${editing ? 'bg-[#f0f4ff]/40' : 'hover:bg-[#f8f9fd] cursor-pointer'}`}
+                      className={`border-b border-[#e0e6f0] ${editing ? 'bg-[#f0f4ff]/40' : selectedIds.has(deal.id) ? 'bg-red-50' : 'hover:bg-[#f8f9fd] cursor-pointer'}`}
                     >
+                      <td className="px-4 py-2 w-8" onClick={e => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(deal.id)}
+                          onChange={() => toggleSelect(deal.id)}
+                          className="cursor-pointer"
+                        />
+                      </td>
                       {tobCols.map(col => (
                         <td key={col.column_key} className={`px-4 py-2 ${TOB_COL_MIN_WIDTH[col.column_key] ?? ''} ${TOB_COL_NOWRAP.has(col.column_key) ? '' : 'whitespace-nowrap'}`}>
                           {editing ? renderEditCell(col.column_key) : renderViewCell(col.column_key, deal)}
