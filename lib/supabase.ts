@@ -61,6 +61,7 @@ export type DealToB = {
   stripe_customer_id?: string
   video_url?: string
   minutes_text?: string
+  drive_folder_id?: string
   created_at: string
   updated_at: string
   member?: Member

@@ -49,7 +49,7 @@ export default function DealsPage() {
   const [filterMember, setFilterMember] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterPriority, setFilterPriority] = useState('')
-  const [activeTab, setActiveTab] = useState<'overview' | 'deals'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'kanban' | 'deals'>('kanban')
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7))
   const [latestMeetings, setLatestMeetings] = useState<Map<string, DealAction>>(new Map())
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -365,6 +365,7 @@ export default function DealsPage() {
       <div className="flex gap-1 border-b border-gray-200">
         {([
           { key: 'overview', label: '概要' },
+          { key: 'kanban',   label: 'カンバン' },
           { key: 'deals',    label: '案件一覧' },
         ] as const).map(tab => (
           <button
@@ -479,6 +480,95 @@ export default function DealsPage() {
           </div>
         </div>
       )}
+
+      {/* カンバンタブ */}
+      {activeTab === 'kanban' && (() => {
+        const KANBAN_STAGES = ['リード', 'アポ取得', '商談中', '提案済', '交渉中', '見積提出']
+        const today = new Date().toISOString().slice(0, 10)
+        const stageColors: Record<string, string> = {
+          'リード':    'bg-gray-100 text-gray-600',
+          'アポ取得':  'bg-purple-100 text-purple-700',
+          '商談中':    'bg-blue-100 text-blue-700',
+          '提案済':    'bg-indigo-100 text-indigo-700',
+          '交渉中':    'bg-amber-100 text-amber-700',
+          '見積提出':  'bg-orange-100 text-orange-700',
+        }
+        return (
+          <div className="overflow-x-auto pb-4">
+            <div className="flex gap-3 min-w-max">
+              {KANBAN_STAGES.map(stage => {
+                const cards = tobDeals.filter(d => d.status === stage)
+                const total = cards.reduce((s, d) => s + (d.expected_amount ?? 0), 0)
+                return (
+                  <div key={stage} className="w-64 flex-shrink-0">
+                    {/* カラムヘッダー */}
+                    <div className="flex items-center justify-between mb-2 px-1">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-black px-2 py-0.5 rounded-full ${stageColors[stage]}`}>{stage}</span>
+                        <span className="text-xs text-gray-400 font-bold">{cards.length}件</span>
+                      </div>
+                      <span className="text-xs font-mono text-gray-400">{total.toLocaleString()}万</span>
+                    </div>
+                    {/* カード一覧 */}
+                    <div className="space-y-2">
+                      {cards.length === 0 && (
+                        <div className="h-16 rounded-xl border-2 border-dashed border-gray-100 flex items-center justify-center">
+                          <span className="text-xs text-gray-300">案件なし</span>
+                        </div>
+                      )}
+                      {cards.map(d => {
+                        const mem = members.find(m => m.id === d.member_id)
+                        const isOverdue = d.next_action_date && d.next_action_date < today
+                        const isDueSoon = d.next_action_date && d.next_action_date >= today && d.next_action_date <= new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10)
+                        return (
+                          <div
+                            key={d.id}
+                            onClick={() => { setEditTarget(d); setShowForm(true) }}
+                            className="bg-white rounded-xl border border-[#e0e6f0] p-3 shadow-sm hover:shadow-md hover:border-navy/30 transition-all cursor-pointer group"
+                          >
+                            {/* 優先度バー */}
+                            {d.priority === '高' && <div className="h-0.5 w-full bg-red-400 rounded-full mb-2" />}
+                            {d.priority === '中' && <div className="h-0.5 w-full bg-amber-300 rounded-full mb-2" />}
+
+                            <p className="text-sm font-bold text-gray-800 leading-tight mb-2">{d.company_name}</p>
+
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-1.5">
+                                <div className="w-5 h-5 rounded bg-[#e8eeff] flex items-center justify-center text-navy font-black text-[10px]">
+                                  {mem?.name.slice(0, 1) ?? '?'}
+                                </div>
+                                <span className="text-xs text-gray-400">{mem?.name ?? '-'}</span>
+                              </div>
+                              {d.expected_amount != null && (
+                                <span className="text-xs font-mono font-bold text-gray-700">{d.expected_amount.toLocaleString()}万</span>
+                              )}
+                            </div>
+
+                            {d.next_action_date && (
+                              <div className={`flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md w-fit ${
+                                isOverdue ? 'bg-red-50 text-red-500' :
+                                isDueSoon ? 'bg-amber-50 text-amber-600' :
+                                'bg-gray-50 text-gray-400'
+                              }`}>
+                                {isOverdue ? '期限切れ' : isDueSoon ? '期限間近' : '期日'}
+                                <span className="font-mono">{d.next_action_date}</span>
+                              </div>
+                            )}
+
+                            {d.next_action && (
+                              <p className="text-[10px] text-gray-400 mt-1.5 truncate">{d.next_action}</p>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })()}
 
       {/* 案件一覧タブ */}
       {activeTab === 'deals' && (

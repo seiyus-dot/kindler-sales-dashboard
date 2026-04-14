@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase, DealToB, Member, MasterOption, LOSS_REASONS } from '@/lib/supabase'
 import DealActions from '@/components/DealActions'
+import DriveFolderPanel from '@/components/DriveFolderPanel'
 
 type Props = {
   members: Member[]
@@ -12,7 +13,7 @@ type Props = {
   defaultMemberId?: string
 }
 
-type Tab = 'info' | 'actions'
+type Tab = 'info' | 'actions' | 'drive'
 
 const TOB_STATUSES = ['アポ取得', '商談中', '提案済', '交渉中', '見積提出', 'リード', '受注', '失注', '保留']
 const PRIORITIES = ['高', '中', '低']
@@ -65,6 +66,7 @@ export default function DealToBForm({ members, initial, onClose, onSaved, defaul
   const [error, setError] = useState('')
   const [registering, setRegistering] = useState(false)
   const [advisorId, setAdvisorId] = useState<string | null>(null)
+  const [folderId, setFolderId] = useState<string | undefined>(initial?.drive_folder_id ?? undefined)
 
   useEffect(() => {
     if (!initial) return
@@ -112,6 +114,20 @@ export default function DealToBForm({ members, initial, onClose, onSaved, defaul
     setSaving(false)
     if (err) { setError(err.message); return }
     onSaved()
+  }
+
+  async function handleFolderCreated(newFolderId: string) {
+    setFolderId(newFolderId)
+    if (initial) {
+      await supabase.from('deals_tob').update({ drive_folder_id: newFolderId }).eq('id', initial.id)
+    }
+  }
+
+  async function handleFolderRemoved() {
+    setFolderId(undefined)
+    if (initial) {
+      await supabase.from('deals_tob').update({ drive_folder_id: null }).eq('id', initial.id)
+    }
   }
 
   async function registerAsAdvisor() {
@@ -173,6 +189,12 @@ export default function DealToBForm({ members, initial, onClose, onSaved, defaul
               className={`px-6 py-2.5 text-sm font-medium transition border-b-2 ${tab === 'actions' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
             >
               アクション履歴
+            </button>
+            <button
+              onClick={() => setTab('drive')}
+              className={`px-6 py-2.5 text-sm font-medium transition border-b-2 ${tab === 'drive' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+            >
+              Drive
             </button>
           </div>
         )}
@@ -375,6 +397,19 @@ export default function DealToBForm({ members, initial, onClose, onSaved, defaul
               members={members}
               defaultMemberId={initial.member_id}
               onLossSaved={onSaved}
+            />
+          </div>
+        )}
+
+        {/* Driveタブ */}
+        {tab === 'drive' && initial && (
+          <div className="p-6 overflow-y-auto flex-1">
+            <DriveFolderPanel
+              dealId={initial.id}
+              companyName={form.company_name}
+              folderId={folderId}
+              onFolderCreated={handleFolderCreated}
+              onFolderRemoved={handleFolderRemoved}
             />
           </div>
         )}
