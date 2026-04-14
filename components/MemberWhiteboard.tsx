@@ -61,28 +61,29 @@ export default function MemberWhiteboard({
   async function saveGoals() {
     setIsSaving(true)
     try {
-      const updates = members.map(m => {
+      for (const m of members) {
         const val = parseInt(editingGoals[m.id]) || 0
         const existing = goals.find(g => g.member_id === m.id)
-        
+
         if (existing) {
-          return supabase
+          const { error } = await supabase
             .from('member_monthly_goals')
             .update({ target_amount: val })
             .eq('id', existing.id)
+          if (error) throw new Error(error.message)
         } else {
-          return supabase
+          const { error } = await supabase
             .from('member_monthly_goals')
             .insert({ member_id: m.id, month, target_amount: val })
+          if (error) throw new Error(error.message)
         }
-      })
+      }
 
-      await Promise.all(updates)
       onSaved()
       setIsEditing(false)
     } catch (err) {
       console.error(err)
-      alert('保存に失敗しました')
+      alert('保存に失敗しました: ' + (err instanceof Error ? err.message : String(err)))
     } finally {
       setIsSaving(false)
     }
