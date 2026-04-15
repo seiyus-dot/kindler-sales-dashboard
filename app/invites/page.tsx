@@ -230,18 +230,18 @@ export default function InvitesPage() {
                       : (invite.allowed_pages ?? []).map(p => ALL_PAGES.find(x => x.href === p)?.label ?? p).join('・')}
                   </td>
                   <td className="px-5 py-4 text-right">
-                    <div className="flex items-center justify-end gap-1">
+                    <div className="flex items-center justify-end gap-2">
                       <button
                         onClick={() => openEdit(invite)}
-                        className="text-slate-300 hover:text-indigo-500 transition-colors p-1"
+                        className="text-slate-400 hover:text-indigo-500 transition-colors p-2"
                       >
-                        <Pencil size={15} />
+                        <Pencil size={16} />
                       </button>
                       <button
                         onClick={() => handleDelete(invite.email)}
-                        className="text-slate-300 hover:text-red-500 transition-colors p-1"
+                        className="text-slate-400 hover:text-red-500 transition-colors p-2"
                       >
-                        <Trash2 size={15} />
+                        <Trash2 size={16} />
                       </button>
                     </div>
                   </td>
