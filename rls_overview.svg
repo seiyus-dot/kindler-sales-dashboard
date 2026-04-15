@@ -1,0 +1,115 @@
+<svg width="900" height="600" viewBox="0 0 900 600" xmlns="http://www.w3.org/2000/svg" font-family="'Hiragino Sans', 'Noto Sans JP', sans-serif">
+
+<defs>
+  <marker id="arr" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+    <polygon points="0 0, 10 3.5, 0 7" fill="#777"/>
+  </marker>
+</defs>
+
+<!-- Background -->
+<rect width="900" height="600" fill="#F5F6FA"/>
+
+<!-- Title bar -->
+<rect x="0" y="0" width="900" height="52" fill="#1a237e"/>
+<text x="450" y="33" text-anchor="middle" font-size="16" font-weight="bold" fill="white">RLS 未設計の経緯と現状</text>
+
+<!-- ===== SECTION 1: TIMELINE ===== -->
+<text x="36" y="72" font-size="11" fill="#666" font-weight="bold" letter-spacing="0.5">経緯（git履歴より）</text>
+
+<!-- Timeline line -->
+<line x1="100" y1="115" x2="800" y2="115" stroke="#CBD5E0" stroke-width="2"/>
+
+<!-- Node 1 -->
+<circle cx="180" cy="115" r="12" fill="#1976D2" stroke="white" stroke-width="2"/>
+<text x="180" y="120" text-anchor="middle" font-size="10" fill="white" font-weight="bold">1</text>
+<text x="180" y="94" text-anchor="middle" font-size="10" fill="#1976D2" font-weight="bold">4月2日</text>
+<rect x="110" y="138" width="140" height="88" rx="8" fill="white" stroke="#1976D2" stroke-width="1.5"/>
+<text x="180" y="158" text-anchor="middle" font-size="11" font-weight="bold" fill="#1a1a2e">initial commit</text>
+<text x="180" y="176" text-anchor="middle" font-size="10" fill="#555">schema.sql 作成</text>
+<text x="180" y="193" text-anchor="middle" font-size="10" fill="#555">RLSの記述なし</text>
+<text x="180" y="213" text-anchor="middle" font-size="10" fill="#C62828" font-weight="bold">→ 最初から未設計</text>
+
+<!-- Node 2 -->
+<circle cx="450" cy="115" r="12" fill="#F57C00" stroke="white" stroke-width="2"/>
+<text x="450" y="120" text-anchor="middle" font-size="10" fill="white" font-weight="bold">2</text>
+<text x="450" y="94" text-anchor="middle" font-size="10" fill="#F57C00" font-weight="bold">4月12日</text>
+<rect x="374" y="138" width="152" height="88" rx="8" fill="white" stroke="#F57C00" stroke-width="1.5"/>
+<text x="450" y="158" text-anchor="middle" font-size="11" font-weight="bold" fill="#1a1a2e">AI顧問機能追加</text>
+<text x="450" y="176" text-anchor="middle" font-size="10" fill="#555">aicoach_clientsに</text>
+<text x="450" y="193" text-anchor="middle" font-size="10" fill="#555">RLS追加するも</text>
+<text x="450" y="213" text-anchor="middle" font-size="10" fill="#F57C00" font-weight="bold">→ using(true) 形式だけ</text>
+
+<!-- Node 3 -->
+<circle cx="730" cy="115" r="12" fill="#C62828" stroke="white" stroke-width="2"/>
+<text x="730" y="120" text-anchor="middle" font-size="10" fill="white" font-weight="bold">3</text>
+<text x="730" y="94" text-anchor="middle" font-size="10" fill="#C62828" font-weight="bold">4月15日（本日）</text>
+<rect x="654" y="138" width="152" height="88" rx="8" fill="white" stroke="#C62828" stroke-width="1.5"/>
+<text x="730" y="158" text-anchor="middle" font-size="11" font-weight="bold" fill="#1a1a2e">order_requests</text>
+<text x="730" y="176" text-anchor="middle" font-size="10" fill="#555">RLSで詰まり</text>
+<text x="730" y="193" text-anchor="middle" font-size="10" fill="#555">APIルートで回避</text>
+<text x="730" y="213" text-anchor="middle" font-size="10" fill="#C62828" font-weight="bold">→ service_role 使用</text>
+
+<!-- ===== SECTION 2: ACCESS PATTERNS ===== -->
+<text x="36" y="256" font-size="11" fill="#666" font-weight="bold" letter-spacing="0.5">現在のアクセスパターン</text>
+
+<!-- LEFT BOX -->
+<rect x="36" y="268" width="400" height="212" rx="10" fill="white" stroke="#E2E8F0" stroke-width="1.5"/>
+<rect x="37" y="269" width="398" height="32" rx="9" fill="#EEF2FF"/>
+<rect x="37" y="289" width="398" height="12" fill="#EEF2FF"/>
+<text x="236" y="291" text-anchor="middle" font-size="11" font-weight="bold" fill="#3730A3">通常パターン（9テーブル）</text>
+
+<rect x="58" y="318" width="88" height="34" rx="7" fill="#DBEAFE" stroke="#3B82F6" stroke-width="1.5"/>
+<text x="102" y="339" text-anchor="middle" font-size="11" fill="#1D4ED8" font-weight="bold">ブラウザ</text>
+
+<line x1="146" y1="335" x2="208" y2="335" stroke="#777" stroke-width="1.5" marker-end="url(#arr)"/>
+<text x="177" y="327" text-anchor="middle" font-size="9" fill="#C62828" font-weight="bold">anon key</text>
+
+<rect x="208" y="318" width="90" height="34" rx="7" fill="#DCFCE7" stroke="#16A34A" stroke-width="1.5"/>
+<text x="253" y="339" text-anchor="middle" font-size="11" fill="#15803D" font-weight="bold">Supabase</text>
+
+<rect x="318" y="322" width="96" height="26" rx="13" fill="#FEF2F2" stroke="#EF4444" stroke-width="1"/>
+<text x="366" y="339" text-anchor="middle" font-size="10" fill="#DC2626" font-weight="bold">RLS 無効</text>
+
+<rect x="56" y="366" width="364" height="104" rx="6" fill="#FFF7ED" stroke="#FCD34D" stroke-width="1"/>
+<text x="238" y="384" text-anchor="middle" font-size="9.5" fill="#92400E" font-weight="bold">誰でも自由に読み書き可能</text>
+<text x="70" y="402" font-size="9" fill="#555">• aicamp_consultations　　• aicamp_monthly_goals</text>
+<text x="70" y="419" font-size="9" fill="#555">• aicamp_ad_weekly　　　　• source_master</text>
+<text x="70" y="436" font-size="9" fill="#555">• deal_actions　　　　　　• product_aicamp_sessions</text>
+<text x="70" y="453" font-size="9" fill="#555">• product_aicamp_customers　• aicoach_notes　• aicoach_files</text>
+<text x="70" y="464" font-size="9" fill="#92400E">※ aicoach_clients は using(true) で実質同じ</text>
+
+<!-- RIGHT BOX -->
+<rect x="462" y="268" width="400" height="212" rx="10" fill="white" stroke="#E2E8F0" stroke-width="1.5"/>
+<rect x="463" y="269" width="398" height="32" rx="9" fill="#FFF1F2"/>
+<rect x="463" y="289" width="398" height="12" fill="#FFF1F2"/>
+<text x="662" y="291" text-anchor="middle" font-size="11" font-weight="bold" fill="#9F1239">回避パターン（order_requests）</text>
+
+<rect x="475" y="318" width="80" height="34" rx="7" fill="#DBEAFE" stroke="#3B82F6" stroke-width="1.5"/>
+<text x="515" y="339" text-anchor="middle" font-size="11" fill="#1D4ED8" font-weight="bold">ブラウザ</text>
+
+<line x1="555" y1="335" x2="592" y2="335" stroke="#777" stroke-width="1.5" marker-end="url(#arr)"/>
+
+<rect x="592" y="318" width="90" height="34" rx="7" fill="#F3E8FF" stroke="#9333EA" stroke-width="1.5"/>
+<text x="637" y="332" text-anchor="middle" font-size="10" fill="#7E22CE" font-weight="bold">API Route</text>
+<text x="637" y="347" text-anchor="middle" font-size="9" fill="#7E22CE">(Next.js)</text>
+
+<line x1="682" y1="335" x2="724" y2="335" stroke="#777" stroke-width="1.5" marker-end="url(#arr)"/>
+<text x="703" y="327" text-anchor="middle" font-size="9" fill="#C62828" font-weight="bold">service_role</text>
+
+<rect x="724" y="318" width="90" height="34" rx="7" fill="#DCFCE7" stroke="#16A34A" stroke-width="1.5"/>
+<text x="769" y="339" text-anchor="middle" font-size="11" fill="#15803D" font-weight="bold">Supabase</text>
+
+<rect x="475" y="366" width="370" height="104" rx="6" fill="#FFF1F2" stroke="#FDA4AF" stroke-width="1"/>
+<text x="660" y="384" text-anchor="middle" font-size="9.5" fill="#9F1239" font-weight="bold">service_role_key = RLSを完全バイパス</text>
+<text x="490" y="402" font-size="9" fill="#555">• RLSが有効でもポリシーをすべてスキップ</text>
+<text x="490" y="419" font-size="9" fill="#555">• 管理者権限で直接読み書きできる</text>
+<text x="490" y="436" font-size="9" fill="#555">• RLS設計の代わりにAPIルートを「盾」にした形</text>
+<text x="490" y="455" font-size="9" fill="#9F1239" font-weight="bold">→ セキュリティの担保は Next.js のルート認証に依存</text>
+
+<!-- ===== SUMMARY ===== -->
+<rect x="36" y="494" width="826" height="82" rx="10" fill="#1E3A5F"/>
+<text x="449" y="520" text-anchor="middle" font-size="12" font-weight="bold" fill="white">本質的な問題</text>
+<text x="449" y="542" text-anchor="middle" font-size="11" fill="#93C5FD">「最初から未設計」→「形式だけのRLS（using true）」→「詰まったらAPIで回避」</text>
+<text x="449" y="562" text-anchor="middle" font-size="11" fill="#93C5FD">根本解決は Supabase Auth 導入後、テーブルごとにポリシーを設計すること</text>
+
+</svg>

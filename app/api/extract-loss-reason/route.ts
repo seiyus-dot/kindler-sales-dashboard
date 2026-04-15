@@ -1,9 +1,14 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest, NextResponse } from 'next/server'
+import { getAuthUser } from '@/lib/auth-check'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 export async function POST(req: NextRequest) {
+  if (!await getAuthUser(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   const { notes, dealContext } = await req.json()
 
   if (!notes?.trim()) {

@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { listFolderFiles } from '@/lib/google-drive'
+import { getAuthUser } from '@/lib/auth-check'
 
 export async function GET(req: NextRequest) {
+  if (!await getAuthUser(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   try {
     const folderId = req.nextUrl.searchParams.get('folderId')
     if (!folderId) return NextResponse.json({ error: 'folderIdが必要です' }, { status: 400 })

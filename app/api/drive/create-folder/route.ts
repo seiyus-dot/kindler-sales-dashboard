@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createDealFolder } from '@/lib/google-drive'
+import { getAuthUser } from '@/lib/auth-check'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
+  if (!await getAuthUser(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   try {
     const { companyName } = await req.json()
     if (!companyName) return NextResponse.json({ error: '企業名が必要です' }, { status: 400 })

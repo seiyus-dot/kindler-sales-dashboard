@@ -5,6 +5,7 @@ import { createBrowserClient } from '@supabase/ssr'
 import { CheckCircle2 } from 'lucide-react'
 import type { ProductAICampSession } from '@/lib/supabase'
 
+// セッション一覧取得のみ anon client を使用（RLS で SELECT は公開）
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -49,15 +50,18 @@ export default function ProductAICampApplyPage() {
     if (!validate()) return
     setSubmitting(true)
     setSubmitError(null)
-    const { error } = await supabase.from('product_aicamp_customers').insert({
-      name:       form.name.trim(),
-      phone:      form.phone.trim(),
-      email:      form.email.trim(),
-      session_id: form.session_id,
-      status:     '申込済',
+    const res = await fetch('/api/product-aicamp/apply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name:       form.name.trim(),
+        phone:      form.phone.trim(),
+        email:      form.email.trim(),
+        session_id: form.session_id,
+      }),
     })
     setSubmitting(false)
-    if (error) {
+    if (!res.ok) {
       setSubmitError('送信に失敗しました。もう一度お試しください。')
     } else {
       setSubmitted(true)

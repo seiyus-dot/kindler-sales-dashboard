@@ -35,7 +35,7 @@ export async function proxy(request: NextRequest) {
   const isLoginPage = pathname === '/login'
   const isAuthCallback = pathname.startsWith('/auth/callback')
   const isPreview = pathname.startsWith('/preview')
-  const isPublicForm = pathname.startsWith('/order-form')
+  const isPublicForm = pathname.startsWith('/order-form') || pathname.startsWith('/product-aicamp/apply')
 
   // 未ログイン → ログインページへ
   if (!user && !isLoginPage && !isAuthCallback && !isPreview && !isPublicForm) {

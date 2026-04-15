@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { uploadFileToDrive } from '@/lib/google-drive'
+import { getAuthUser } from '@/lib/auth-check'
 import { Readable } from 'stream'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
+  if (!await getAuthUser(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   try {
     const form = await req.formData()
     const file = form.get('file') as File

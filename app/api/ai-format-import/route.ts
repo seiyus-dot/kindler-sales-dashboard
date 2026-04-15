@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@supabase/supabase-js'
+import { getAuthUser } from '@/lib/auth-check'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const supabase = createClient(
@@ -151,6 +152,10 @@ function detectKnownFormat(uploadedHeaders: string[]) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
+  if (!await getAuthUser(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   const { headers, sampleRows, allRows, defaultMemberId, members, forceTable } = await req.json()
   const memberList: { id: string; name: string }[] = members ?? []
 
@@ -373,6 +378,10 @@ ${forceTable ? `\n重要: インポート先は必ず "${forceTable}" で固定�
 
 // インポート実行
 export async function PUT(req: NextRequest) {
+  if (!await getAuthUser(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   const { targetTable, rows } = await req.json()
   if (!['deals_toc', 'deals_tob', 'aicamp_consultations'].includes(targetTable)) {
     return NextResponse.json({ error: '無効なテーブル' }, { status: 400 })
