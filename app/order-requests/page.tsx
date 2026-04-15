@@ -1,14 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { createBrowserClient } from '@supabase/ssr'
 import { X } from 'lucide-react'
 import type { OrderRequest } from '@/lib/supabase'
-
-const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
 
 const SERVICE_LABELS: Record<string, string> = {
   ai_kenshu: 'AI研修（法人）',
@@ -111,18 +105,20 @@ export default function OrderRequestsPage() {
   const [selected, setSelected] = useState<OrderRequest | null>(null)
 
   const fetchAll = useCallback(async () => {
-    const { data } = await supabase
-      .from('order_requests')
-      .select('*')
-      .order('created_at', { ascending: false })
-    setRequests(data ?? [])
+    const res = await fetch('/api/order-requests')
+    const data = await res.json()
+    setRequests(Array.isArray(data) ? data : [])
     setLoading(false)
   }, [])
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
   const handleStatusChange = async (id: string, status: string) => {
-    await supabase.from('order_requests').update({ status }).eq('id', id)
+    await fetch('/api/order-requests', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, status }),
+    })
     setRequests(prev => prev.map(r => r.id === id ? { ...r, status } : r))
     if (selected?.id === id) setSelected(prev => prev ? { ...prev, status } : null)
   }

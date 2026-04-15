@@ -6,6 +6,15 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+export async function GET() {
+  const { data, error } = await supabase
+    .from('order_requests')
+    .select('*')
+    .order('created_at', { ascending: false })
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  return NextResponse.json(data)
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json()
@@ -17,4 +26,11 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: '送信に失敗しました' }, { status: 500 })
   }
+}
+
+export async function PATCH(request: Request) {
+  const { id, status } = await request.json()
+  const { error } = await supabase.from('order_requests').update({ status }).eq('id', id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  return NextResponse.json({ ok: true })
 }
