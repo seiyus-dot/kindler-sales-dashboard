@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, BriefcaseBusiness, ClipboardList, Settings, Users, Menu, X, BookOpen, LogOut, Tent, UserPlus, Zap, GanttChartSquare } from 'lucide-react'
+import { LayoutDashboard, BriefcaseBusiness, ClipboardList, Settings, Users, Menu, X, BookOpen, LogOut, Tent, UserPlus, Zap, GanttChartSquare, FileText, List } from 'lucide-react'
 import { createBrowserClient } from '@supabase/ssr'
 import type { User } from '@supabase/supabase-js'
 
@@ -17,7 +17,9 @@ const navItems = [
   { href: '/aicamp',   label: 'AI CAMP',        icon: Tent },
   { href: '/invites',  label: '招待管理',        icon: UserPlus },
   { href: '/utage',   label: 'UTAGE',           icon: Zap },
-  { href: '/advisor', label: 'AI顧問管理',      icon: GanttChartSquare },
+  { href: '/advisor',         label: 'AI顧問管理',    icon: GanttChartSquare },
+  { href: '/order-form',     label: '発注フォーム',  icon: FileText },
+  { href: '/order-requests', label: '発注リスト',    icon: List },
 ]
 
 function NavLink({ href, label, icon: Icon, onClick }: { href: string; label: string; icon: React.ElementType; onClick?: () => void }) {
@@ -149,7 +151,7 @@ export default function Sidebar() {
                 <X size={20} />
               </button>
             </div>
-            <nav className="flex-1 px-4 py-4 space-y-1">
+            <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
               {visibleNavItems.map(item => (
                 <NavLink key={item.href} {...item} onClick={() => setOpen(false)} />
               ))}
@@ -170,7 +172,7 @@ export default function Sidebar() {
             </div>
           </div>
         </div>
-        <nav className="flex-1 px-4 py-4 space-y-1">
+        <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
           {visibleNavItems.map(item => (
             <NavLink key={item.href} {...item} />
           ))}

@@ -35,9 +35,10 @@ export async function proxy(request: NextRequest) {
   const isLoginPage = pathname === '/login'
   const isAuthCallback = pathname.startsWith('/auth/callback')
   const isPreview = pathname.startsWith('/preview')
+  const isPublicForm = pathname.startsWith('/order-form')
 
   // 未ログイン → ログインページへ
-  if (!user && !isLoginPage && !isAuthCallback && !isPreview) {
+  if (!user && !isLoginPage && !isAuthCallback && !isPreview && !isPublicForm) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 

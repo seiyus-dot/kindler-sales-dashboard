@@ -262,3 +262,28 @@ export type AiCoachFile = {
   mime_type: string
   created_at: string
 }
+
+export type OrderRequest = {
+  id: string
+  created_at: string
+  company_name: string
+  rep_name_kanji: string
+  rep_name_kana: string
+  company_phone: string
+  contact_name_kanji: string
+  contact_name_kana: string
+  department: string | null
+  position: string | null
+  contact_email: string
+  contact_phone: string | null
+  billing_zip: string
+  billing_address: string
+  billing_name_kanji: string
+  billing_name_kana: string
+  billing_position: string | null
+  billing_department: string | null
+  billing_email: string | null
+  services: string[]
+  order_detail: string | null
+  status: string
+}

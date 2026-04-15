@@ -19,7 +19,9 @@ const ALL_PAGES = [
   { href: '/knowledge', label: '営業ナレッジ' },
   { href: '/aicamp', label: 'AI CAMP' },
   { href: '/utage', label: 'UTAGE' },
-  { href: '/advisor', label: 'AI顧問管理' },
+  { href: '/advisor',         label: 'AI顧問管理' },
+  { href: '/order-form',     label: '発注フォーム' },
+  { href: '/order-requests', label: '発注リスト' },
 ]
 
 export default function InvitesPage() {
