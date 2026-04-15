@@ -18,6 +18,7 @@ const ALL_PAGES = [
   { href: '/settings', label: 'マスタ設定' },
   { href: '/knowledge', label: '営業ナレッジ' },
   { href: '/aicamp', label: 'AI CAMP' },
+  { href: '/product-aicamp', label: 'Product AI CAMP' },
   { href: '/utage', label: 'UTAGE' },
   { href: '/advisor',         label: 'AI顧問管理' },
   { href: '/order-form',     label: '発注フォーム' },
