@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, BriefcaseBusiness, ClipboardList, Settings, Users, Menu, X, BookOpen, LogOut, Tent, UserPlus, Zap, GanttChartSquare, FileText, List, MonitorPlay } from 'lucide-react'
+import { LayoutDashboard, BriefcaseBusiness, ClipboardList, Settings, Users, Menu, X, BookOpen, LogOut, Tent, UserPlus, Zap, GanttChartSquare, FileText, List, MonitorPlay, ChevronDown } from 'lucide-react'
 import { createBrowserClient } from '@supabase/ssr'
 import type { User } from '@supabase/supabase-js'
 
@@ -19,8 +19,12 @@ const navItems = [
   { href: '/invites',  label: '招待管理',        icon: UserPlus },
   { href: '/utage',   label: 'UTAGE',           icon: Zap },
   { href: '/advisor',         label: 'AI顧問管理',    icon: GanttChartSquare },
-  { href: '/order-form',     label: '発注フォーム',  icon: FileText },
   { href: '/order-requests', label: '発注リスト',    icon: List },
+]
+
+const orderFormSubItems = [
+  { href: '/order-form',              label: '法人' },
+  { href: '/product-aicamp/apply',   label: 'Product AI CAMP' },
 ]
 
 function NavLink({ href, label, icon: Icon, onClick }: { href: string; label: string; icon: React.ElementType; onClick?: () => void }) {
@@ -37,6 +41,46 @@ function NavLink({ href, label, icon: Icon, onClick }: { href: string; label: st
       <Icon size={16} className={active ? 'text-navy' : 'text-slate-400'} />
       {label}
     </Link>
+  )
+}
+
+function OrderFormNavItem({ onClick }: { onClick?: () => void }) {
+  const pathname = usePathname()
+  const active = pathname.startsWith('/order-form') || pathname.startsWith('/product-aicamp/apply')
+  const [open, setOpen] = useState(active)
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
+          active ? 'bg-navy/10 text-navy font-semibold' : 'text-slate-500 hover:bg-navy/5 hover:text-navy'
+        }`}
+      >
+        <FileText size={16} className={active ? 'text-navy' : 'text-slate-400'} />
+        <span className="flex-1 text-left">発注フォーム</span>
+        <ChevronDown size={14} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="ml-7 mt-0.5 space-y-0.5">
+          {orderFormSubItems.map(item => {
+            const subActive = pathname.startsWith(item.href)
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onClick}
+                className={`block px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                  subActive ? 'bg-navy/10 text-navy font-semibold' : 'text-slate-500 hover:bg-navy/5 hover:text-navy'
+                }`}
+              >
+                {item.label}
+              </Link>
+            )
+          })}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -156,6 +200,9 @@ export default function Sidebar() {
               {visibleNavItems.map(item => (
                 <NavLink key={item.href} {...item} onClick={() => setOpen(false)} />
               ))}
+              {(role === 'admin' || allowedPages.some(p => '/order-form'.startsWith(p))) && (
+                <OrderFormNavItem onClick={() => setOpen(false)} />
+              )}
             </nav>
             <UserFooter onClose={() => setOpen(false)} />
           </aside>
@@ -177,6 +224,9 @@ export default function Sidebar() {
           {visibleNavItems.map(item => (
             <NavLink key={item.href} {...item} />
           ))}
+          {(role === 'admin' || allowedPages.some(p => '/order-form'.startsWith(p))) && (
+            <OrderFormNavItem />
+          )}
         </nav>
         <UserFooter />
       </aside>
