@@ -6,7 +6,7 @@ import Sidebar from '@/components/Sidebar'
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const isLoginPage = pathname === '/login'
-  const isPublicForm = pathname.startsWith('/order-form')
+  const isPublicForm = pathname.startsWith('/order-form') || pathname.startsWith('/product-aicamp/apply')
 
   if (isLoginPage || isPublicForm) {
     return <>{children}</>
