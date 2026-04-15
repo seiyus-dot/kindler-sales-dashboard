@@ -287,3 +287,25 @@ export type OrderRequest = {
   order_detail: string | null
   status: string
 }
+
+export type ProductAICampSession = {
+  id: string
+  title: string
+  session_date: string   // 'YYYY-MM-DD'
+  end_date: string       // session_date + 1日（2日間開催）
+  max_capacity?: number
+  notes?: string
+  created_at: string
+}
+
+export type ProductAICampCustomer = {
+  id: string
+  name: string
+  phone: string
+  email: string
+  session_id?: string
+  status: string
+  notes?: string
+  created_at: string
+  session?: ProductAICampSession
+}
