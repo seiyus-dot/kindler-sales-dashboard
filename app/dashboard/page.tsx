@@ -109,7 +109,10 @@ export default function DashboardPage() {
   const tobContractTotal = tobPaid.reduce((s, d) => s + (d.contract_amount ?? 0), 0)
   // aicamp_consultations の着金（円→万円）
   const paidAicamp = aicampDeals.filter(d =>
-    (d.payment_amount ?? 0) > 0
+    (d.payment_amount ?? 0) > 0 &&
+    (period === 'all' ||
+      d.payment_date?.startsWith(selectedMonth) ||
+      d.consultation_date?.startsWith(selectedMonth))
   )
   const paidAicampTotal = Math.round(paidAicamp.reduce((s, d) => s + (d.payment_amount ?? 0), 0) / 10000)
 
@@ -181,7 +184,10 @@ export default function DashboardPage() {
 
     // aicamp_consultations のサービス別（円→万円に変換）
     const aicampPaid = aicampDeals.filter(d =>
-      (d.payment_amount ?? 0) > 0
+      (d.payment_amount ?? 0) > 0 &&
+      (period === 'all' ||
+        d.payment_date?.startsWith(selectedMonth) ||
+        d.consultation_date?.startsWith(selectedMonth))
     )
     const aicampByService: Record<string, number> = {}
     for (const d of aicampPaid) {
