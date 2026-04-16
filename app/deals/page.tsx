@@ -54,7 +54,7 @@ export default function DealsPage() {
   const [latestMeetings, setLatestMeetings] = useState<Map<string, DealAction>>(new Map())
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
-  const [kpiModal, setKpiModal] = useState<'sales' | 'paid' | 'pipeline' | 'weighted' | 'winrate' | null>(null)
+  const [kpiModal, setKpiModal] = useState<'sales' | 'paid' | 'pipeline' | 'weighted' | null>(null)
 
   function shiftMonth(ym: string, delta: number): string {
     const [y, m] = ym.split('-').map(Number)
@@ -302,14 +302,12 @@ export default function DealsPage() {
 
   // 概要タブ用集計
   const wonDeals = useMemo(() => tobDeals.filter(d => d.status === '受注'), [tobDeals])
-  const lostDeals = useMemo(() => tobDeals.filter(d => d.status === '失注'), [tobDeals])
   const inProgressDeals = useMemo(() => tobDeals.filter(d => !['受注', '失注'].includes(d.status ?? '')), [tobDeals])
   const monthlyPaid = useMemo(() => tobDeals.filter(d => d.status === '受注' && (d.actual_amount ?? 0) > 0 && d.payment_date?.startsWith(selectedMonth)), [tobDeals, selectedMonth])
   const salesTotal = useMemo(() => monthlyPaid.reduce((s, d) => s + (d.contract_amount ?? 0), 0), [monthlyPaid])
   const paidTotal = useMemo(() => monthlyPaid.reduce((s, d) => s + (d.actual_amount ?? 0), 0), [monthlyPaid])
   const pipeline = useMemo(() => inProgressDeals.reduce((s, d) => s + (d.expected_amount ?? 0), 0), [inProgressDeals])
   const weightedPipeline = useMemo(() => inProgressDeals.reduce((s, d) => s + Math.round((d.expected_amount ?? 0) * (d.win_probability ?? 0) / 100), 0), [inProgressDeals])
-  const winRate = useMemo(() => (wonDeals.length + lostDeals.length) > 0 ? Math.round(wonDeals.length / (wonDeals.length + lostDeals.length) * 100) : 0, [wonDeals, lostDeals])
 
   const statusBreakdown = useMemo(() => {
     const order = ['初回接触', 'ヒアリング', '提案中', '見積提出', 'クロージング', '受注', '失注', '保留', 'アポ取得', '商談中', '提案済', '交渉中', 'リード']
@@ -413,11 +411,6 @@ export default function DealsPage() {
               <p className="text-xs text-[#8a96b0] font-bold uppercase tracking-widest mb-1">加重パイプライン</p>
               <p className="text-2xl font-black text-navy mt-1 font-mono">{weightedPipeline.toLocaleString()}<span className="text-sm font-normal text-[#aab0c8] ml-1">万円</span></p>
               <p className="text-xs text-[#aab0c8] mt-0.5">{inProgressDeals.length}件</p>
-            </button>
-            <button onClick={() => setKpiModal('winrate')} className="text-left bg-white border border-[#e0e6f0] rounded-xl p-5 shadow-sm hover:shadow-md hover:border-[#2a7a4a]/40 transition-all cursor-pointer" style={{ borderTop: '3px solid #2a7a4a' }}>
-              <p className="text-xs text-[#8a96b0] font-bold uppercase tracking-widest mb-1">受注率</p>
-              <p className="text-2xl font-black text-[#2a7a4a] mt-1 font-mono">{winRate}<span className="text-sm font-normal text-[#aab0c8] ml-1">%</span></p>
-              <p className="text-xs text-[#aab0c8] mt-0.5">受注 {wonDeals.length} / 失注 {lostDeals.length}</p>
             </button>
           </div>
 
@@ -766,19 +759,7 @@ export default function DealsPage() {
               amountHeader: '加重金額',
             }
           }
-          // winrate
-          const rows = [
-            ...wonDeals.map(d => ({ deal: d, amount: d.expected_amount ?? 0, label: '受注' })),
-            ...lostDeals.map(d => ({ deal: d, amount: d.expected_amount ?? 0, label: '失注' })),
-          ]
-          return {
-            title: '受注率の内訳',
-            desc: `受注 ${wonDeals.length}件 ÷ (受注 + 失注 ${wonDeals.length + lostDeals.length}件) = ${winRate}%`,
-            rows,
-            total: winRate,
-            totalLabel: '受注率',
-            amountHeader: '想定金額',
-          }
+          return { title: '', desc: '', rows: [], total: 0, totalLabel: '', amountHeader: '' }
         })()
 
         return (
@@ -827,10 +808,7 @@ export default function DealsPage() {
                             <td className="px-5 py-2.5 font-medium text-[#1a2540]">{d.company_name ?? '-'}</td>
                             <td className="px-4 py-2.5 text-[#6a7490]">{memberName}</td>
                             <td className="px-4 py-2.5">
-                              {kpiModal === 'winrate'
-                                ? <span className={`px-2 py-0.5 rounded text-xs font-medium ${label === '受注' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>{label}</span>
-                                : <span className={`px-2 py-0.5 rounded text-xs font-medium ${sc}`}>{d.status ?? '-'}</span>
-                              }
+                              <span className={`px-2 py-0.5 rounded text-xs font-medium ${sc}`}>{d.status ?? '-'}</span>
                             </td>
                             {kpiModal === 'weighted' && (
                               <td className="px-4 py-2.5 text-right text-xs text-[#8a96b0] font-mono">{label}</td>
@@ -852,9 +830,7 @@ export default function DealsPage() {
                 <span className="text-xs text-[#8a96b0]">{config.rows.length}件</span>
                 <span className="text-sm font-bold text-[#1a2540]">
                   {config.totalLabel}：
-                  <span className="font-mono ml-1">
-                    {kpiModal === 'winrate' ? `${config.total}%` : `${config.total.toLocaleString()}万円`}
-                  </span>
+                  <span className="font-mono ml-1">{config.total.toLocaleString()}万円</span>
                 </span>
               </div>
             </div>
