@@ -57,6 +57,77 @@ export default function CustomersPage() {
 
   const [error, setError] = useState<string | null>(null)
 
+  // 受注済み案件から顧客マスタを自動生成・リンク
+  async function syncFromDeals() {
+    // ---- 法人: deals_tob の受注 → companies ----
+    const { data: wonDeals } = await supabase
+      .from('deals_tob')
+      .select('id, company_name, industry')
+      .eq('status', '受注')
+      .is('company_id', null)
+
+    if (wonDeals && wonDeals.length > 0) {
+      // company_name でグループ化（重複排除）
+      const uniqueNames = [...new Map(wonDeals.map(d => [d.company_name, d])).values()]
+      for (const deal of uniqueNames) {
+        if (!deal.company_name) continue
+        // 既存チェック
+        const { data: existing } = await supabase
+          .from('companies')
+          .select('id')
+          .eq('name', deal.company_name)
+          .maybeSingle()
+        const companyId = existing?.id ?? (await supabase
+          .from('companies')
+          .insert({ name: deal.company_name, industry: deal.industry ?? null })
+          .select('id')
+          .single()
+        ).data?.id
+        if (!companyId) continue
+        // 同名の全受注案件をリンク
+        await supabase
+          .from('deals_tob')
+          .update({ company_id: companyId })
+          .eq('company_name', deal.company_name)
+          .eq('status', '受注')
+          .is('company_id', null)
+      }
+    }
+
+    // ---- 個人: aicamp_consultations の成約 → contacts ----
+    const { data: contracted } = await supabase
+      .from('aicamp_consultations')
+      .select('id, name, line_name')
+      .eq('status', '成約')
+      .is('contact_id', null)
+
+    if (contracted && contracted.length > 0) {
+      const uniqueNames = [...new Map(contracted.map(d => [d.name ?? d.line_name, d])).values()]
+      for (const c of uniqueNames) {
+        const name = c.name ?? c.line_name
+        if (!name) continue
+        const { data: existing } = await supabase
+          .from('contacts')
+          .select('id')
+          .eq('name', name)
+          .maybeSingle()
+        const contactId = existing?.id ?? (await supabase
+          .from('contacts')
+          .insert({ name })
+          .select('id')
+          .single()
+        ).data?.id
+        if (!contactId) continue
+        await supabase
+          .from('aicamp_consultations')
+          .update({ contact_id: contactId })
+          .eq('status', '成約')
+          .is('contact_id', null)
+          .or(`name.eq.${name},line_name.eq.${name}`)
+      }
+    }
+  }
+
   async function fetchAll() {
     const [cRes, coRes] = await Promise.all([
       supabase.from('contacts').select(`
@@ -76,7 +147,9 @@ export default function CustomersPage() {
     else setCompanies(coRes.data as CompanyWithHistory[])
   }
 
-  useEffect(() => { fetchAll() }, [])
+  useEffect(() => {
+    syncFromDeals().then(() => fetchAll())
+  }, [])
 
   // 検索フィルタ
   const filteredContacts = useMemo(() =>
