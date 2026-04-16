@@ -49,7 +49,7 @@ export default function DealsPage() {
   const [filterMember, setFilterMember] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterPriority, setFilterPriority] = useState('')
-  const [activeTab, setActiveTab] = useState<'overview' | 'kanban' | 'deals'>('kanban')
+  const [activeTab, setActiveTab] = useState<'overview' | 'kanban' | 'deals'>('overview')
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7))
   const [latestMeetings, setLatestMeetings] = useState<Map<string, DealAction>>(new Map())
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
