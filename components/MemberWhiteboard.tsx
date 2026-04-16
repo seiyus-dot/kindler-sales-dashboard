@@ -93,106 +93,94 @@ export default function MemberWhiteboard({
   const displayMonth = `${parseInt(monthNum)}月`
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden mb-8">
-      <div className="px-6 py-5 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
-        <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-          <Target className="text-indigo-600" size={20} />
+    <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden mb-4">
+      <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+        <h2 className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
+          <Target className="text-indigo-500" size={15} />
           {displayMonth}度 個人目標進捗
         </h2>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {isEditing ? (
             <>
               <button
                 onClick={saveGoals}
                 disabled={isSaving}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 transition disabled:opacity-50"
+                className="flex items-center gap-1 px-2.5 py-1 bg-indigo-600 text-white text-xs font-bold rounded hover:bg-indigo-700 transition disabled:opacity-50"
               >
-                <Save size={14} /> {isSaving ? '保存中...' : '保存'}
+                <Save size={12} /> {isSaving ? '保存中...' : '保存'}
               </button>
               <button
                 onClick={() => setIsEditing(false)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-500 text-xs font-bold rounded-lg hover:bg-slate-50 transition"
+                className="flex items-center gap-1 px-2.5 py-1 bg-white border border-slate-200 text-slate-500 text-xs font-bold rounded hover:bg-slate-50 transition"
               >
-                <X size={14} /> キャンセル
+                <X size={12} /> キャンセル
               </button>
             </>
           ) : (
             <button
               onClick={startEditing}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-500 text-xs font-bold rounded-lg hover:bg-slate-50 transition"
+              className="flex items-center gap-1 px-2.5 py-1 bg-white border border-slate-200 text-slate-400 text-xs font-bold rounded hover:bg-slate-50 transition"
             >
-              <Edit2 size={14} /> 目標を編集
+              <Edit2 size={12} /> 目標を編集
             </button>
           )}
         </div>
       </div>
 
-      <div className="p-6 space-y-6">
+      <div className="px-4 py-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {data.map(p => {
           const target = isEditing ? parseInt(editingGoals[p.member.id]) || 0 : p.goal?.target_amount ?? 0
           const progress = target > 0 ? Math.min(Math.round((p.currentAmount / target) * 100), 100) : 0
           const isAchieved = target > 0 && p.currentAmount >= target
 
           return (
-            <div key={p.member.id} className="space-y-2">
-              <div className="flex justify-between items-end">
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-slate-700">{p.member.name}</span>
-                  {isAchieved && (
-                    <span className="bg-emerald-100 text-emerald-600 text-[10px] font-black px-2 py-0.5 rounded-full">
-                      CLEAR
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-sm font-black text-slate-900 font-mono">{p.currentAmount.toLocaleString()}</span>
-                  <span className="text-[10px] font-bold text-slate-400">/</span>
-                  {isEditing ? (
-                    <div className="flex items-center gap-1">
-                      <input
-                        type="number"
-                        value={editingGoals[p.member.id]}
-                        onChange={e => setEditingGoals(prev => ({ ...prev, [p.member.id]: e.target.value }))}
-                        className="w-16 px-1.5 py-0.5 text-sm font-bold border border-indigo-200 rounded focus:border-indigo-500 focus:outline-none bg-indigo-50/30"
-                      />
-                      <span className="text-[10px] font-bold text-slate-400">万</span>
-                    </div>
-                  ) : (
-                    <>
-                      <span className="text-[10px] font-bold text-slate-400">{target.toLocaleString()}万</span>
-                      <span className={`ml-3 text-sm font-black font-mono ${isAchieved ? 'text-emerald-500' : 'text-indigo-600'}`}>
-                        {progress}%
-                      </span>
-                    </>
-                  )}
-                </div>
+            <div key={p.member.id} className="space-y-1.5">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-bold text-slate-700">{p.member.name}</span>
+                {isAchieved && (
+                  <span className="bg-emerald-100 text-emerald-600 text-[9px] font-black px-1.5 py-px rounded-full leading-none">
+                    CLEAR
+                  </span>
+                )}
               </div>
-              
-              {!isEditing && (
-                <>
-                  <div className="relative h-3 w-full bg-slate-100 rounded-full overflow-hidden">
-                    <div 
-                      className={`h-full rounded-full transition-all duration-1000 ease-out relative ${
-                        isAchieved ? 'bg-emerald-400' : 'bg-indigo-500'
-                      }`}
-                      style={{ width: `${progress}%` }}
-                    >
-                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent w-full animate-shimmer" />
-                    </div>
-                  </div>
 
-                  <div className="flex items-center gap-4 text-[10px] text-slate-400 font-bold">
-                    <div className="flex items-center gap-1">
-                      <CheckCircle2 size={12} className={p.wonCount > 0 ? 'text-emerald-500' : 'text-slate-300'} />
-                      受注 {p.wonCount}件
-                    </div>
-                    {target > 0 && !isAchieved && (
-                      <div className="text-slate-300 italic font-medium">
-                        あと {(target - p.currentAmount).toLocaleString()}万円
-                      </div>
-                    )}
-                  </div>
-                </>
+              {!isEditing && (
+                <div className="relative h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-700 ${isAchieved ? 'bg-emerald-400' : 'bg-indigo-500'}`}
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+              )}
+
+              <div className="flex items-baseline gap-0.5">
+                <span className="text-xs font-black text-slate-900 font-mono">{p.currentAmount.toLocaleString()}</span>
+                <span className="text-[9px] text-slate-400">/</span>
+                {isEditing ? (
+                  <input
+                    type="number"
+                    value={editingGoals[p.member.id]}
+                    onChange={e => setEditingGoals(prev => ({ ...prev, [p.member.id]: e.target.value }))}
+                    className="w-14 px-1 py-0.5 text-xs font-bold border border-indigo-200 rounded focus:border-indigo-500 focus:outline-none bg-indigo-50/30"
+                  />
+                ) : (
+                  <span className="text-[9px] text-slate-400">{target.toLocaleString()}万</span>
+                )}
+                {!isEditing && (
+                  <span className={`ml-1 text-xs font-black font-mono ${isAchieved ? 'text-emerald-500' : 'text-indigo-500'}`}>
+                    {progress}%
+                  </span>
+                )}
+              </div>
+
+              {!isEditing && (
+                <div className="flex items-center gap-1 text-[9px] text-slate-400 font-bold">
+                  <CheckCircle2 size={10} className={p.wonCount > 0 ? 'text-emerald-400' : 'text-slate-200'} />
+                  {p.wonCount}件
+                  {target > 0 && !isAchieved && (
+                    <span className="text-slate-300">あと{(target - p.currentAmount).toLocaleString()}万</span>
+                  )}
+                </div>
               )}
             </div>
           )
