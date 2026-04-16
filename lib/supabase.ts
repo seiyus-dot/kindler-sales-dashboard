@@ -50,6 +50,7 @@ export type DealToB = {
   sub_member_id?: string
   deal_type?: 'spot' | 'subscription'
   monthly_amount?: number
+  contract_date?: string
   contract_start?: string
   contract_end?: string
   payment_status?: string

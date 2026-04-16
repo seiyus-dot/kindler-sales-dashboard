@@ -54,6 +54,9 @@ alter table deals_tob add column if not exists stripe_subscription_id text uniqu
 alter table deals_toc add column if not exists stripe_customer_id text;
 alter table deals_tob add column if not exists stripe_customer_id text;
 
+-- 契約締結日（売上集計の軸）
+alter table deals_tob add column if not exists contract_date date;
+
 -- member_id を nullable に（Stripe インポート時に担当者未割り当てを許容）
 alter table deals_toc alter column member_id drop not null;
 alter table deals_tob alter column member_id drop not null;

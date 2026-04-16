@@ -14,7 +14,7 @@ type ContactWithHistory = Contact & {
 }
 
 type CompanyWithHistory = Company & {
-  deals_tob: Pick<DealToB, 'id' | 'service' | 'status' | 'actual_amount' | 'contract_amount' | 'payment_date' | 'company_name'>[]
+  deals_tob: Pick<DealToB, 'id' | 'service' | 'status' | 'actual_amount' | 'contract_amount' | 'payment_date' | 'company_name' | 'contract_date' | 'contract_start' | 'contract_end'>[]
 }
 
 const emptyContact = () => ({ name: '', phone: '', email: '', notes: '' })
@@ -138,7 +138,7 @@ export default function CustomersPage() {
       `).order('created_at', { ascending: false }),
       supabase.from('companies').select(`
         *,
-        deals_tob(id, service, status, actual_amount, contract_amount, payment_date, company_name)
+        deals_tob(id, service, status, actual_amount, contract_amount, payment_date, company_name, contract_date, contract_start, contract_end)
       `).order('created_at', { ascending: false }),
     ])
     if (cRes.error) setError(cRes.error.message)
@@ -510,7 +510,10 @@ export default function CustomersPage() {
                           : d.contract_amount
                           ? <span className="text-xs font-mono text-slate-400">{d.contract_amount.toLocaleString()}万円(見込)</span>
                           : null}
-                        {d.payment_date && <div className="text-[10px] text-slate-400">{d.payment_date}</div>}
+                        {d.contract_date && <div className="text-[10px] text-slate-400">締結 {d.contract_date}</div>}
+                        {(d.contract_start || d.contract_end) && (
+                          <div className="text-[10px] text-slate-400">{d.contract_start ?? '?'} 〜 {d.contract_end ?? '?'}</div>
+                        )}
                       </div>
                     </div>
                   ))}
