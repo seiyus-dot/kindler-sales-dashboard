@@ -89,11 +89,11 @@ export default function MemberWhiteboard({
     }
   }
 
-  const [year, monthNum] = month.split('-')
+  const monthNum = month.split('-')[1]
   const displayMonth = `${parseInt(monthNum)}月`
 
   return (
-    <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden mb-4">
+    <div className="bg-white rounded border border-slate-100 shadow-sm overflow-hidden mb-4">
       <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
         <h2 className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
           <Target className="text-indigo-500" size={15} />

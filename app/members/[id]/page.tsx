@@ -129,7 +129,7 @@ export default function MemberDetailPage() {
         <div className="flex items-center gap-3 lg:gap-4">
           <Link href="/members" className="text-sm text-gray-400 hover:text-gray-600 transition">← 一覧</Link>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-[#e8eeff] flex items-center justify-center text-navy font-black text-base">
+            <div className="w-10 h-10 rounded bg-[#e8eeff] flex items-center justify-center text-navy font-black text-base">
               {member.name.slice(0, 1)}
             </div>
             <h1 className="text-[17px] lg:text-xl font-bold text-[#1a2540] tracking-tight">{member.name}</h1>
@@ -146,7 +146,7 @@ export default function MemberDetailPage() {
           { label: '着金済み', value: paidAmount.toLocaleString(), unit: '万円', accent: 'text-[#2a7a4a]', bg: 'bg-[#f0f8f4]' },
           { label: '受注率', value: winRate, unit: '%', accent: 'text-[#b8902a]', bg: 'bg-[#fdf8f0]' },
         ].map(k => (
-          <div key={k.label} className={`${k.bg} rounded-xl border border-[#e0e6f0] px-4 lg:px-5 py-3 lg:py-4 min-w-[140px] flex-shrink-0 lg:flex-shrink lg:min-w-0 snap-start`}>
+          <div key={k.label} className={`${k.bg} rounded border border-[#e0e6f0] px-4 lg:px-5 py-3 lg:py-4 min-w-[140px] flex-shrink-0 lg:flex-shrink lg:min-w-0 snap-start`}>
             <p className="text-[10px] lg:text-xs font-black text-gray-400 uppercase tracking-widest mb-1 lg:mb-2 whitespace-nowrap">{k.label}</p>
             <div className="flex items-baseline gap-1">
               <span className={`text-2xl lg:text-3xl font-black font-mono ${k.accent}`}>{k.value}</span>
@@ -157,7 +157,7 @@ export default function MemberDetailPage() {
       </div>
 
       {/* 行動KPI */}
-      <div className="bg-white rounded-xl border border-[#e0e6f0] shadow-sm p-4 lg:p-7">
+      <div className="bg-white rounded border border-[#e0e6f0] shadow-sm p-4 lg:p-7">
         <h3 className="text-xs font-black text-[#8a96b0] uppercase tracking-widest mb-4 lg:mb-5">行動KPI</h3>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-5 lg:mb-6">
           {[
@@ -166,7 +166,7 @@ export default function MemberDetailPage() {
             { label: '1案件あたり平均', value: actionsPerDeal, unit: 'アクション', color: 'text-[#b8902a]' },
             { label: '進行中案件数', value: activeDealsCount, unit: '件', color: 'text-[#1a2540]' },
           ].map(k => (
-            <div key={k.label} className="bg-[#f8f9fd] rounded-lg px-3 lg:px-4 py-2.5 lg:py-3">
+            <div key={k.label} className="bg-[#f8f9fd] rounded px-3 lg:px-4 py-2.5 lg:py-3">
               <p className="text-[10px] lg:text-xs font-black text-gray-400 mb-1">{k.label}</p>
               <div className="flex items-baseline gap-1">
                 <span className={`text-xl lg:text-2xl font-black font-mono ${k.color}`}>{k.value}</span>
@@ -204,7 +204,7 @@ export default function MemberDetailPage() {
 
       {/* 直近アクション */}
       {recentActions.length > 0 && (
-        <div className="bg-white rounded-xl border border-[#e0e6f0] shadow-sm p-4 lg:p-7">
+        <div className="bg-white rounded border border-[#e0e6f0] shadow-sm p-4 lg:p-7">
           <h3 className="text-xs font-black text-[#8a96b0] uppercase tracking-widest mb-4 lg:mb-5">直近のアクション</h3>
           <div className="space-y-3">
             {recentActions.map(a => {
@@ -229,7 +229,7 @@ export default function MemberDetailPage() {
 
       {/* ファネル */}
       {stageDistribution.length > 0 && (
-        <div className="bg-white rounded-xl border border-[#e0e6f0] shadow-sm p-4 lg:p-7">
+        <div className="bg-white rounded border border-[#e0e6f0] shadow-sm p-4 lg:p-7">
           <h3 className="text-xs font-black text-[#8a96b0] uppercase tracking-widest mb-4 lg:mb-5">ステージ分布（法人）</h3>
           <div className="space-y-2">
             {stageDistribution.map(({ stage, count }) => {
@@ -278,7 +278,7 @@ export default function MemberDetailPage() {
 
       {/* ステータス内訳 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-5">
-        <div className="bg-white rounded-xl border border-[#e0e6f0] shadow-sm p-4 lg:p-7">
+        <div className="bg-white rounded border border-[#e0e6f0] shadow-sm p-4 lg:p-7">
           <h3 className="text-xs font-black text-[#8a96b0] uppercase tracking-widest mb-4 lg:mb-5">法人 ステータス内訳</h3>
           {tobStatusCounts.length === 0 ? (
             <p className="text-base text-gray-400 text-center py-4">案件なし</p>
@@ -293,7 +293,7 @@ export default function MemberDetailPage() {
             </div>
           )}
         </div>
-        <div className="bg-white rounded-xl border border-[#e0e6f0] shadow-sm p-4 lg:p-7">
+        <div className="bg-white rounded border border-[#e0e6f0] shadow-sm p-4 lg:p-7">
           <h3 className="text-xs font-black text-[#8a96b0] uppercase tracking-widest mb-4 lg:mb-5">商談 ステータス内訳</h3>
           {aicampStatusCounts.length === 0 ? (
             <p className="text-base text-gray-400 text-center py-4">相談なし</p>
