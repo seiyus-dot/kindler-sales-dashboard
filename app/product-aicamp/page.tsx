@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
-import type { ProductAICampSession, ProductAICampCustomer } from '@/lib/supabase'
+import type { ProductAICampSession, ProductAICampCustomer, Contact } from '@/lib/supabase'
 import { ChevronLeft, ChevronRight, Plus, X, Pencil, Trash2, Users } from 'lucide-react'
+import PageHeader from '@/components/PageHeader'
 
 type Tab = 'schedule' | 'customers'
 
@@ -34,6 +35,7 @@ const emptyCustomer = (): Omit<ProductAICampCustomer, 'id' | 'created_at' | 'ses
   phone: '',
   email: '',
   session_id: '',
+  contact_id: '',
   status: '申込済',
   notes: '',
 })
@@ -52,6 +54,7 @@ export default function ProductAICampPage() {
   const [customerDraft, setCustomerDraft] = useState(emptyCustomer())
   const [editingCustomerId, setEditingCustomerId] = useState<string | null>(null)
   const [savingCustomer, setSavingCustomer] = useState(false)
+  const [contacts, setContacts] = useState<Contact[]>([])
 
   const now = new Date()
   const [calYear, setCalYear] = useState(now.getFullYear())
@@ -61,14 +64,16 @@ export default function ProductAICampPage() {
   const [error, setError] = useState<string | null>(null)
 
   async function fetchAll() {
-    const [sessRes, cusRes] = await Promise.all([
+    const [sessRes, cusRes, ctRes] = await Promise.all([
       supabase.from('product_aicamp_sessions').select('*').order('session_date'),
       supabase.from('product_aicamp_customers').select('*, session:product_aicamp_sessions(*)').order('created_at', { ascending: false }),
+      supabase.from('contacts').select('*').order('name'),
     ])
     if (sessRes.error) setError(sessRes.error.message)
     else setSessions(sessRes.data as ProductAICampSession[])
     if (cusRes.error) setError(cusRes.error.message)
     else setCustomers(cusRes.data as ProductAICampCustomer[])
+    if (ctRes.data) setContacts(ctRes.data)
   }
 
   useEffect(() => { fetchAll() }, [])
@@ -183,6 +188,7 @@ export default function ProductAICampPage() {
       phone: c.phone,
       email: c.email,
       session_id: c.session_id ?? '',
+      contact_id: c.contact_id ?? '',
       status: c.status,
       notes: c.notes ?? '',
     })
@@ -200,6 +206,7 @@ export default function ProductAICampPage() {
       phone: customerDraft.phone.trim(),
       email: customerDraft.email.trim(),
       session_id: customerDraft.session_id || null,
+      contact_id: customerDraft.contact_id || null,
       status: customerDraft.status,
       notes: customerDraft.notes || null,
     }
@@ -226,10 +233,10 @@ export default function ProductAICampPage() {
   return (
     <div className="space-y-6">
       {/* ヘッダー */}
-      <div>
-        <h1 className="text-xl lg:text-2xl font-black text-gray-900 tracking-tight">Product AI CAMP</h1>
-        <p className="text-xs lg:text-sm text-gray-400 mt-0.5">{sessions.length}セッション / 受講者 {customers.filter(c => c.status !== 'キャンセル').length}名</p>
-      </div>
+      <PageHeader
+        title="Product AI CAMP"
+        sub={`${sessions.length}セッション / 受講者 ${customers.filter(c => c.status !== 'キャンセル').length}名`}
+      />
 
       {error && (
         <div className="p-3 bg-red-50 text-red-700 text-sm rounded-lg border border-red-100">{error}</div>
@@ -720,6 +727,22 @@ export default function ProductAICampPage() {
                     </option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">個人顧客マスタにリンク</label>
+                <select
+                  className="input"
+                  value={customerDraft.contact_id ?? ''}
+                  onChange={e => setCustomerDraft(d => ({ ...d, contact_id: e.target.value }))}
+                >
+                  <option value="">未リンク</option>
+                  {contacts.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}{c.phone ? `　${c.phone}` : ''}</option>
+                  ))}
+                </select>
+                {!customerDraft.contact_id && (
+                  <p className="text-[10px] text-slate-400 mt-0.5">顧客管理ページで個人顧客を作成後、ここからリンクできます</p>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">ステータス</label>

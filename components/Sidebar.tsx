@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, BriefcaseBusiness, ClipboardList, Settings, Users, Menu, X, BookOpen, LogOut, Tent, UserPlus, Zap, GanttChartSquare, FileText, List, MonitorPlay, ChevronDown } from 'lucide-react'
+import { LayoutDashboard, BriefcaseBusiness, ClipboardList, Settings, Users, Menu, X, BookOpen, LogOut, Tent, UserPlus, Zap, GanttChartSquare, FileText, List, MonitorPlay, ChevronDown, Contact } from 'lucide-react'
 import { createBrowserClient } from '@supabase/ssr'
 import type { User } from '@supabase/supabase-js'
 
@@ -16,6 +16,7 @@ const navItems = [
   { href: '/knowledge', label: '営業ナレッジ',   icon: BookOpen },
   { href: '/aicamp',         label: 'AI CAMP',             icon: Tent },
   { href: '/product-aicamp', label: 'Product AI CAMP',    icon: MonitorPlay },
+  { href: '/customers',     label: '顧客管理',            icon: Contact },
   { href: '/invites',  label: '招待管理',        icon: UserPlus },
   { href: '/utage',   label: 'UTAGE',           icon: Zap },
   { href: '/advisor',         label: 'AI顧問管理',    icon: GanttChartSquare },

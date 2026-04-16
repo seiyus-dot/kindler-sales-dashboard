@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase, AICampConsultation, Member, SourceMaster, CONSULTATION_STATUSES, PAYMENT_METHODS, AI_EXPERIENCES } from '@/lib/supabase'
+import { supabase, AICampConsultation, Member, SourceMaster, CONSULTATION_STATUSES, PAYMENT_METHODS, AI_EXPERIENCES, Contact } from '@/lib/supabase'
 
 type Props = {
   members: Member[]
@@ -37,14 +37,21 @@ export default function AICampConsultationForm({ members, initial, onClose, onSa
     expectation: initial?.expectation ?? '',
     question: initial?.question ?? '',
     service_type: initial?.service_type ?? 'AI CAMP',
+    contact_id: initial?.contact_id ?? '',
   })
   const [sourceMasters, setSourceMasters] = useState<SourceMaster[]>([])
+  const [contacts, setContacts] = useState<Contact[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    supabase.from('source_master').select('*').order('source').order('registration_source')
-      .then(({ data }) => setSourceMasters(data ?? []))
+    Promise.all([
+      supabase.from('source_master').select('*').order('source').order('registration_source'),
+      supabase.from('contacts').select('*').order('name'),
+    ]).then(([smRes, ctRes]) => {
+      setSourceMasters(smRes.data ?? [])
+      if (ctRes.data) setContacts(ctRes.data)
+    })
   }, [])
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
@@ -93,6 +100,7 @@ export default function AICampConsultationForm({ members, initial, onClose, onSa
       expectation: form.expectation || null,
       question: form.question || null,
       service_type: form.service_type,
+      contact_id: form.contact_id || null,
     }
     const { error: err } = initial
       ? await supabase.from('aicamp_consultations').update(payload).eq('id', initial.id)
@@ -128,6 +136,18 @@ export default function AICampConsultationForm({ members, initial, onClose, onSa
           <Field label="お名前">
             <input value={form.name} onChange={e => set('name', e.target.value)} className="input" placeholder="例：松岡 毅" />
           </Field>
+
+          <div className="col-span-2">
+            <Field label="個人顧客マスタにリンク">
+              <select value={form.contact_id} onChange={e => set('contact_id', e.target.value)} className="input">
+                <option value="">未リンク</option>
+                {contacts.map(c => <option key={c.id} value={c.id}>{c.name}{c.phone ? `　${c.phone}` : ''}</option>)}
+              </select>
+              {!form.contact_id && (
+                <p className="text-[10px] text-slate-400 mt-0.5">顧客管理ページで個人顧客を作成後、ここからリンクできます</p>
+              )}
+            </Field>
+          </div>
 
           <Field label="年齢">
             <input type="number" value={form.age} onChange={e => set('age', e.target.value)} className="input font-mono" placeholder="44" />

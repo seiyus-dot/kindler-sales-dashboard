@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase, DealToC, Member, MasterOption, LOSS_REASONS } from '@/lib/supabase'
+import { supabase, DealToC, Member, MasterOption, LOSS_REASONS, Contact } from '@/lib/supabase'
 import DealActions from '@/components/DealActions'
 
 type Props = {
@@ -21,14 +21,17 @@ export default function DealToCForm({ members, initial, onClose, onSaved, defaul
   const [tab, setTab] = useState<Tab>('info')
   const [sources, setSources] = useState<MasterOption[]>([])
   const [services, setServices] = useState<MasterOption[]>([])
+  const [contacts, setContacts] = useState<Contact[]>([])
 
   useEffect(() => {
     Promise.all([
       supabase.from('master_options').select('*').eq('type', 'source').order('sort_order'),
       supabase.from('master_options').select('*').eq('type', 'service').order('sort_order'),
-    ]).then(([srcRes, svcRes]) => {
+      supabase.from('contacts').select('*').order('name'),
+    ]).then(([srcRes, svcRes, ctRes]) => {
       if (srcRes.data) setSources(srcRes.data)
       if (svcRes.data) setServices(svcRes.data)
+      if (ctRes.data) setContacts(ctRes.data)
     })
   }, [])
 
@@ -58,6 +61,7 @@ export default function DealToCForm({ members, initial, onClose, onSaved, defaul
     contract_end: initial?.contract_end ?? '',
     payment_status: initial?.payment_status ?? '正常',
     payment_error_date: initial?.payment_error_date ?? '',
+    contact_id: initial?.contact_id ?? '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -96,6 +100,7 @@ export default function DealToCForm({ members, initial, onClose, onSaved, defaul
       contract_end: form.contract_end || null,
       payment_status: form.payment_status || null,
       payment_error_date: form.payment_error_date || null,
+      contact_id: form.contact_id || null,
     }
     const { error: err } = initial
       ? await supabase.from('deals_toc').update(payload).eq('id', initial.id)
@@ -162,6 +167,16 @@ export default function DealToCForm({ members, initial, onClose, onSaved, defaul
 
               <Field label="氏名" required>
                 <input value={form.name} onChange={e => set('name', e.target.value)} className="input" placeholder="例：山田 太郎" />
+              </Field>
+
+              <Field label="個人顧客マスタにリンク">
+                <select value={form.contact_id} onChange={e => set('contact_id', e.target.value)} className="input">
+                  <option value="">未リンク</option>
+                  {contacts.map(c => <option key={c.id} value={c.id}>{c.name}{c.phone ? `　${c.phone}` : ''}</option>)}
+                </select>
+                {!form.contact_id && (
+                  <p className="text-[10px] text-slate-400 mt-0.5">顧客管理ページで個人顧客を作成後、ここからリンクできます</p>
+                )}
               </Field>
 
               <Field label="主担当者" required>

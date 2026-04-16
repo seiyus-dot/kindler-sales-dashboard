@@ -59,6 +59,7 @@ export type DealToB = {
   video_url?: string
   minutes_text?: string
   drive_folder_id?: string
+  company_id?: string
   created_at: string
   updated_at: string
   member?: Member
@@ -96,6 +97,7 @@ export type DealToC = {
   stripe_customer_id?: string
   video_url?: string
   minutes_text?: string
+  contact_id?: string
   created_at: string
   updated_at: string
   member?: Member
@@ -159,6 +161,7 @@ export type AICampConsultation = {
   question?: string
   service_type?: string
   applied_at?: string
+  contact_id?: string
   created_at: string
   updated_at: string
   member?: Member
@@ -301,8 +304,32 @@ export type ProductAICampCustomer = {
   phone: string
   email: string
   session_id?: string
+  contact_id?: string
   status: string
   notes?: string
   created_at: string
   session?: ProductAICampSession
+}
+
+// =============================================
+// 顧客マスタ（1顧客 × 複数プロダクト対応）
+// =============================================
+
+export type Contact = {
+  id: string
+  name: string
+  phone?: string
+  email?: string
+  notes?: string
+  created_at: string
+  updated_at: string
+}
+
+export type Company = {
+  id: string
+  name: string
+  industry?: string
+  notes?: string
+  created_at: string
+  updated_at: string
 }

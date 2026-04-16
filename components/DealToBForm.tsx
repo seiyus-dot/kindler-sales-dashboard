@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase, DealToB, Member, MasterOption, LOSS_REASONS } from '@/lib/supabase'
+import { supabase, DealToB, Member, MasterOption, LOSS_REASONS, Company } from '@/lib/supabase'
 import DealActions from '@/components/DealActions'
 import DriveFolderPanel from '@/components/DriveFolderPanel'
 
@@ -23,16 +23,19 @@ export default function DealToBForm({ members, initial, onClose, onSaved, defaul
   const [sources, setSources] = useState<MasterOption[]>([])
   const [services, setServices] = useState<MasterOption[]>([])
   const [industries, setIndustries] = useState<MasterOption[]>([])
+  const [companies, setCompanies] = useState<Company[]>([])
 
   useEffect(() => {
     Promise.all([
       supabase.from('master_options').select('*').eq('type', 'source').order('sort_order'),
       supabase.from('master_options').select('*').eq('type', 'service').order('sort_order'),
       supabase.from('master_options').select('*').eq('type', 'industry').order('sort_order'),
-    ]).then(([srcRes, svcRes, indRes]) => {
+      supabase.from('companies').select('*').order('name'),
+    ]).then(([srcRes, svcRes, indRes, coRes]) => {
       if (srcRes.data) setSources(srcRes.data)
       if (svcRes.data) setServices(svcRes.data)
       if (indRes.data) setIndustries(indRes.data)
+      if (coRes.data) setCompanies(coRes.data)
     })
   }, [])
 
@@ -60,6 +63,7 @@ export default function DealToBForm({ members, initial, onClose, onSaved, defaul
     sub_member_id: initial?.sub_member_id ?? '',
     video_url: initial?.video_url ?? '',
     minutes_text: initial?.minutes_text ?? '',
+    company_id: initial?.company_id ?? '',
   })
   const [saving, setSaving] = useState(false)
   const [generatingMinutes, setGeneratingMinutes] = useState(false)
@@ -106,6 +110,7 @@ export default function DealToBForm({ members, initial, onClose, onSaved, defaul
       sub_member_id: form.sub_member_id || null,
       video_url: form.video_url || null,
       minutes_text: form.minutes_text || null,
+      company_id: form.company_id || null,
     }
     const { error: err } = initial
       ? await supabase.from('deals_tob').update(payload).eq('id', initial.id)
@@ -210,6 +215,16 @@ export default function DealToBForm({ members, initial, onClose, onSaved, defaul
             <div className="p-6 grid grid-cols-2 gap-4 overflow-y-auto">
               <Field label="企業名" required>
                 <input value={form.company_name} onChange={e => set('company_name', e.target.value)} className="input" placeholder="例：株式会社〇〇" />
+              </Field>
+
+              <Field label="法人顧客マスタにリンク">
+                <select value={form.company_id} onChange={e => set('company_id', e.target.value)} className="input">
+                  <option value="">未リンク</option>
+                  {companies.map(c => <option key={c.id} value={c.id}>{c.name}{c.industry ? `（${c.industry}）` : ''}</option>)}
+                </select>
+                {!form.company_id && (
+                  <p className="text-[10px] text-slate-400 mt-0.5">顧客管理ページで法人顧客を作成後、ここからリンクできます</p>
+                )}
               </Field>
 
               <Field label="主担当者" required>
