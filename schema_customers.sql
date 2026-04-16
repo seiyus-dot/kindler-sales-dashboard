@@ -36,3 +36,7 @@ alter table product_aicamp_customers
 
 alter table deals_tob
   add column if not exists company_id uuid references companies(id) on delete set null;
+
+-- RLS を無効化（他テーブルと同様の設定）
+alter table contacts disable row level security;
+alter table companies disable row level security;
