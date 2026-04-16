@@ -227,8 +227,8 @@ export default function ProductAICampPage() {
     <div className="space-y-6">
       {/* ヘッダー */}
       <div>
-        <h1 className="text-2xl font-black text-gray-900 tracking-tight">Product AI CAMP</h1>
-        <p className="text-sm text-gray-400 mt-0.5">{sessions.length}セッション / 受講者 {customers.filter(c => c.status !== 'キャンセル').length}名</p>
+        <h1 className="text-xl lg:text-2xl font-black text-gray-900 tracking-tight">Product AI CAMP</h1>
+        <p className="text-xs lg:text-sm text-gray-400 mt-0.5">{sessions.length}セッション / 受講者 {customers.filter(c => c.status !== 'キャンセル').length}名</p>
       </div>
 
       {error && (

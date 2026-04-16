@@ -118,8 +118,8 @@ export default function SettingsPage() {
   return (
     <div className="max-w-xl space-y-6">
       <div>
-        <h1 className="text-2xl font-black text-gray-900 tracking-tight">マスタ設定</h1>
-        <p className="text-sm text-gray-400 mt-0.5">プルダウンの選択肢・表示列を管理します</p>
+        <h1 className="text-xl lg:text-2xl font-black text-gray-900 tracking-tight">マスタ設定</h1>
+        <p className="text-xs lg:text-sm text-gray-400 mt-0.5">プルダウンの選択肢・表示列を管理します</p>
       </div>
 
       <div className="flex gap-1 bg-gray-100 p-1 rounded-sm w-fit">

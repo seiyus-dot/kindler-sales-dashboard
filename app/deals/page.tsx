@@ -342,10 +342,10 @@ export default function DealsPage() {
   return (
     <div className="space-y-6">
       {/* ヘッダー */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-0">
         <div>
-          <h1 className="text-2xl font-black text-gray-900 tracking-tight">法人案件</h1>
-          <p className="text-sm text-gray-400 mt-0.5">{tobDeals.length}件 / 受注 {wonDeals.length}件 / 進行中 {inProgressDeals.length}件</p>
+          <h1 className="text-xl lg:text-2xl font-black text-gray-900 tracking-tight">法人案件</h1>
+          <p className="text-xs lg:text-sm text-gray-400 mt-0.5">{tobDeals.length}件 / 受注 {wonDeals.length}件 / 進行中 {inProgressDeals.length}件</p>
         </div>
         <div className="flex gap-2">
           <CSVImport tab="tob" members={members} sources={sources} onImported={fetchAll} />

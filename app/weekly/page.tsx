@@ -56,11 +56,14 @@ export default function WeeklyPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-sm font-bold text-gray-500 uppercase tracking-widest">週次ログ</h2>
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-0 mb-6">
+        <div>
+          <h1 className="text-xl lg:text-2xl font-black text-gray-900 tracking-tight">週次ログ</h1>
+          <p className="text-xs lg:text-sm text-gray-400 mt-0.5">週次定例のKPI記録</p>
+        </div>
         <button
           onClick={() => setShowForm(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition"
+          className="bg-navy text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#152f5a] transition"
         >
           + 今週のログを記録
         </button>

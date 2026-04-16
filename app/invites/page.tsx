@@ -108,15 +108,14 @@ export default function InvitesPage() {
 
   return (
     <div className="max-w-3xl">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-0 mb-6">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">招待管理</h1>
-          <p className="text-sm text-slate-500 mt-1">アクセスを許可するGoogleアカウントを管理します</p>
-          <p className="text-xs text-amber-600 mt-1">権限を変更した場合、対象ユーザーは一度ログアウトして再ログインするまで反映されません</p>
+          <h1 className="text-xl lg:text-2xl font-black text-gray-900 tracking-tight">招待管理</h1>
+          <p className="text-xs lg:text-sm text-gray-400 mt-0.5">アクセスを許可するGoogleアカウントを管理します</p>
         </div>
         <button
           onClick={openAdd}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-navy text-white rounded-lg text-sm font-medium hover:bg-[#152f5a] transition-colors"
         >
           <UserPlus size={16} />
           招待を追加

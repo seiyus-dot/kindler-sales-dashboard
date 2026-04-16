@@ -253,10 +253,10 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6 pb-8">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-0">
         <div>
-          <h1 className="text-2xl font-bold text-[#1a2540] tracking-tight">ダッシュボード</h1>
-          <p className="text-slate-400 text-sm mt-0.5">表示中: {viewLabel}　最終更新: {latest?.log_date ?? '-'}</p>
+          <h1 className="text-xl lg:text-2xl font-black text-gray-900 tracking-tight">ダッシュボード</h1>
+          <p className="text-xs lg:text-sm text-gray-400 mt-0.5">表示中: {viewLabel}　最終更新: {latest?.log_date ?? '-'}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 lg:gap-3">
           {/* 新規追加ボタン */}
