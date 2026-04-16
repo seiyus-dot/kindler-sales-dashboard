@@ -56,7 +56,7 @@ export default function MembersPage() {
         .reduce((s, d) => s + (d.expected_amount ?? 0), 0)
 
       const paidAmount = tob.filter(d => d.payment_date)
-        .reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0) +
+        .reduce((s, d) => s + (d.actual_amount ?? 0), 0) +
         aicamp.filter(d => d.status === '成約' && d.payment_date)
           .reduce((s, d) => s + Math.round((d.payment_amount ?? 0) / 10000), 0)
 

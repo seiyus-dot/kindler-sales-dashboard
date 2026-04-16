@@ -107,7 +107,7 @@ export default function DashboardPage() {
     (period === 'all' || d.contract_date?.startsWith(selectedMonth))
   )
   const paidDeals = tobPaid
-  const paidTobTotal = tobPaid.reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0)
+  const paidTobTotal = tobPaid.reduce((s, d) => s + (d.actual_amount ?? 0), 0)
   const tobContractTotal = tobPaid.reduce((s, d) => s + (d.contract_amount ?? 0), 0)
   // aicamp_consultations の着金（円→万円）
   const paidAicamp = aicampDeals.filter(d =>
@@ -163,7 +163,7 @@ export default function DashboardPage() {
     const totals: Record<string, number> = {}
     for (const d of paidDeals) {
       const name = d.member?.name ?? '未割当'
-      totals[name] = (totals[name] ?? 0) + (d.actual_amount ?? d.expected_amount ?? 0)
+      totals[name] = (totals[name] ?? 0) + (d.actual_amount ?? 0)
     }
     for (const d of paidAicamp) {
       const name = members.find(m => m.id === d.member_id)?.name ?? '未割当'
@@ -181,7 +181,7 @@ export default function DashboardPage() {
     const tobByService: Record<string, number> = {}
     for (const d of tobPaid) {
       const key = d.service ?? 'その他'
-      tobByService[key] = (tobByService[key] ?? 0) + (d.contract_amount ?? d.actual_amount ?? d.expected_amount ?? 0)
+      tobByService[key] = (tobByService[key] ?? 0) + (d.contract_amount ?? 0)
     }
 
     // aicamp_consultations のサービス別（円→万円に変換）
@@ -402,7 +402,7 @@ export default function DashboardPage() {
                     <td className="px-4 py-2 text-slate-700 font-medium text-xs">{d.company_name}</td>
                     <td className="px-4 py-2 text-slate-400 text-xs">{d.member?.name ?? '-'}</td>
                     <td className="px-4 py-2 text-slate-400 text-xs font-mono">{d.payment_date ?? '-'}</td>
-                    <td className="px-4 py-2 text-slate-700 font-mono font-bold text-xs text-right">{(d.actual_amount ?? d.expected_amount ?? 0).toLocaleString()}万</td>
+                    <td className="px-4 py-2 text-slate-700 font-mono font-bold text-xs text-right">{(d.actual_amount ?? 0).toLocaleString()}万</td>
                   </tr>
                 ))}
                 {paidAicamp.map(d => (

@@ -85,7 +85,7 @@ export default function MemberDetailPage() {
     .reduce((s, d) => s + (d.expected_amount ?? 0), 0)
 
   const paidAmount =
-    tobDeals.filter(d => d.payment_date).reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0) +
+    tobDeals.filter(d => d.payment_date).reduce((s, d) => s + (d.actual_amount ?? 0), 0) +
     aicampDeals.filter(d => d.status === '成約' && d.payment_date).reduce((s, d) => s + Math.round((d.payment_amount ?? 0) / 10000), 0)
 
   const wonCount = tobDeals.filter(d => d.status === '受注').length + aicampDeals.filter(d => d.status === '成約').length
