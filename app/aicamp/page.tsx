@@ -519,8 +519,12 @@ export default function AICampPage() {
 
       {/* 広告数値 */}
       {(() => {
-        const totalAdSpend = adFilteredWeekly.reduce((s, r) => s + r.ad_spend, 0)
-        const totalListCount = adFilteredWeekly.reduce((s, r) => s + r.list_count, 0)
+        // CPA計算はMeta広告リスト（fb_ads）ベース
+        const totalAdSpend   = fbAds.reduce((s, r) => s + (r.amount_spent ?? 0), 0)
+        const totalListCount = fbAds.reduce((s, r) => s + (r.registrations_completed ?? 0), 0)
+        // 面談申込・着座は週別手入力テーブルから
+        const weeklyAdSpend   = adFilteredWeekly.reduce((s, r) => s + r.ad_spend, 0)
+        const weeklyListCount = adFilteredWeekly.reduce((s, r) => s + r.list_count, 0)
         const totalConsultation = adFilteredWeekly.reduce((s, r) => s + (r.consultation_count ?? 0), 0)
         const totalSeated = adFilteredWeekly.reduce((s, r) => s + (r.seated_count ?? 0), 0)
         const cpa = totalListCount > 0 ? Math.round(totalAdSpend / totalListCount) : null
@@ -614,8 +618,8 @@ export default function AICampPage() {
                   {adFilteredWeekly.length > 0 && (
                     <tr className="bg-gray-50 border-t border-gray-200 font-bold">
                       <td className="px-4 py-3 text-gray-500 text-xs">合計</td>
-                      <td className="px-4 py-3 font-mono text-gray-800">¥{totalAdSpend.toLocaleString()}</td>
-                      <td className="px-4 py-3 font-mono text-gray-800">{totalListCount}</td>
+                      <td className="px-4 py-3 font-mono text-gray-800">¥{weeklyAdSpend.toLocaleString()}</td>
+                      <td className="px-4 py-3 font-mono text-gray-800">{weeklyListCount}</td>
                       <td className="px-4 py-3 font-mono text-gray-800">{totalConsultation > 0 ? totalConsultation : '-'}</td>
                       <td className="px-4 py-3 font-mono text-gray-800">{totalSeated > 0 ? totalSeated : '-'}</td>
                       <td />
@@ -626,7 +630,7 @@ export default function AICampPage() {
             </div>
 
             {/* ファネル */}
-            {adFilteredWeekly.length > 0 && totalListCount > 0 && (
+            {fbAds.length > 0 && totalListCount > 0 && (
               <div className="border-t border-gray-100 px-5 py-4">
                 <p className="text-xs font-bold text-gray-500 mb-3">LINEファネル</p>
                 {(() => {
@@ -667,7 +671,7 @@ export default function AICampPage() {
             )}
 
             {/* KPI */}
-            {adFilteredWeekly.length > 0 && (
+            {fbAds.length > 0 && (
               <div className="border-t border-gray-100 px-5 py-4 grid grid-cols-2 sm:grid-cols-5 gap-4">
                 {[
                   { label: 'CPA', value: cpa ? `¥${cpa.toLocaleString()}` : '-', sub: '広告費÷リスト数' },
