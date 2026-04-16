@@ -304,7 +304,7 @@ export default function DealsPage() {
   // 概要タブ用集計
   const wonDeals = useMemo(() => tobDeals.filter(d => d.status === '受注'), [tobDeals])
   const inProgressDeals = useMemo(() => tobDeals.filter(d => !['受注', '失注'].includes(d.status ?? '')), [tobDeals])
-  const monthlyPaid = useMemo(() => tobDeals.filter(d => d.status === '受注' && (d.actual_amount ?? 0) > 0 && d.payment_date?.startsWith(selectedMonth)), [tobDeals, selectedMonth])
+  const monthlyPaid = useMemo(() => tobDeals.filter(d => d.status === '受注' && (d.contract_amount ?? 0) > 0 && d.contract_start?.startsWith(selectedMonth)), [tobDeals, selectedMonth])
   const salesTotal = useMemo(() => monthlyPaid.reduce((s, d) => s + (d.contract_amount ?? 0), 0), [monthlyPaid])
   const paidTotal = useMemo(() => monthlyPaid.reduce((s, d) => s + (d.actual_amount ?? 0), 0), [monthlyPaid])
   const pipeline = useMemo(() => inProgressDeals.reduce((s, d) => s + (d.expected_amount ?? 0), 0), [inProgressDeals])

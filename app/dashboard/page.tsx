@@ -103,8 +103,8 @@ export default function DashboardPage() {
 
   // KPI - 案件着金（deals_tocはaicamp移行済みのため除外）
   const tobPaid = tobDeals.filter(d =>
-    d.status === '受注' && (d.actual_amount ?? 0) > 0 &&
-    (period === 'all' || d.payment_date?.startsWith(selectedMonth))
+    d.status === '受注' && (d.contract_amount ?? 0) > 0 &&
+    (period === 'all' || d.contract_start?.startsWith(selectedMonth))
   )
   const paidDeals = tobPaid
   const paidTobTotal = tobPaid.reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0)
@@ -147,7 +147,7 @@ export default function DashboardPage() {
     return months6.map(m => {
       const label = m.slice(5) + '月'
       const tob = tobDeals
-        .filter(d => d.status === '受注' && (d.actual_amount ?? 0) > 0 && d.payment_date?.startsWith(m))
+        .filter(d => d.status === '受注' && (d.contract_amount ?? 0) > 0 && d.contract_start?.startsWith(m))
         .reduce((s, d) => s + (d.contract_amount ?? 0), 0)
       const aicamp = Math.round(
         aicampDeals
@@ -176,7 +176,7 @@ export default function DashboardPage() {
   const servicePaid = useMemo(() => {
     // deals_tob のサービス別（万円単位、売上優先→着金→見込みの順）
     const tobPaid = tobDeals.filter(d =>
-      d.status === '受注' && (d.actual_amount ?? 0) > 0
+      d.status === '受注' && (d.contract_amount ?? 0) > 0 && d.contract_start
     )
     const tobByService: Record<string, number> = {}
     for (const d of tobPaid) {

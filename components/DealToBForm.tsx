@@ -58,6 +58,8 @@ export default function DealToBForm({ members, initial, onClose, onSaved, defaul
     payment_date: initial?.payment_date ?? '',
     actual_amount: initial?.actual_amount?.toString() ?? '',
     contract_amount: initial?.contract_amount?.toString() ?? '',
+    contract_start: initial?.contract_start ?? '',
+    contract_end: initial?.contract_end ?? '',
     loss_reason: initial?.loss_reason ?? '',
     loss_detail: initial?.loss_detail ?? '',
     sub_member_id: initial?.sub_member_id ?? '',
@@ -105,6 +107,8 @@ export default function DealToBForm({ members, initial, onClose, onSaved, defaul
       payment_date: form.payment_date || null,
       actual_amount: form.actual_amount ? parseInt(form.actual_amount) : null,
       contract_amount: form.contract_amount ? parseInt(form.contract_amount) : null,
+      contract_start: form.contract_start || null,
+      contract_end: form.contract_end || null,
       loss_reason: form.loss_reason || null,
       loss_detail: form.loss_detail || null,
       sub_member_id: form.sub_member_id || null,
@@ -369,6 +373,12 @@ export default function DealToBForm({ members, initial, onClose, onSaved, defaul
                   </Field>
                   <Field label="着金額（万円）">
                     <input type="number" value={form.actual_amount} onChange={e => set('actual_amount', e.target.value)} className="input font-mono" placeholder="実際の入金額" />
+                  </Field>
+                  <Field label="契約日">
+                    <input type="date" value={form.contract_start} onChange={e => set('contract_start', e.target.value)} className="input" />
+                  </Field>
+                  <Field label="契約終了日">
+                    <input type="date" value={form.contract_end} onChange={e => set('contract_end', e.target.value)} className="input" />
                   </Field>
                   <Field label="着金日">
                     <input type="date" value={form.payment_date} onChange={e => set('payment_date', e.target.value)} className="input" />
