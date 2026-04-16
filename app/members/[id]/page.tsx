@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { supabase, Member, DealToB, DealAction, ACTION_TYPES, AICampConsultation, CONSULTATION_STATUSES } from '@/lib/supabase'
 import Link from 'next/link'
 import { Plus } from 'lucide-react'
+import PageHeader from '@/components/PageHeader'
 import DealToBForm from '@/components/DealToBForm'
 import AICampConsultationForm from '@/components/AICampConsultationForm'
 
@@ -123,13 +124,16 @@ export default function MemberDetailPage() {
   return (
     <div className="space-y-6 lg:space-y-8 pb-8">
       {/* Header */}
-      <div className="flex items-center gap-3 lg:gap-4">
-        <Link href="/members" className="text-sm text-gray-400 hover:text-gray-600 transition">← 一覧</Link>
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-[#e8eeff] flex items-center justify-center text-navy font-black text-base">
-            {member.name.slice(0, 1)}
+      <div>
+        <p className="text-[10px] font-bold tracking-[0.15em] text-[#b8902a] mb-1.5 uppercase">KINDLER</p>
+        <div className="flex items-center gap-3 lg:gap-4">
+          <Link href="/members" className="text-sm text-gray-400 hover:text-gray-600 transition">← 一覧</Link>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-[#e8eeff] flex items-center justify-center text-navy font-black text-base">
+              {member.name.slice(0, 1)}
+            </div>
+            <h1 className="text-[17px] lg:text-xl font-bold text-[#1a2540] tracking-tight">{member.name}</h1>
           </div>
-          <h1 className="text-xl lg:text-2xl font-black text-gray-900 tracking-tight">{member.name}</h1>
         </div>
       </div>
 

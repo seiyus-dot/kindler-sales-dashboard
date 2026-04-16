@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase, AICampConsultation, AICampMonthlyGoal, AICampAdWeekly, Member, CONSULTATION_STATUSES, PAYMENT_METHODS, AI_EXPERIENCES } from '@/lib/supabase'
+import PageHeader from '@/components/PageHeader'
 
 const MONTHLY_INCOMES = ['〜10万円', '11～20万円', '21～30万円', '31～40万円', '41～50万円', '51～60万円', '61～70万円', '71～80万円', '81～90万円', '91～100万円', '101万円以上']
 const SERVICE_TYPES = ['AI CAMP', 'プロダクト AI CAMP']
@@ -372,33 +373,18 @@ export default function AICampPage() {
   return (
     <div className="space-y-5 lg:space-y-6">
       {/* ヘッダー */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-0">
-        <div>
-          <h1 className="text-xl lg:text-2xl font-black text-gray-900 tracking-tight">AI CAMP</h1>
-          <p className="text-xs lg:text-sm text-gray-400 mt-0.5">ロードマップ作成会 商談管理</p>
-        </div>
-        <div className="flex items-center gap-2 lg:gap-3 flex-wrap">
-          <input
-            type="month"
-            value={month}
-            onChange={e => setMonth(e.target.value)}
-            className="border border-gray-200 rounded px-2 lg:px-3 py-1.5 text-xs lg:text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 flex-shrink-0"
-          />
-          <button
-            onClick={() => setShowSourceMaster(true)}
-            className="flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 lg:py-2 text-xs lg:text-sm text-gray-600 border border-gray-200 rounded-sm hover:bg-gray-50 transition whitespace-nowrap"
-          >
-            流入経路マスタ
-          </button>
-          <AIImport members={members} onImported={fetchAll} />
-          <button
-            onClick={() => { setEditTarget(null); setShowForm(true) }}
-            className="bg-blue-600 text-white px-3 lg:px-4 py-1.5 lg:py-2 rounded text-xs lg:text-sm font-medium hover:bg-blue-700 transition whitespace-nowrap"
-          >
-            + 商談追加
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="AI CAMP"
+        sub="ロードマップ作成会 商談管理"
+        right={
+          <>
+            <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="border border-gray-200 rounded px-2 lg:px-3 py-1.5 text-xs lg:text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 flex-shrink-0" />
+            <button onClick={() => setShowSourceMaster(true)} className="flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 lg:py-2 text-xs lg:text-sm text-gray-600 border border-gray-200 rounded-sm hover:bg-gray-50 transition whitespace-nowrap">流入経路マスタ</button>
+            <AIImport members={members} onImported={fetchAll} />
+            <button onClick={() => { setEditTarget(null); setShowForm(true) }} className="bg-navy text-white px-3 lg:px-4 py-1.5 lg:py-2 rounded text-xs lg:text-sm font-medium hover:bg-[#152f5a] transition whitespace-nowrap">+ 商談追加</button>
+          </>
+        }
+      />
 
       {/* タブ */}
       <div className="flex gap-1 border-b border-gray-200 -mx-4 lg:-mx-6 px-4 lg:px-6 overflow-x-auto scrollbar-hide">

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { UserPlus, Trash2, Shield, User, Pencil } from 'lucide-react'
+import PageHeader from '@/components/PageHeader'
 
 type AllowedEmail = {
   email: string
@@ -108,18 +109,16 @@ export default function InvitesPage() {
 
   return (
     <div className="max-w-3xl">
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-0 mb-6">
-        <div>
-          <h1 className="text-xl lg:text-2xl font-black text-gray-900 tracking-tight">招待管理</h1>
-          <p className="text-xs lg:text-sm text-gray-400 mt-0.5">アクセスを許可するGoogleアカウントを管理します</p>
-        </div>
-        <button
-          onClick={openAdd}
-          className="flex items-center gap-2 px-4 py-2 bg-navy text-white rounded-lg text-sm font-medium hover:bg-[#152f5a] transition-colors"
-        >
-          <UserPlus size={16} />
-          招待を追加
-        </button>
+      <div className="mb-6">
+        <PageHeader
+          title="招待管理"
+          sub="アクセスを許可するGoogleアカウントを管理します"
+          right={
+            <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-navy text-white rounded-lg text-sm font-medium hover:bg-[#152f5a] transition-colors">
+              <UserPlus size={16} />招待を追加
+            </button>
+          }
+        />
       </div>
 
       {showForm && (

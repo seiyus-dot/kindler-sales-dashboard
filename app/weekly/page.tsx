@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase, WeeklyLog } from '@/lib/supabase'
+import PageHeader from '@/components/PageHeader'
 
 export default function WeeklyPage() {
   const [logs, setLogs] = useState<WeeklyLog[]>([])
@@ -56,17 +57,16 @@ export default function WeeklyPage() {
 
   return (
     <div>
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-0 mb-6">
-        <div>
-          <h1 className="text-xl lg:text-2xl font-black text-gray-900 tracking-tight">週次ログ</h1>
-          <p className="text-xs lg:text-sm text-gray-400 mt-0.5">週次定例のKPI記録</p>
-        </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="bg-navy text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#152f5a] transition"
-        >
-          + 今週のログを記録
-        </button>
+      <div className="mb-6">
+        <PageHeader
+          title="週次ログ"
+          sub="週次定例のKPI記録"
+          right={
+            <button onClick={() => setShowForm(true)} className="bg-navy text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#152f5a] transition">
+              + 今週のログを記録
+            </button>
+          }
+        />
       </div>
 
       <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">

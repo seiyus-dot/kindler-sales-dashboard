@@ -6,6 +6,7 @@ import DealToBForm from '@/components/DealToBForm'
 import CSVImport from '@/components/CSVImport'
 import StripeCSVImport from '@/components/StripeCSVImport'
 import AIImport from '@/components/AIImport'
+import PageHeader from '@/components/PageHeader'
 
 const TOB_STATUSES = ['アポ取得', '商談中', '提案済', '交渉中', '見積提出', 'リード', '受注', '失注', '保留']
 const PRIORITIES = ['高', '中', '低']
@@ -342,23 +343,23 @@ export default function DealsPage() {
   return (
     <div className="space-y-6">
       {/* ヘッダー */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-0">
-        <div>
-          <h1 className="text-xl lg:text-2xl font-black text-gray-900 tracking-tight">法人案件</h1>
-          <p className="text-xs lg:text-sm text-gray-400 mt-0.5">{tobDeals.length}件 / 受注 {wonDeals.length}件 / 進行中 {inProgressDeals.length}件</p>
-        </div>
-        <div className="flex gap-2">
-          <CSVImport tab="tob" members={members} sources={sources} onImported={fetchAll} />
-          <StripeCSVImport tab="tob" members={members} onImported={fetchAll} />
-          <AIImport members={members} onImported={fetchAll} />
-          <button
-            onClick={() => { setEditTarget(null); setShowForm(true) }}
-            className="bg-navy text-white px-4 py-2 rounded-lg text-base font-medium hover:bg-[#152f5a] transition"
-          >
-            + 新規追加
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="法人案件"
+        sub={`${tobDeals.length}件 / 受注 ${wonDeals.length}件 / 進行中 ${inProgressDeals.length}件`}
+        right={
+          <>
+            <CSVImport tab="tob" members={members} sources={sources} onImported={fetchAll} />
+            <StripeCSVImport tab="tob" members={members} onImported={fetchAll} />
+            <AIImport members={members} onImported={fetchAll} />
+            <button
+              onClick={() => { setEditTarget(null); setShowForm(true) }}
+              className="bg-navy text-white px-4 py-2 rounded-lg text-base font-medium hover:bg-[#152f5a] transition"
+            >
+              + 新規追加
+            </button>
+          </>
+        }
+      />
 
       {/* タブ */}
       <div className="flex gap-1 border-b border-gray-200">

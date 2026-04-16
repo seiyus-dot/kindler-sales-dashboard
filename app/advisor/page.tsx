@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { AiCoachClient, AiCoachItem } from '@/lib/supabase'
 import { NotesSection } from '@/components/NotesSection'
+import PageHeader from '@/components/PageHeader'
 
 // ── helpers ───────────────────────────────────────────────
 const todayStr = () => new Date().toISOString().split('T')[0]
@@ -666,37 +667,36 @@ export default function AdvisorPage() {
   if (loading) return <div className="flex items-center justify-center h-64 text-gray-400">読み込み中...</div>
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f4f6fb', fontFamily: "'Noto Sans JP',sans-serif", margin: '-24px -16px' }}>
-      {/* header */}
-      <div style={{ background: '#fff', borderBottom: '1.5px solid #e0e6f0', position: 'sticky', top: 0, zIndex: 50 }}>
-        <div style={{ padding: isMobile ? '12px 16px 0' : '14px 28px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.15em', color: '#b8902a', marginBottom: 2 }}>KINDLER</div>
-            <h1 style={{ fontSize: isMobile ? 15 : 17, fontWeight: 700, color: '#1a2540', margin: 0 }}>
-              {currentClient ? currentClient.name : 'AI顧問 進捗管理'}
-            </h1>
-          </div>
-          {!drillClient && (
-            <button onClick={() => setAddingClient(true)}
-              style={{ background: '#1a3a6e', border: 'none', borderRadius: 10, padding: isMobile ? '8px 14px' : '9px 18px', color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
-              ＋ 追加
-            </button>
-          )}
-        </div>
-        {!drillClient && (
-          <div style={{ display: 'flex', padding: isMobile ? '0 16px' : '0 28px', marginTop: 10, borderTop: '1px solid #f0f2f8' }}>
-            {TABS.map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '10px 14px 11px', fontSize: isMobile ? 11 : 12, fontWeight: tab === t.id ? 700 : 500, color: tab === t.id ? '#1a3a6e' : '#8a96b0', borderBottom: tab === t.id ? '3px solid #1a3a6e' : '3px solid transparent', whiteSpace: 'nowrap', fontFamily: 'inherit' }}>
-                {t.label}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title={currentClient ? currentClient.name : 'AI顧問 進捗管理'}
+        right={!drillClient ? (
+          <button
+            onClick={() => setAddingClient(true)}
+            className="bg-navy text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-[#152f5a] transition"
+          >
+            ＋ 追加
+          </button>
+        ) : undefined}
+      />
 
-      {/* content */}
-      <div style={{ padding: isMobile ? '14px 12px' : '20px 28px' }}>
+      {!drillClient && (
+        <div className="flex gap-1 border-b border-gray-200">
+          {TABS.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                tab === t.id ? 'border-navy text-navy' : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div>
         {drillClient && currentClient ? (
           <DetailView client={currentClient} isMobile={isMobile}
             onBack={() => setDrillClient(null)}

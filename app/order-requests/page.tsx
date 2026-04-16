@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { X } from 'lucide-react'
 import type { OrderRequest } from '@/lib/supabase'
+import PageHeader from '@/components/PageHeader'
 
 const SERVICE_LABELS: Record<string, string> = {
   ai_kenshu: 'AI研修（法人）',
@@ -124,11 +125,8 @@ export default function OrderRequestsPage() {
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-xl font-bold text-slate-800">発注リクエスト一覧</h1>
-        <p className="text-sm text-slate-500 mt-1">フォームから送信された発注リクエストを管理します</p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader title="発注リクエスト一覧" sub="フォームから送信された発注リクエストを管理します" />
 
       <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
         {loading ? (

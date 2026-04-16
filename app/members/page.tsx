@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { supabase, Member, DealToB, MemberMonthlyGoal, AICampConsultation } from '@/lib/supabase'
 import Link from 'next/link'
 import MemberWhiteboard from '@/components/MemberWhiteboard'
+import PageHeader from '@/components/PageHeader'
 
 type MemberStat = {
   member: Member
@@ -81,10 +82,7 @@ export default function MembersPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-black text-gray-900 tracking-tight">メンバー</h1>
-        <p className="text-sm text-gray-400 mt-0.5">担当者ごとの案件状況・KPI</p>
-      </div>
+      <PageHeader title="メンバー" sub="担当者ごとの案件状況・KPI" />
 
       {/* ホワイトボード：4月度目標進捗 */}
       <MemberWhiteboard

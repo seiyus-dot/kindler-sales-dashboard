@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { supabase, WeeklyLog, DealToB, AICampConsultation, Member } from '@/lib/supabase'
 import DealToBForm from '@/components/DealToBForm'
+import PageHeader from '@/components/PageHeader'
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, Legend, LabelList
@@ -253,73 +254,37 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6 pb-8">
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-0">
-        <div>
-          <h1 className="text-xl lg:text-2xl font-black text-gray-900 tracking-tight">ダッシュボード</h1>
-          <p className="text-xs lg:text-sm text-gray-400 mt-0.5">表示中: {viewLabel}　最終更新: {latest?.log_date ?? '-'}</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 lg:gap-3">
-          {/* 新規追加ボタン */}
-          <div className="relative">
-            <button
-              onClick={() => setShowAddMenu(v => !v)}
-              className="px-4 py-2 bg-navy text-white text-sm font-bold rounded-lg hover:bg-[#152f5a] transition"
-            >
-              + 新規案件
-            </button>
-            {showAddMenu && (
-              <div className="absolute right-0 top-full mt-1 bg-white border border-gray-100 rounded-xl shadow-lg z-20 overflow-hidden w-32">
-                <button
-                  onClick={() => { setEditingTob(null); setShowTobForm(true); setShowAddMenu(false) }}
-                  className="w-full text-left px-4 py-2.5 text-sm text-navy font-medium hover:bg-[#f0f4ff] transition"
-                >
-                  法人案件
-                </button>
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-1 bg-[#f0f2fa] p-1 rounded-lg border border-[#e0e6f0]">
-            <button
-              onClick={() => { setPeriod('month'); setSelectedMonth(s => shiftMonth(s, -1)) }}
-              className="px-2 py-1.5 text-sm font-bold text-[#8a96b0] hover:text-[#1a2540] rounded-lg transition"
-            >&lt;</button>
-            <button
-              onClick={() => setPeriod('month')}
-              className={`px-3 py-1.5 text-sm font-bold rounded-lg transition-all ${
-                period === 'month' ? 'bg-white text-navy shadow-sm' : 'text-[#8a96b0] hover:text-[#1a2540]'
-              }`}
-            >{selectedMonth}</button>
-            <button
-              onClick={() => { setPeriod('month'); setSelectedMonth(s => shiftMonth(s, 1)) }}
-              className="px-2 py-1.5 text-sm font-bold text-[#8a96b0] hover:text-[#1a2540] rounded-lg transition"
-            >&gt;</button>
-          </div>
-          <button
-            onClick={() => setPeriod('all')}
-            className={`px-4 py-2 text-sm font-bold rounded-lg border transition-all ${
-              period === 'all'
-                ? 'bg-white text-navy border-[#e0e6f0] shadow-sm'
-                : 'bg-[#f0f2fa] text-[#8a96b0] border-[#e0e6f0] hover:text-[#1a2540]'
-            }`}
-          >全体</button>
-          <div className="flex gap-1 bg-[#f0f2fa] p-1 rounded-lg border border-[#e0e6f0]">
-            {([
-              { key: 'all', label: '全社' },
-              { key: 'tob', label: '法人' },
-            ] as { key: View; label: string }[]).map(v => (
-              <button
-                key={v.key}
-                onClick={() => setView(v.key)}
-                className={`px-4 py-1.5 text-sm font-bold rounded-lg transition-all ${
-                  view === v.key ? 'bg-white text-navy shadow-sm' : 'text-[#8a96b0] hover:text-[#1a2540]'
-                }`}
-              >
-                {v.label}
+      <PageHeader
+        title="ダッシュボード"
+        sub={`表示中: ${viewLabel}　最終更新: ${latest?.log_date ?? '-'}`}
+        right={
+          <>
+            <div className="relative">
+              <button onClick={() => setShowAddMenu(v => !v)} className="px-4 py-2 bg-navy text-white text-sm font-bold rounded-lg hover:bg-[#152f5a] transition">
+                + 新規案件
               </button>
-            ))}
-          </div>
-        </div>
-      </div>
+              {showAddMenu && (
+                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-100 rounded-xl shadow-lg z-20 overflow-hidden w-32">
+                  <button onClick={() => { setEditingTob(null); setShowTobForm(true); setShowAddMenu(false) }} className="w-full text-left px-4 py-2.5 text-sm text-navy font-medium hover:bg-[#f0f4ff] transition">
+                    法人案件
+                  </button>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-1 bg-[#f0f2fa] p-1 rounded-lg border border-[#e0e6f0]">
+              <button onClick={() => { setPeriod('month'); setSelectedMonth(s => shiftMonth(s, -1)) }} className="px-2 py-1.5 text-sm font-bold text-[#8a96b0] hover:text-[#1a2540] rounded-lg transition">&lt;</button>
+              <button onClick={() => setPeriod('month')} className={`px-3 py-1.5 text-sm font-bold rounded-lg transition-all ${period === 'month' ? 'bg-white text-navy shadow-sm' : 'text-[#8a96b0] hover:text-[#1a2540]'}`}>{selectedMonth}</button>
+              <button onClick={() => { setPeriod('month'); setSelectedMonth(s => shiftMonth(s, 1)) }} className="px-2 py-1.5 text-sm font-bold text-[#8a96b0] hover:text-[#1a2540] rounded-lg transition">&gt;</button>
+            </div>
+            <button onClick={() => setPeriod('all')} className={`px-4 py-2 text-sm font-bold rounded-lg border transition-all ${period === 'all' ? 'bg-white text-navy border-[#e0e6f0] shadow-sm' : 'bg-[#f0f2fa] text-[#8a96b0] border-[#e0e6f0] hover:text-[#1a2540]'}`}>全体</button>
+            <div className="flex gap-1 bg-[#f0f2fa] p-1 rounded-lg border border-[#e0e6f0]">
+              {([{ key: 'all', label: '全社' }, { key: 'tob', label: '法人' }] as { key: View; label: string }[]).map(v => (
+                <button key={v.key} onClick={() => setView(v.key)} className={`px-4 py-1.5 text-sm font-bold rounded-lg transition-all ${view === v.key ? 'bg-white text-navy shadow-sm' : 'text-[#8a96b0] hover:text-[#1a2540]'}`}>{v.label}</button>
+              ))}
+            </div>
+          </>
+        }
+      />
 
       {/* 放置案件アラート（全社ビューでは非表示） */}
       {view !== 'all' && staleDeals.length > 0 && (

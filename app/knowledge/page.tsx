@@ -1,4 +1,5 @@
 import { articles } from '@/lib/knowledge'
+import PageHeader from '@/components/PageHeader'
 import Link from 'next/link'
 
 const categoryOrder = ['基礎知識', '営業スキル', '分析・KPI']
@@ -16,10 +17,7 @@ export default function KnowledgePage() {
 
   return (
     <div className="space-y-8 max-w-2xl">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">営業ナレッジ</h1>
-        <p className="text-sm text-gray-400 mt-1">営業の基礎知識とKINDLERの指標の読み方を解説します</p>
-      </div>
+      <PageHeader title="営業ナレッジ" sub="営業の基礎知識とKINDLERの指標の読み方を解説します" />
 
       {grouped.map(({ category, items }) => (
         <div key={category}>

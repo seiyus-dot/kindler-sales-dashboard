@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import PageHeader from '@/components/PageHeader'
 
 type Tab = 'funnels' | 'accounts' | 'media'
 
@@ -95,10 +96,7 @@ export default function UtagePage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-black text-gray-900 tracking-tight">UTAGE</h1>
-        <p className="text-sm text-gray-400 mt-0.5">ファネル・配信・メディアの管理</p>
-      </div>
+      <PageHeader title="UTAGE" sub="ファネル・配信・メディアの管理" />
 
       {/* タブ */}
       <div className="flex gap-1 border-b border-gray-100">
