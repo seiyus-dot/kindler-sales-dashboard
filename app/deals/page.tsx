@@ -54,6 +54,7 @@ export default function DealsPage() {
   const [latestMeetings, setLatestMeetings] = useState<Map<string, DealAction>>(new Map())
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [kpiModal, setKpiModal] = useState<'sales' | 'paid' | 'pipeline' | 'weighted' | 'winrate' | null>(null)
 
   function shiftMonth(ym: string, delta: number): string {
     const [y, m] = ym.split('-').map(Number)
@@ -393,29 +394,31 @@ export default function DealsPage() {
           </div>
           {/* KPIカード */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <div className="bg-white border border-[#e0e6f0] rounded-xl p-5 shadow-sm" style={{ borderTop: '3px solid #2a7a4a' }}>
+            <button onClick={() => setKpiModal('sales')} className="text-left bg-white border border-[#e0e6f0] rounded-xl p-5 shadow-sm hover:shadow-md hover:border-[#2a7a4a]/40 transition-all cursor-pointer" style={{ borderTop: '3px solid #2a7a4a' }}>
               <p className="text-xs text-[#8a96b0] font-bold uppercase tracking-widest mb-1">売上</p>
               <p className="text-2xl font-black text-[#1a2540] mt-1 font-mono">{salesTotal.toLocaleString()}<span className="text-sm font-normal text-[#aab0c8] ml-1">万円</span></p>
               <p className="text-xs text-[#aab0c8] mt-0.5">{monthlyPaid.filter(d => d.contract_amount).length}件</p>
-            </div>
-            <div className="bg-white border border-[#e0e6f0] rounded-xl p-5 shadow-sm" style={{ borderTop: '3px solid #1a6e6e' }}>
+            </button>
+            <button onClick={() => setKpiModal('paid')} className="text-left bg-white border border-[#e0e6f0] rounded-xl p-5 shadow-sm hover:shadow-md hover:border-[#1a6e6e]/40 transition-all cursor-pointer" style={{ borderTop: '3px solid #1a6e6e' }}>
               <p className="text-xs text-[#8a96b0] font-bold uppercase tracking-widest mb-1">着金額</p>
               <p className="text-2xl font-black text-[#1a2540] mt-1 font-mono">{paidTotal.toLocaleString()}<span className="text-sm font-normal text-[#aab0c8] ml-1">万円</span></p>
               <p className="text-xs text-[#aab0c8] mt-0.5">{monthlyPaid.filter(d => d.actual_amount).length}件</p>
-            </div>
-            <div className="bg-white border border-[#e0e6f0] rounded-xl p-5 shadow-sm" style={{ borderTop: '3px solid #1a3a6e' }}>
+            </button>
+            <button onClick={() => setKpiModal('pipeline')} className="text-left bg-white border border-[#e0e6f0] rounded-xl p-5 shadow-sm hover:shadow-md hover:border-navy/40 transition-all cursor-pointer" style={{ borderTop: '3px solid #1a3a6e' }}>
               <p className="text-xs text-[#8a96b0] font-bold uppercase tracking-widest mb-1">パイプライン</p>
               <p className="text-2xl font-black text-[#1a2540] mt-1 font-mono">{pipeline.toLocaleString()}<span className="text-sm font-normal text-[#aab0c8] ml-1">万円</span></p>
-            </div>
-            <div className="bg-white border border-[#e0e6f0] rounded-xl p-5 shadow-sm" style={{ borderTop: '3px solid #b8902a' }}>
+              <p className="text-xs text-[#aab0c8] mt-0.5">{inProgressDeals.length}件</p>
+            </button>
+            <button onClick={() => setKpiModal('weighted')} className="text-left bg-white border border-[#e0e6f0] rounded-xl p-5 shadow-sm hover:shadow-md hover:border-[#b8902a]/40 transition-all cursor-pointer" style={{ borderTop: '3px solid #b8902a' }}>
               <p className="text-xs text-[#8a96b0] font-bold uppercase tracking-widest mb-1">加重パイプライン</p>
               <p className="text-2xl font-black text-navy mt-1 font-mono">{weightedPipeline.toLocaleString()}<span className="text-sm font-normal text-[#aab0c8] ml-1">万円</span></p>
-            </div>
-            <div className="bg-white border border-[#e0e6f0] rounded-xl p-5 shadow-sm" style={{ borderTop: '3px solid #2a7a4a' }}>
+              <p className="text-xs text-[#aab0c8] mt-0.5">{inProgressDeals.length}件</p>
+            </button>
+            <button onClick={() => setKpiModal('winrate')} className="text-left bg-white border border-[#e0e6f0] rounded-xl p-5 shadow-sm hover:shadow-md hover:border-[#2a7a4a]/40 transition-all cursor-pointer" style={{ borderTop: '3px solid #2a7a4a' }}>
               <p className="text-xs text-[#8a96b0] font-bold uppercase tracking-widest mb-1">受注率</p>
               <p className="text-2xl font-black text-[#2a7a4a] mt-1 font-mono">{winRate}<span className="text-sm font-normal text-[#aab0c8] ml-1">%</span></p>
               <p className="text-xs text-[#aab0c8] mt-0.5">受注 {wonDeals.length} / 失注 {lostDeals.length}</p>
-            </div>
+            </button>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -693,6 +696,171 @@ export default function DealsPage() {
           </div>
         </div>
       )}
+
+      {/* ===== KPI内訳モーダル ===== */}
+      {kpiModal && (() => {
+        type Row = { deal: DealToB; amount: number; label: string }
+        const config: {
+          title: string
+          desc: string
+          rows: Row[]
+          total: number
+          totalLabel: string
+          amountHeader: string
+        } = (() => {
+          if (kpiModal === 'sales') {
+            const rows = monthlyPaid.map(d => ({ deal: d, amount: d.contract_amount ?? 0, label: '' }))
+            return {
+              title: `売上　${selectedMonth}`,
+              desc: `受注済み・着金あり（${selectedMonth}）の契約金額合計`,
+              rows,
+              total: salesTotal,
+              totalLabel: '売上合計',
+              amountHeader: '契約金額',
+            }
+          }
+          if (kpiModal === 'paid') {
+            const rows = monthlyPaid.map(d => ({ deal: d, amount: d.actual_amount ?? 0, label: '' }))
+            return {
+              title: `着金額　${selectedMonth}`,
+              desc: `受注済み・着金日が ${selectedMonth} の実着金額合計`,
+              rows,
+              total: paidTotal,
+              totalLabel: '着金合計',
+              amountHeader: '着金額',
+            }
+          }
+          if (kpiModal === 'pipeline') {
+            const rows = inProgressDeals
+              .filter(d => d.expected_amount != null)
+              .sort((a, b) => (b.expected_amount ?? 0) - (a.expected_amount ?? 0))
+              .map(d => ({ deal: d, amount: d.expected_amount ?? 0, label: '' }))
+            return {
+              title: 'パイプライン（進行中）',
+              desc: '受注・失注以外のステータスにある案件の想定金額合計',
+              rows,
+              total: pipeline,
+              totalLabel: 'パイプライン合計',
+              amountHeader: '想定金額',
+            }
+          }
+          if (kpiModal === 'weighted') {
+            const rows = inProgressDeals
+              .filter(d => d.expected_amount != null && d.win_probability != null)
+              .sort((a, b) => {
+                const wa = Math.round((b.expected_amount ?? 0) * (b.win_probability ?? 0) / 100)
+                const wb = Math.round((a.expected_amount ?? 0) * (a.win_probability ?? 0) / 100)
+                return wa - wb
+              })
+              .map(d => ({
+                deal: d,
+                amount: Math.round((d.expected_amount ?? 0) * (d.win_probability ?? 0) / 100),
+                label: `${d.expected_amount?.toLocaleString()}万 × ${d.win_probability}%`,
+              }))
+            return {
+              title: '加重パイプライン（進行中）',
+              desc: '各案件の 想定金額 × 受注確率 の合計',
+              rows,
+              total: weightedPipeline,
+              totalLabel: '加重合計',
+              amountHeader: '加重金額',
+            }
+          }
+          // winrate
+          const rows = [
+            ...wonDeals.map(d => ({ deal: d, amount: d.expected_amount ?? 0, label: '受注' })),
+            ...lostDeals.map(d => ({ deal: d, amount: d.expected_amount ?? 0, label: '失注' })),
+          ]
+          return {
+            title: '受注率の内訳',
+            desc: `受注 ${wonDeals.length}件 ÷ (受注 + 失注 ${wonDeals.length + lostDeals.length}件) = ${winRate}%`,
+            rows,
+            total: winRate,
+            totalLabel: '受注率',
+            amountHeader: '想定金額',
+          }
+        })()
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl mx-4 max-h-[80vh] flex flex-col">
+              <div className="flex items-start justify-between px-6 py-4 border-b border-slate-200">
+                <div>
+                  <h2 className="text-base font-bold text-[#1a2540]">{config.title}</h2>
+                  <p className="text-xs text-[#8a96b0] mt-0.5">{config.desc}</p>
+                </div>
+                <button onClick={() => setKpiModal(null)} className="text-slate-400 hover:text-slate-600 ml-4 mt-0.5 flex-shrink-0">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+              <div className="overflow-y-auto flex-1">
+                {config.rows.length === 0 ? (
+                  <p className="text-sm text-slate-400 text-center py-10">対象案件がありません</p>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-[#f8f9fd] border-b border-[#e0e6f0]">
+                      <tr>
+                        <th className="text-left px-5 py-2.5 text-xs font-semibold text-[#8a96b0]">企業名</th>
+                        <th className="text-left px-4 py-2.5 text-xs font-semibold text-[#8a96b0]">担当</th>
+                        <th className="text-left px-4 py-2.5 text-xs font-semibold text-[#8a96b0]">ステータス</th>
+                        {kpiModal === 'weighted' && (
+                          <th className="text-right px-4 py-2.5 text-xs font-semibold text-[#8a96b0]">計算式</th>
+                        )}
+                        {kpiModal === 'paid' && (
+                          <th className="text-right px-4 py-2.5 text-xs font-semibold text-[#8a96b0]">着金日</th>
+                        )}
+                        <th className="text-right px-5 py-2.5 text-xs font-semibold text-[#8a96b0]">{config.amountHeader}（万円）</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#f0f2f8]">
+                      {config.rows.map(({ deal: d, amount, label }) => {
+                        const memberName = (d as any).member?.name ?? '-'
+                        const sc = d.status === '受注' ? 'bg-green-100 text-green-700'
+                          : d.status === '失注' ? 'bg-red-100 text-red-600'
+                          : 'bg-[#e8eeff] text-navy'
+                        return (
+                          <tr
+                            key={d.id}
+                            className="hover:bg-[#f8f9fd] cursor-pointer transition-colors"
+                            onClick={() => { setKpiModal(null); setEditTarget(d); setShowForm(true) }}
+                          >
+                            <td className="px-5 py-2.5 font-medium text-[#1a2540]">{d.company_name ?? '-'}</td>
+                            <td className="px-4 py-2.5 text-[#6a7490]">{memberName}</td>
+                            <td className="px-4 py-2.5">
+                              {kpiModal === 'winrate'
+                                ? <span className={`px-2 py-0.5 rounded text-xs font-medium ${label === '受注' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>{label}</span>
+                                : <span className={`px-2 py-0.5 rounded text-xs font-medium ${sc}`}>{d.status ?? '-'}</span>
+                              }
+                            </td>
+                            {kpiModal === 'weighted' && (
+                              <td className="px-4 py-2.5 text-right text-xs text-[#8a96b0] font-mono">{label}</td>
+                            )}
+                            {kpiModal === 'paid' && (
+                              <td className="px-4 py-2.5 text-right text-xs text-[#8a96b0] font-mono">{d.payment_date ?? '-'}</td>
+                            )}
+                            <td className="px-5 py-2.5 text-right font-mono font-bold text-[#1a2540]">
+                              {amount > 0 ? amount.toLocaleString() : <span className="text-[#c0c8e0] font-normal">-</span>}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+              <div className="px-6 py-3 border-t border-[#e0e6f0] flex items-center justify-between bg-[#f8f9fd] rounded-b-2xl">
+                <span className="text-xs text-[#8a96b0]">{config.rows.length}件</span>
+                <span className="text-sm font-bold text-[#1a2540]">
+                  {config.totalLabel}：
+                  <span className="font-mono ml-1">
+                    {kpiModal === 'winrate' ? `${config.total}%` : `${config.total.toLocaleString()}万円`}
+                  </span>
+                </span>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {showConfirm && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
