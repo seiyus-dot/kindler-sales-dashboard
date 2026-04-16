@@ -102,7 +102,8 @@ export default function DashboardPage() {
 
   // KPI - 案件着金（deals_tocはaicamp移行済みのため除外）
   const tobPaid = tobDeals.filter(d =>
-    d.status === '受注' && (d.actual_amount ?? 0) > 0
+    d.status === '受注' && (d.actual_amount ?? 0) > 0 &&
+    (period === 'all' || d.payment_date?.startsWith(selectedMonth))
   )
   const paidDeals = tobPaid
   const paidTobTotal = tobPaid.reduce((s, d) => s + (d.actual_amount ?? d.expected_amount ?? 0), 0)
