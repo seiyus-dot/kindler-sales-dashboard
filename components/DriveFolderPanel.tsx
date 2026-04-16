@@ -84,16 +84,31 @@ export default function DriveFolderPanel({
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file || !folderId) return
+    const MAX_MB = 10
+    if (file.size > MAX_MB * 1024 * 1024) {
+      alert(`ファイルサイズが大きすぎます（上限 ${MAX_MB}MB）`)
+      e.target.value = ''
+      return
+    }
     setUploading(true)
     const form = new FormData()
     form.append('file', file)
     form.append('folderId', folderId)
-    const res = await fetch('/api/drive/upload', { method: 'POST', body: form })
-    const json = await res.json()
-    if (json.error) alert('アップロード失敗: ' + json.error)
-    else await fetchFiles()
-    setUploading(false)
-    e.target.value = ''
+    try {
+      const res = await fetch('/api/drive/upload', { method: 'POST', body: form })
+      if (res.status === 413) {
+        alert('ファイルサイズが大きすぎます。より小さいファイルをアップロードしてください。')
+        return
+      }
+      const json = await res.json()
+      if (json.error) alert('アップロード失敗: ' + json.error)
+      else await fetchFiles()
+    } catch (err) {
+      alert('アップロード失敗: ' + String(err))
+    } finally {
+      setUploading(false)
+      e.target.value = ''
+    }
   }
 
   const folderUrl = folderId

@@ -3,9 +3,13 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { ProductAICampSession, ProductAICampCustomer } from '@/lib/supabase'
-import { ChevronLeft, ChevronRight, Plus, X, Pencil, Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, X, Pencil, Trash2, Users } from 'lucide-react'
 
 type Tab = 'schedule' | 'customers'
+
+type ParticipantsModalState = {
+  session: ProductAICampSession
+} | null
 
 const DAYS = ['日', '月', '火', '水', '木', '金', '土']
 
@@ -57,6 +61,9 @@ export default function ProductAICampPage() {
   const now = new Date()
   const [calYear, setCalYear] = useState(now.getFullYear())
   const [calMonth, setCalMonth] = useState(now.getMonth() + 1) // 1-12
+
+  // 参加者モーダル
+  const [participantsModal, setParticipantsModal] = useState<ParticipantsModalState>(null)
 
   // エラー
   const [error, setError] = useState<string | null>(null)
@@ -349,30 +356,44 @@ export default function ProductAICampPage() {
               <p className="text-sm text-slate-400">セッションがまだありません</p>
             ) : (
               <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
-                {sessions.map(s => (
-                  <div key={s.id} className="flex items-center gap-4 px-4 py-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm text-slate-900">{s.title}</div>
-                      <div className="text-xs text-slate-500 mt-0.5">
-                        {s.session_date} 〜 {s.end_date}
-                        {s.max_capacity ? `　定員 ${s.max_capacity}名` : ''}
+                {sessions.map(s => {
+                  const participantCount = customers.filter(c => c.session_id === s.id && c.status !== 'キャンセル').length
+                  return (
+                    <div key={s.id} className="flex items-center gap-4 px-4 py-3">
+                      <div
+                        className="flex-1 min-w-0 cursor-pointer"
+                        onClick={() => setParticipantsModal({ session: s })}
+                      >
+                        <div className="font-medium text-sm text-slate-900 hover:text-blue-600 transition-colors">{s.title}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">
+                          {s.session_date} 〜 {s.end_date}
+                          {s.max_capacity ? `　定員 ${s.max_capacity}名` : ''}
+                        </div>
+                        {s.notes && <div className="text-xs text-slate-400 mt-0.5">{s.notes}</div>}
                       </div>
-                      {s.notes && <div className="text-xs text-slate-400 mt-0.5">{s.notes}</div>}
+                      <button
+                        onClick={() => setParticipantsModal({ session: s })}
+                        className="flex items-center gap-1 px-2 py-1 text-xs text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        title="参加者を確認"
+                      >
+                        <Users size={13} />
+                        <span>{participantCount}名</span>
+                      </button>
+                      <button
+                        onClick={() => openEditSession(s)}
+                        className="p-1.5 text-slate-400 hover:text-slate-700 transition-colors"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        onClick={() => deleteSession(s.id)}
+                        className="p-1.5 text-slate-400 hover:text-red-600 transition-colors"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </div>
-                    <button
-                      onClick={() => openEditSession(s)}
-                      className="p-1.5 text-slate-400 hover:text-slate-700 transition-colors"
-                    >
-                      <Pencil size={14} />
-                    </button>
-                    <button
-                      onClick={() => deleteSession(s.id)}
-                      className="p-1.5 text-slate-400 hover:text-red-600 transition-colors"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
@@ -539,6 +560,93 @@ export default function ProductAICampPage() {
           </div>
         </div>
       )}
+
+      {/* ===== 参加者モーダル ===== */}
+      {participantsModal && (() => {
+        const s = participantsModal.session
+        const participants = customers.filter(c => c.session_id === s.id)
+        const active = participants.filter(c => c.status !== 'キャンセル')
+        const cancelled = participants.filter(c => c.status === 'キャンセル')
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+                <div>
+                  <h2 className="text-base font-semibold text-slate-900">{s.title} — 参加者一覧</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {s.session_date} 〜 {s.end_date}
+                    {s.max_capacity ? `　定員 ${s.max_capacity}名` : ''}
+                  </p>
+                </div>
+                <button onClick={() => setParticipantsModal(null)} className="text-slate-400 hover:text-slate-600">
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="overflow-y-auto flex-1 px-6 py-4">
+                {participants.length === 0 ? (
+                  <p className="text-sm text-slate-400 text-center py-8">まだ参加者が登録されていません</p>
+                ) : (
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-xs font-semibold text-slate-600">参加 ({active.length}名)</span>
+                        {s.max_capacity && (
+                          <span className="text-xs text-slate-400">
+                            残り {Math.max(0, s.max_capacity - active.length)}席
+                          </span>
+                        )}
+                      </div>
+                      {active.length === 0 ? (
+                        <p className="text-xs text-slate-400 pl-1">なし</p>
+                      ) : (
+                        <div className="divide-y divide-slate-100 rounded-xl border border-slate-200">
+                          {active.map(c => (
+                            <div key={c.id} className="flex items-center gap-3 px-4 py-2.5">
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-medium text-slate-900">{c.name}</div>
+                                <div className="text-xs text-slate-400 mt-0.5">{c.email}</div>
+                              </div>
+                              <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[c.status] ?? 'bg-slate-100 text-slate-600'}`}>
+                                {c.status}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {cancelled.length > 0 && (
+                      <div>
+                        <div className="text-xs font-semibold text-slate-600 mb-2">キャンセル ({cancelled.length}名)</div>
+                        <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 opacity-60">
+                          {cancelled.map(c => (
+                            <div key={c.id} className="flex items-center gap-3 px-4 py-2.5">
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-medium text-slate-900 line-through">{c.name}</div>
+                                <div className="text-xs text-slate-400 mt-0.5">{c.email}</div>
+                              </div>
+                              <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[c.status] ?? 'bg-slate-100 text-slate-600'}`}>
+                                {c.status}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="px-6 pb-5 pt-2 border-t border-slate-100">
+                <button
+                  onClick={() => setParticipantsModal(null)}
+                  className="w-full px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
+                >
+                  閉じる
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ===== 顧客モーダル ===== */}
       {customerModal && (
