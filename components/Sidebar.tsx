@@ -163,6 +163,15 @@ export default function Sidebar() {
   const [open, setOpen] = useState(false)
   const { role, allowedPages } = useUserRole()
 
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => { document.body.style.overflow = '' }
+  }, [open])
+
   const visibleNavItems = role === 'admin'
     ? navItems
     : navItems.filter((item) => allowedPages.some((p) => item.href.startsWith(p)))

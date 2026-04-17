@@ -272,14 +272,14 @@ export default function DashboardPage() {
               )}
             </div>
             <div className="flex items-center gap-1 bg-[#f0f2fa] p-1 rounded-lg border border-[#e0e6f0]">
-              <button onClick={() => { setPeriod('month'); setSelectedMonth(s => shiftMonth(s, -1)) }} className="px-2 py-1.5 text-sm font-bold text-[#8a96b0] hover:text-[#1a2540] rounded-lg transition">&lt;</button>
-              <button onClick={() => setPeriod('month')} className={`px-3 py-1.5 text-sm font-bold rounded-lg transition-all ${period === 'month' ? 'bg-white text-navy shadow-sm' : 'text-[#8a96b0] hover:text-[#1a2540]'}`}>{selectedMonth}</button>
-              <button onClick={() => { setPeriod('month'); setSelectedMonth(s => shiftMonth(s, 1)) }} className="px-2 py-1.5 text-sm font-bold text-[#8a96b0] hover:text-[#1a2540] rounded-lg transition">&gt;</button>
+              <button onClick={() => { setPeriod('month'); setSelectedMonth(s => shiftMonth(s, -1)) }} className="px-1.5 py-1.5 text-sm font-bold text-[#8a96b0] hover:text-[#1a2540] rounded-lg transition">&lt;</button>
+              <button onClick={() => setPeriod('month')} className={`px-2 py-1.5 text-xs font-bold rounded-lg transition-all ${period === 'month' ? 'bg-white text-navy shadow-sm' : 'text-[#8a96b0] hover:text-[#1a2540]'}`}>{selectedMonth}</button>
+              <button onClick={() => { setPeriod('month'); setSelectedMonth(s => shiftMonth(s, 1)) }} className="px-1.5 py-1.5 text-sm font-bold text-[#8a96b0] hover:text-[#1a2540] rounded-lg transition">&gt;</button>
             </div>
-            <button onClick={() => setPeriod('all')} className={`px-4 py-2 text-sm font-bold rounded-lg border transition-all ${period === 'all' ? 'bg-white text-navy border-[#e0e6f0] shadow-sm' : 'bg-[#f0f2fa] text-[#8a96b0] border-[#e0e6f0] hover:text-[#1a2540]'}`}>全体</button>
+            <button onClick={() => setPeriod('all')} className={`px-2.5 py-1.5 text-xs font-bold rounded-lg border transition-all ${period === 'all' ? 'bg-white text-navy border-[#e0e6f0] shadow-sm' : 'bg-[#f0f2fa] text-[#8a96b0] border-[#e0e6f0] hover:text-[#1a2540]'}`}>全体</button>
             <div className="flex gap-1 bg-[#f0f2fa] p-1 rounded-lg border border-[#e0e6f0]">
               {([{ key: 'all', label: '全社' }, { key: 'tob', label: '法人' }] as { key: View; label: string }[]).map(v => (
-                <button key={v.key} onClick={() => setView(v.key)} className={`px-4 py-1.5 text-sm font-bold rounded-lg transition-all ${view === v.key ? 'bg-white text-navy shadow-sm' : 'text-[#8a96b0] hover:text-[#1a2540]'}`}>{v.label}</button>
+                <button key={v.key} onClick={() => setView(v.key)} className={`px-2.5 py-1.5 text-xs font-bold rounded-lg transition-all ${view === v.key ? 'bg-white text-navy shadow-sm' : 'text-[#8a96b0] hover:text-[#1a2540]'}`}>{v.label}</button>
               ))}
             </div>
           </>

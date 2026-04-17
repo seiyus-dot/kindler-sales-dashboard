@@ -348,12 +348,14 @@ export default function DealsPage() {
         sub={`${tobDeals.length}件 / 受注 ${wonDeals.length}件 / 進行中 ${inProgressDeals.length}件`}
         right={
           <>
-            <CSVImport tab="tob" members={members} sources={sources} onImported={fetchAll} />
-            <StripeCSVImport tab="tob" members={members} onImported={fetchAll} />
-            <AIImport members={members} onImported={fetchAll} />
+            <div className="hidden sm:flex items-center gap-1.5">
+              <CSVImport tab="tob" members={members} sources={sources} onImported={fetchAll} />
+              <StripeCSVImport tab="tob" members={members} onImported={fetchAll} />
+              <AIImport members={members} onImported={fetchAll} />
+            </div>
             <button
               onClick={() => { setEditTarget(null); setShowForm(true) }}
-              className="bg-navy text-white px-4 py-2 rounded-lg text-base font-medium hover:bg-[#152f5a] transition"
+              className="bg-navy text-white px-3 py-1.5 lg:px-4 lg:py-2 rounded-lg text-sm font-medium hover:bg-[#152f5a] transition whitespace-nowrap"
             >
               + 新規追加
             </button>
@@ -392,7 +394,7 @@ export default function DealsPage() {
             <button onClick={() => setSelectedMonth(s => shiftMonth(s, 1))} className="px-2 py-1.5 text-sm font-bold text-[#8a96b0] hover:text-[#1a2540] rounded-lg transition">&gt;</button>
           </div>
           {/* KPIカード */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <button onClick={() => setKpiModal('sales')} className="text-left bg-white border border-[#e0e6f0] rounded-xl p-5 shadow-sm hover:shadow-md hover:border-[#2a7a4a]/40 transition-all cursor-pointer" style={{ borderTop: '3px solid #2a7a4a' }}>
               <p className="text-xs text-[#8a96b0] font-bold uppercase tracking-widest mb-1">売上</p>
               <p className="text-2xl font-black text-[#1a2540] mt-1 font-mono">{salesTotal.toLocaleString()}<span className="text-sm font-normal text-[#aab0c8] ml-1">万円</span></p>
