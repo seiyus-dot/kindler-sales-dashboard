@@ -118,7 +118,7 @@ const KNOWN_FORMATS: {
     targetTable: 'aicamp_consultations',
     reason: 'AI CAMP 個別相談会申込者CSVフォーマット（ルールベース判定）',
     mappings: {
-      '申込日時':              null,              // 申込タイムスタンプは不要
+      '申込日時':              'applied_at',
       '日程':                  'consultation_date',
       '担当者':                'member_id',
       'お名前':                'name',
@@ -388,13 +388,54 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: '無効なテーブル' }, { status: 400 })
   }
 
-  const results = { inserted: 0, errors: [] as string[] }
+  const dupKey = targetTable === 'deals_tob' ? 'company_name' : 'name'
+  const results = { inserted: 0, updated: 0, skipped: 0, errors: [] as string[] }
+
   for (const row of rows) {
-    // _isDuplicate フラグはDBに送らない
     const { _isDuplicate, ...cleanRow } = row as Record<string, unknown> & { _isDuplicate?: boolean }
+
+    if (_isDuplicate) {
+      // 既存レコードを取得して null のフィールドだけ更新
+      let query = supabase.from(targetTable).select('*').eq(dupKey, String(cleanRow[dupKey] ?? ''))
+      if (targetTable === 'aicamp_consultations' && cleanRow.consultation_date) {
+        query = query.eq('consultation_date', String(cleanRow.consultation_date))
+      }
+      const { data: existingRows } = await query.limit(1)
+      const existing = existingRows?.[0] as Record<string, unknown> | undefined
+
+      if (!existing) {
+        // 重複フラグだが実際には存在しない場合は INSERT
+        const { error } = await supabase.from(targetTable).insert(cleanRow)
+        if (error) results.errors.push(error.message)
+        else results.inserted++
+        continue
+      }
+
+      // 既存レコードで null/空のフィールドのみ更新対象にする
+      const updatePayload: Record<string, unknown> = {}
+      for (const [key, val] of Object.entries(cleanRow)) {
+        if (val === null || val === undefined || val === '') continue
+        const existingVal = existing[key]
+        if (existingVal === null || existingVal === undefined || existingVal === '') {
+          updatePayload[key] = val
+        }
+      }
+
+      if (Object.keys(updatePayload).length > 0) {
+        const { error } = await supabase.from(targetTable).update(updatePayload).eq('id', String(existing.id))
+        if (error) results.errors.push(error.message)
+        else results.updated++
+      } else {
+        results.skipped++
+      }
+      continue
+    }
+
+    // 新規レコードは INSERT
     const { error } = await supabase.from(targetTable).insert(cleanRow)
     if (error) results.errors.push(error.message)
     else results.inserted++
   }
+
   return NextResponse.json(results)
 }

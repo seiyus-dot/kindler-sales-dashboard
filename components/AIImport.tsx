@@ -110,7 +110,7 @@ export default function AIImport({ members, onImported }: Props) {
   const [step, setStep] = useState<'upload' | 'preview' | 'done'>('upload')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<PreviewResult | null>(null)
-  const [imported, setImported] = useState<{ inserted: number; errors: string[] } | null>(null)
+  const [imported, setImported] = useState<{ inserted: number; updated?: number; skipped?: number; errors: string[] } | null>(null)
   const [importing, setImporting] = useState(false)
   const [lastRawRows, setLastRawRows] = useState<Record<string, unknown>[]>([])
   const [changingTable, setChangingTable] = useState(false)
@@ -250,7 +250,7 @@ export default function AIImport({ members, onImported }: Props) {
       const data = await res.json()
       setImported(data)
       setStep('done')
-      if (data.inserted > 0) onImported()
+      if ((data.inserted ?? 0) + (data.updated ?? 0) > 0) onImported()
     } catch (e) {
       alert(`インポートエラー: ${String(e)}`)
     } finally {
@@ -506,7 +506,11 @@ export default function AIImport({ members, onImported }: Props) {
         {step === 'done' && imported && (
           <div className="p-6 space-y-4">
             <div className={`rounded p-4 text-sm ${imported.errors.length > 0 ? 'bg-amber-50 border border-amber-200' : 'bg-green-50 border border-green-200'}`}>
-              <p className="font-bold text-gray-700">{imported.inserted}件をインポートしました</p>
+              <p className="font-bold text-gray-700">
+                新規追加 {imported.inserted}件
+                {(imported.updated ?? 0) > 0 && ` / 既存更新 ${imported.updated}件`}
+                {(imported.skipped ?? 0) > 0 && ` / 変更なし ${imported.skipped}件`}
+              </p>
               {imported.errors.length > 0 && (
                 <div className="mt-2 space-y-1">
                   <p className="text-xs font-semibold text-amber-700">エラー {imported.errors.length}件:</p>
