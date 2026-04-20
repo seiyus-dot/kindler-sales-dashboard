@@ -149,6 +149,8 @@ export type AICampConsultation = {
   payment_amount?: number
   payment_date?: string
   payment_method?: string
+  payment_count?: number
+  unit_amount?: number
   customer_attribute?: string
   motivation?: string
   reason?: string
@@ -223,6 +225,18 @@ export type WeeklyLog = {
   weighted_total: number
   cumulative_orders: number
   memo?: string
+}
+
+export type LineFriend = {
+  id: string
+  line_user_id: string
+  line_display_name?: string
+  status?: string
+  registration_source?: string
+  blocked_at?: string
+  registered_at?: string
+  created_at: string
+  updated_at: string
 }
 
 export type AiCoachClient = {

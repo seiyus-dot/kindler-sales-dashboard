@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { supabase, AICampConsultation, AICampMonthlyGoal, AICampAdWeekly, Member, CONSULTATION_STATUSES, PAYMENT_METHODS, AI_EXPERIENCES } from '@/lib/supabase'
+import { useEffect, useRef, useState } from 'react'
+import { supabase, AICampConsultation, AICampMonthlyGoal, AICampAdWeekly, Member, LineFriend, CONSULTATION_STATUSES, PAYMENT_METHODS, AI_EXPERIENCES } from '@/lib/supabase'
 import PageHeader from '@/components/PageHeader'
 
 const MONTHLY_INCOMES = ['〜10万円', '11～20万円', '21～30万円', '31～40万円', '41～50万円', '51～60万円', '61～70万円', '71～80万円', '81～90万円', '91～100万円', '101万円以上']
@@ -111,12 +111,22 @@ export default function AICampPage() {
   const [showAddWeek, setShowAddWeek] = useState(false)
   const [newWeek, setNewWeek] = useState({ week_label: '', ad_spend: '', list_count: '', consultation_count: '', seated_count: '' })
   const [adServiceType, setAdServiceType] = useState<'AI CAMP' | 'プロダクト AI CAMP'>('プロダクト AI CAMP')
-  const [activeTab, setActiveTab] = useState<'overview' | 'ads' | 'applications' | 'deals'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'ads' | 'applications' | 'deals' | 'line_friends'>('overview')
   const [filterServiceType, setFilterServiceType] = useState('')
   const [rangeStart, setRangeStart] = useState('')
   const [rangeEnd, setRangeEnd] = useState('')
   const [appView, setAppView] = useState<'list' | 'calendar'>('list')
   const [showColSettings, setShowColSettings] = useState(false)
+  const [lineFriends, setLineFriends] = useState<LineFriend[]>([])
+  const [lineFriendsLoading, setLineFriendsLoading] = useState(false)
+  const [lineFriendsImporting, setLineFriendsImporting] = useState(false)
+  const [lineFriendsSearchText, setLineFriendsSearchText] = useState('')
+  const [lineFriendsFilterStatus, setLineFriendsFilterStatus] = useState('')
+  const lineFriendsFileRef = useRef<HTMLInputElement>(null)
+  const [lineFriendsSelectedIds, setLineFriendsSelectedIds] = useState<Set<string>>(new Set())
+  const [lineFriendsDeleting, setLineFriendsDeleting] = useState(false)
+  const [appSelectedIds, setAppSelectedIds] = useState<Set<string>>(new Set())
+  const [appDeleting, setAppDeleting] = useState(false)
   const [visibleCols, setVisibleCols] = useState<Set<ColKey>>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('aicamp-visible-cols')
@@ -137,6 +147,88 @@ export default function AICampPage() {
   }
 
   useEffect(() => { fetchAll() }, [month])
+  useEffect(() => { if (activeTab === 'line_friends') fetchLineFriends() }, [activeTab])
+
+  async function fetchLineFriends() {
+    setLineFriendsLoading(true)
+    const { data } = await supabase.from('line_friends').select('*').order('registered_at', { ascending: false })
+    setLineFriends(data ?? [])
+    setLineFriendsLoading(false)
+  }
+
+  async function importLineFriendsCsv(file: File) {
+    setLineFriendsImporting(true)
+    try {
+      const buffer = await file.arrayBuffer()
+      // LINEのCSVはShift-JIS。UTF-8 BOMがあればUTF-8として扱う
+      const bytes = new Uint8Array(buffer)
+      const isUtf8Bom = bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF
+      const encoding = isUtf8Bom ? 'utf-8' : 'shift_jis'
+      const decoder = new TextDecoder(encoding)
+      const text = decoder.decode(buffer).replace(/^\uFEFF/, '') // BOM除去
+      const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+      const lines = normalized.split('\n').map(l => l.trim()).filter(Boolean)
+      if (lines.length < 2) {
+        alert(`ヘッダー行のみでデータがありません。\nヘッダー: ${lines[0] ?? '(空)'}`)
+        setLineFriendsImporting(false)
+        return
+      }
+      const delimiter = lines[0].includes('\t') ? '\t' : ','
+      const headers = lines[0].split(delimiter).map(h => h.replace(/^"|"$/g, '').trim())
+      const rows = lines.slice(1).map(line => {
+        const vals = line.split(delimiter).map(v => v.replace(/^"|"$/g, '').trim())
+        return Object.fromEntries(headers.map((h, i) => [h, vals[i] ?? '']))
+      })
+      const records = rows.map(row => ({
+        line_user_id: row['全シナリオ共LINE友だちID'] || row['LINE友だちID'] || '',
+        line_display_name: row['アカウント共LINE登録名'] || row['LINE登録名'] || null,
+        status: row['ステータス'] || null,
+        registration_source: row['登録経路'] || null,
+        blocked_at: row['ブロック日時'] || null,
+        registered_at: row['登録日'] || null,
+      })).filter(r => r.line_user_id)
+      if (records.length === 0) {
+        alert(`マッピングできるデータがありませんでした。\n検出されたヘッダー: ${headers.join(', ')}`)
+        setLineFriendsImporting(false)
+        return
+      }
+      // 既存のline_user_idを取得して新規のみinsert
+      const { data: existing } = await supabase.from('line_friends').select('line_user_id')
+      const existingIds = new Set((existing ?? []).map((r: { line_user_id: string }) => r.line_user_id))
+      const newRecords = records.filter(r => !existingIds.has(r.line_user_id))
+      const updateRecords = records.filter(r => existingIds.has(r.line_user_id))
+
+      if (newRecords.length > 0) {
+        const { error } = await supabase.from('line_friends').insert(newRecords)
+        if (error) { alert('インポートに失敗しました: ' + error.message); return }
+      }
+      for (const r of updateRecords) {
+        await supabase.from('line_friends').update({
+          line_display_name: r.line_display_name,
+          status: r.status,
+          registration_source: r.registration_source,
+          blocked_at: r.blocked_at,
+          registered_at: r.registered_at,
+        }).eq('line_user_id', r.line_user_id)
+      }
+      alert(`${newRecords.length}件追加、${updateRecords.length}件更新しました`)
+      await fetchLineFriends()
+    } catch (e) {
+      alert('ファイル読み込みエラー: ' + String(e))
+    } finally {
+      setLineFriendsImporting(false)
+    }
+  }
+
+  async function deleteApplications() {
+    if (appSelectedIds.size === 0) return
+    if (!confirm(`${appSelectedIds.size}件を削除しますか？`)) return
+    setAppDeleting(true)
+    await supabase.from('aicamp_consultations').delete().in('id', Array.from(appSelectedIds))
+    setAppSelectedIds(new Set())
+    setAppDeleting(false)
+    await fetchAll()
+  }
 
   async function fetchAll() {
     setLoading(true)
@@ -171,6 +263,29 @@ export default function AICampPage() {
     return mo === 12 ? `${y + 1}-01-01` : `${y}-${String(mo + 1).padStart(2, '0')}-01`
   }
 
+  function parseWeekRange(weekLabel: string, monthStr: string): { start: string; end: string } | null {
+    const [y] = monthStr.split('-')
+    const cleaned = weekLabel.replace(/\s/g, '').replace(/[～〜]/g, '~')
+    const match = cleaned.match(/^(\d+)\/(\d+)~(\d+)\/(\d+)$/)
+    if (!match) return null
+    const [, sm, sd, em, ed] = match
+    const endYear = parseInt(em) < parseInt(sm) ? String(parseInt(y) + 1) : y
+    return {
+      start: `${y}-${sm.padStart(2, '0')}-${sd.padStart(2, '0')}`,
+      end: `${endYear}-${em.padStart(2, '0')}-${ed.padStart(2, '0')}`,
+    }
+  }
+
+  function computeFbForWeek(weekLabel: string, monthStr: string) {
+    const range = parseWeekRange(weekLabel, monthStr)
+    if (!range) return null
+    const rows = fbAds.filter(d => d.day >= range.start && d.day <= range.end)
+    return {
+      ad_spend: rows.reduce((s, d) => s + (d.amount_spent ?? 0), 0),
+      list_count: rows.reduce((s, d) => s + (d.registrations_completed ?? 0), 0),
+    }
+  }
+
   async function saveGoal() {
     const val = parseInt(goalInput) || 0
     const pval = parseInt(productGoalInput) || 0
@@ -197,10 +312,12 @@ export default function AICampPage() {
   async function saveAdRow() {
     if (!adEditId) return
     setAdSaving(true)
+    const editingRow = adWeekly.find(r => r.id === adEditId)
+    const computed = computeFbForWeek(adDraft.week_label, editingRow?.month ?? month)
     await supabase.from('aicamp_ad_weekly').update({
       week_label: adDraft.week_label,
-      ad_spend: parseInt(adDraft.ad_spend) || 0,
-      list_count: parseInt(adDraft.list_count) || 0,
+      ad_spend: computed?.ad_spend ?? 0,
+      list_count: computed?.list_count ?? 0,
       consultation_count: adDraft.consultation_count ? parseInt(adDraft.consultation_count) : null,
       seated_count: adDraft.seated_count ? parseInt(adDraft.seated_count) : null,
     }).eq('id', adEditId)
@@ -212,11 +329,12 @@ export default function AICampPage() {
   async function addWeekRow() {
     if (!newWeek.week_label.trim()) return
     setAdSaving(true)
+    const computed = computeFbForWeek(newWeek.week_label.trim(), month)
     await supabase.from('aicamp_ad_weekly').insert({
       month,
       week_label: newWeek.week_label.trim(),
-      ad_spend: parseInt(newWeek.ad_spend) || 0,
-      list_count: parseInt(newWeek.list_count) || 0,
+      ad_spend: computed?.ad_spend ?? 0,
+      list_count: computed?.list_count ?? 0,
       consultation_count: newWeek.consultation_count ? parseInt(newWeek.consultation_count) : null,
       seated_count: newWeek.seated_count ? parseInt(newWeek.seated_count) : null,
       sort_order: adWeekly.filter(r => (r.service_type ?? 'プロダクト AI CAMP') === adServiceType).length,
@@ -393,6 +511,7 @@ export default function AICampPage() {
           { key: 'ads',           label: '広告' },
           { key: 'applications',  label: '申し込み一覧' },
           { key: 'deals',         label: '商談一覧' },
+          { key: 'line_friends',  label: 'LINE友達' },
         ] as const).map(tab => (
           <button
             key={tab.key}
@@ -567,8 +686,8 @@ export default function AICampPage() {
                         {editing ? (
                           <>
                             <td className="px-4 py-2"><input value={adDraft.week_label} onChange={e => setAdDraft(d => ({ ...d, week_label: e.target.value }))} className="border border-blue-300 rounded px-2 py-1 text-xs w-28 focus:outline-none" placeholder="4/1〜4/5" /></td>
-                            <td className="px-4 py-2"><input type="number" value={adDraft.ad_spend} onChange={e => setAdDraft(d => ({ ...d, ad_spend: e.target.value }))} className="border border-blue-300 rounded px-2 py-1 text-xs font-mono w-28 focus:outline-none" /></td>
-                            <td className="px-4 py-2"><input type="number" value={adDraft.list_count} onChange={e => setAdDraft(d => ({ ...d, list_count: e.target.value }))} className="border border-blue-300 rounded px-2 py-1 text-xs font-mono w-20 focus:outline-none" /></td>
+                            <td className="px-4 py-2 font-mono text-xs text-gray-500">{(() => { const c = computeFbForWeek(adDraft.week_label, adWeekly.find(r => r.id === adEditId)?.month ?? month); return c ? `¥${c.ad_spend.toLocaleString()}` : '-' })()}<span className="text-gray-400 ml-1 text-[10px]">自動</span></td>
+                            <td className="px-4 py-2 font-mono text-xs text-gray-500">{(() => { const c = computeFbForWeek(adDraft.week_label, adWeekly.find(r => r.id === adEditId)?.month ?? month); return c ? c.list_count : '-' })()}<span className="text-gray-400 ml-1 text-[10px]">自動</span></td>
                             <td className="px-4 py-2"><input type="number" value={adDraft.consultation_count} onChange={e => setAdDraft(d => ({ ...d, consultation_count: e.target.value }))} className="border border-blue-300 rounded px-2 py-1 text-xs font-mono w-20 focus:outline-none" /></td>
                             <td className="px-4 py-2"><input type="number" value={adDraft.seated_count} onChange={e => setAdDraft(d => ({ ...d, seated_count: e.target.value }))} className="border border-blue-300 rounded px-2 py-1 text-xs font-mono w-20 focus:outline-none" /></td>
                             <td className="px-4 py-2">
@@ -581,8 +700,7 @@ export default function AICampPage() {
                         ) : (
                           <>
                             <td className="px-4 py-3 font-medium text-gray-700">{row.week_label}</td>
-                            <td className="px-4 py-3 font-mono text-gray-700">¥{row.ad_spend.toLocaleString()}</td>
-                            <td className="px-4 py-3 font-mono text-gray-700">{row.list_count}</td>
+                            {(() => { const c = computeFbForWeek(row.week_label, row.month); return (<><td className="px-4 py-3 font-mono text-gray-700">¥{(c?.ad_spend ?? row.ad_spend).toLocaleString()}</td><td className="px-4 py-3 font-mono text-gray-700">{c?.list_count ?? row.list_count}</td></>) })()}
                             <td className="px-4 py-3 font-mono text-gray-500">{row.consultation_count ?? '-'}</td>
                             <td className="px-4 py-3 font-mono text-gray-500">{row.seated_count ?? '-'}</td>
                             <td className="px-4 py-3">
@@ -601,8 +719,8 @@ export default function AICampPage() {
                   {showAddWeek && (
                     <tr className="border-b border-gray-50 bg-green-50">
                       <td className="px-4 py-2"><input value={newWeek.week_label} onChange={e => setNewWeek(w => ({ ...w, week_label: e.target.value }))} className="border border-green-300 rounded px-2 py-1 text-xs w-28 focus:outline-none" placeholder="4/1〜4/5" /></td>
-                      <td className="px-4 py-2"><input type="number" value={newWeek.ad_spend} onChange={e => setNewWeek(w => ({ ...w, ad_spend: e.target.value }))} className="border border-green-300 rounded px-2 py-1 text-xs font-mono w-28 focus:outline-none" placeholder="0" /></td>
-                      <td className="px-4 py-2"><input type="number" value={newWeek.list_count} onChange={e => setNewWeek(w => ({ ...w, list_count: e.target.value }))} className="border border-green-300 rounded px-2 py-1 text-xs font-mono w-20 focus:outline-none" placeholder="0" /></td>
+                      <td className="px-4 py-2 font-mono text-xs text-gray-500">{(() => { const c = computeFbForWeek(newWeek.week_label.trim(), month); return c ? `¥${c.ad_spend.toLocaleString()}` : <span className="text-gray-300">-</span> })()}<span className="text-gray-400 ml-1 text-[10px]">自動</span></td>
+                      <td className="px-4 py-2 font-mono text-xs text-gray-500">{(() => { const c = computeFbForWeek(newWeek.week_label.trim(), month); return c ? c.list_count : <span className="text-gray-300">-</span> })()}<span className="text-gray-400 ml-1 text-[10px]">自動</span></td>
                       <td className="px-4 py-2"><input type="number" value={newWeek.consultation_count} onChange={e => setNewWeek(w => ({ ...w, consultation_count: e.target.value }))} className="border border-green-300 rounded px-2 py-1 text-xs font-mono w-20 focus:outline-none" placeholder="-" /></td>
                       <td className="px-4 py-2"><input type="number" value={newWeek.seated_count} onChange={e => setNewWeek(w => ({ ...w, seated_count: e.target.value }))} className="border border-green-300 rounded px-2 py-1 text-xs font-mono w-20 focus:outline-none" placeholder="-" /></td>
                       <td className="px-4 py-2">
@@ -618,8 +736,8 @@ export default function AICampPage() {
                   {adFilteredWeekly.length > 0 && (
                     <tr className="bg-gray-50 border-t border-gray-200 font-bold">
                       <td className="px-4 py-3 text-gray-500 text-xs">合計</td>
-                      <td className="px-4 py-3 font-mono text-gray-800">¥{weeklyAdSpend.toLocaleString()}</td>
-                      <td className="px-4 py-3 font-mono text-gray-800">{weeklyListCount}</td>
+                      <td className="px-4 py-3 font-mono text-gray-800">¥{totalAdSpend.toLocaleString()}</td>
+                      <td className="px-4 py-3 font-mono text-gray-800">{totalListCount}</td>
                       <td className="px-4 py-3 font-mono text-gray-800">{totalConsultation > 0 ? totalConsultation : '-'}</td>
                       <td className="px-4 py-3 font-mono text-gray-800">{totalSeated > 0 ? totalSeated : '-'}</td>
                       <td />
@@ -979,6 +1097,15 @@ export default function AICampPage() {
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 px-5 py-3 border-b border-gray-100">
               <div className="flex items-center gap-3">
                 <h2 className="text-sm font-bold text-gray-700">申し込み一覧 ({applications.length}件)</h2>
+                {appSelectedIds.size > 0 && (
+                  <button
+                    onClick={deleteApplications}
+                    disabled={appDeleting}
+                    className="text-xs text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 px-3 py-1 rounded transition"
+                  >
+                    {appDeleting ? '削除中...' : `${appSelectedIds.size}件を削除`}
+                  </button>
+                )}
                 <div className="flex gap-0.5 bg-gray-100 p-0.5 rounded text-xs">
                   {(['list', 'calendar'] as const).map(v => (
                     <button
@@ -1066,6 +1193,14 @@ export default function AICampPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-100">
+                      <th className="px-3 py-3 w-8">
+                        <input
+                          type="checkbox"
+                          checked={applications.length > 0 && applications.every(c => appSelectedIds.has(c.id))}
+                          onChange={e => setAppSelectedIds(e.target.checked ? new Set(applications.map(c => c.id)) : new Set())}
+                          className="rounded border-gray-300"
+                        />
+                      </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">申し込み日時</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">実施日時</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">サービス</th>
@@ -1082,9 +1217,17 @@ export default function AICampPage() {
                   </thead>
                   <tbody>
                     {applications.length === 0 ? (
-                      <tr><td colSpan={12} className="text-center py-10 text-gray-400">申し込みがありません</td></tr>
+                      <tr><td colSpan={13} className="text-center py-10 text-gray-400">申し込みがありません</td></tr>
                     ) : applications.map(c => (
-                      <tr key={c.id} className="border-b border-gray-50 hover:bg-gray-50">
+                      <tr key={c.id} className={`border-b border-gray-50 hover:bg-gray-50 ${appSelectedIds.has(c.id) ? 'bg-blue-50' : ''}`}>
+                        <td className="px-3 py-3 w-8" onClick={e => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={appSelectedIds.has(c.id)}
+                            onChange={e => setAppSelectedIds(prev => { const next = new Set(prev); e.target.checked ? next.add(c.id) : next.delete(c.id); return next })}
+                            className="rounded border-gray-300"
+                          />
+                        </td>
                         <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-400">
                           {c.applied_at ? new Date(c.applied_at).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
                         </td>
@@ -1338,7 +1481,15 @@ export default function AICampPage() {
                         {isEditing ? (
                           <input type="number" value={inlineDraft.payment_amount} onChange={e => setDraft('payment_amount', e.target.value)}
                             className="border border-blue-300 rounded px-2 py-1 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-blue-400 w-28" placeholder="円" />
-                        ) : <span className="font-mono text-gray-700">{c.payment_amount ? `¥${c.payment_amount.toLocaleString()}` : '-'}</span>}
+                        ) : (
+                          <span className="font-mono text-gray-700">
+                            {c.payment_amount
+                              ? (c.payment_method === 'stripe(分割)' && c.unit_amount && c.payment_count
+                                  ? `¥${c.unit_amount.toLocaleString()} × ${c.payment_count}回`
+                                  : `¥${c.payment_amount.toLocaleString()}`)
+                              : '-'}
+                          </span>
+                        )}
                       </td>
                     )}
                     {visibleCols.has('payment_date') && (
@@ -1443,6 +1594,115 @@ export default function AICampPage() {
         </div>
       </div>
       )}
+
+      {activeTab === 'line_friends' && (() => {
+        const statuses = Array.from(new Set(lineFriends.map(f => f.status).filter(Boolean))) as string[]
+        const filtered = lineFriends.filter(f => {
+          if (lineFriendsFilterStatus && f.status !== lineFriendsFilterStatus) return false
+          if (lineFriendsSearchText) {
+            const q = lineFriendsSearchText.toLowerCase()
+            return (f.line_display_name ?? '').toLowerCase().includes(q) || (f.line_user_id ?? '').toLowerCase().includes(q) || (f.registration_source ?? '').toLowerCase().includes(q)
+          }
+          return true
+        })
+        const friendCount = lineFriends.filter(f => f.status === '友だち').length
+        const blockedCount = lineFriends.filter(f => f.status && f.status.includes('ブロック')).length
+        return (
+          <div className="space-y-4">
+            {/* サマリー */}
+            <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
+              <div className="flex-shrink-0 bg-white border border-gray-200 rounded-lg px-5 py-3 min-w-[120px]">
+                <div className="text-xs text-gray-500">総友達数</div>
+                <div className="text-2xl font-bold text-gray-800">{lineFriends.length.toLocaleString()}</div>
+              </div>
+              <div className="flex-shrink-0 bg-white border border-gray-200 rounded-lg px-5 py-3 min-w-[120px]">
+                <div className="text-xs text-gray-500">友だち</div>
+                <div className="text-2xl font-bold text-green-600">{friendCount.toLocaleString()}</div>
+              </div>
+              <div className="flex-shrink-0 bg-white border border-gray-200 rounded-lg px-5 py-3 min-w-[120px]">
+                <div className="text-xs text-gray-500">ブロック</div>
+                <div className="text-2xl font-bold text-red-500">{blockedCount.toLocaleString()}</div>
+              </div>
+            </div>
+
+            {/* テーブル */}
+            <div className="bg-white border border-gray-200 rounded">
+              <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 gap-3 flex-wrap">
+                <h2 className="text-sm font-bold text-gray-700">LINE友達一覧 ({filtered.length}件)</h2>
+                <div className="flex gap-2 items-center flex-wrap">
+                  <input
+                    type="text"
+                    placeholder="名前・ID・登録経路で検索"
+                    value={lineFriendsSearchText}
+                    onChange={e => setLineFriendsSearchText(e.target.value)}
+                    className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none w-44"
+                  />
+                  <select value={lineFriendsFilterStatus} onChange={e => setLineFriendsFilterStatus(e.target.value)} className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none">
+                    <option value="">ステータス: 全て</option>
+                    {statuses.map(s => <option key={s}>{s}</option>)}
+                  </select>
+                  {(lineFriendsSearchText || lineFriendsFilterStatus) && (
+                    <button onClick={() => { setLineFriendsSearchText(''); setLineFriendsFilterStatus('') }} className="text-xs text-gray-400 hover:text-gray-600">✕ クリア</button>
+                  )}
+                  <input ref={lineFriendsFileRef} type="file" accept=".csv,.tsv,.txt" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) importLineFriendsCsv(f); e.target.value = '' }} />
+                  <button
+                    onClick={() => lineFriendsFileRef.current?.click()}
+                    disabled={lineFriendsImporting}
+                    className="bg-navy text-white px-3 py-1.5 rounded text-xs font-medium hover:bg-[#152f5a] transition disabled:opacity-50 whitespace-nowrap"
+                  >
+                    {lineFriendsImporting ? 'インポート中...' : 'CSVインポート'}
+                  </button>
+                </div>
+              </div>
+              {lineFriendsLoading ? (
+                <div className="px-5 py-8 text-sm text-gray-400 text-center">読み込み中...</div>
+              ) : filtered.length === 0 ? (
+                <div className="px-5 py-8 text-sm text-gray-400 text-center">データがありません</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-100">
+                        <th className="px-4 py-2 text-left font-medium text-gray-500 min-w-[200px]">LINE友だちID</th>
+                        <th className="px-4 py-2 text-left font-medium text-gray-500 min-w-[140px]">LINE登録名</th>
+                        <th className="px-4 py-2 text-left font-medium text-gray-500 min-w-[90px]">ステータス</th>
+                        <th className="px-4 py-2 text-left font-medium text-gray-500 min-w-[160px]">登録経路</th>
+                        <th className="px-4 py-2 text-left font-medium text-gray-500 min-w-[140px]">ブロック日時</th>
+                        <th className="px-4 py-2 text-left font-medium text-gray-500 min-w-[120px]">登録日</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filtered.map(f => {
+                        const isBlocked = f.status?.includes('ブロック')
+                        const isFriend = f.status === '友だち'
+                        const statusClass = isBlocked
+                          ? 'bg-red-100 text-red-600'
+                          : isFriend
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-gray-100 text-gray-500'
+                        return (
+                          <tr key={f.id} className="border-b border-gray-50 hover:bg-gray-50">
+                            <td className="px-4 py-2 text-gray-500 font-mono text-[11px]">{f.line_user_id}</td>
+                            <td className="px-4 py-2 text-gray-700">{f.line_display_name ?? '-'}</td>
+                            <td className="px-4 py-2">
+                              {f.status ? (
+                                <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${statusClass}`}>{f.status}</span>
+                              ) : '-'}
+                            </td>
+                            <td className="px-4 py-2 text-gray-500">{f.registration_source ?? '-'}</td>
+                            <td className="px-4 py-2 text-gray-500">{f.blocked_at ? f.blocked_at.replace('T', ' ').slice(0, 16) : '-'}</td>
+                            <td className="px-4 py-2 text-gray-500">{f.registered_at ? f.registered_at.replace('T', ' ').slice(0, 16) : '-'}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })()}
 
       {showSourceMaster && <SourceMasterModal onClose={() => setShowSourceMaster(false)} />}
 
