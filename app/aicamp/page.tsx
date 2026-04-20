@@ -1593,8 +1593,8 @@ export default function AICampPage() {
           }
           return true
         })
-        const friendCount = lineFriends.filter(f => f.status === '友だち').length
         const blockedCount = lineFriends.filter(f => f.status && f.status.includes('ブロック')).length
+        const friendCount = lineFriends.length - blockedCount
         return (
           <div className="space-y-4">
             {/* サマリー */}
