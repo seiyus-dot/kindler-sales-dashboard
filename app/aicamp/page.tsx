@@ -159,12 +159,6 @@ export default function AICampPage() {
   async function importLineFriendsCsv(file: File) {
     setLineFriendsImporting(true)
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        alert('セッションが切れています。一度ログアウトして再ログインしてください。')
-        setLineFriendsImporting(false)
-        return
-      }
       const buffer = await file.arrayBuffer()
       // LINEのCSVはShift-JIS。UTF-8 BOMがあればUTF-8として扱う
       const bytes = new Uint8Array(buffer)
@@ -200,10 +194,7 @@ export default function AICampPage() {
       }
       const res = await fetch('/api/import-line-friends', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ records }),
       })
       const result = await res.json()
