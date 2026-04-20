@@ -200,7 +200,10 @@ export default function AICampPage() {
       }
       const res = await fetch('/api/import-line-friends', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({ records }),
       })
       const result = await res.json()
