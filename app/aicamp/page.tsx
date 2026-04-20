@@ -198,26 +198,14 @@ export default function AICampPage() {
         setLineFriendsImporting(false)
         return
       }
-      // 既存のline_user_idを取得して新規のみinsert
-      const { data: existing } = await supabase.from('line_friends').select('line_user_id')
-      const existingIds = new Set((existing ?? []).map((r: { line_user_id: string }) => r.line_user_id))
-      const newRecords = records.filter(r => !existingIds.has(r.line_user_id))
-      const updateRecords = records.filter(r => existingIds.has(r.line_user_id))
-
-      if (newRecords.length > 0) {
-        const { error } = await supabase.from('line_friends').insert(newRecords)
-        if (error) { alert('インポートに失敗しました: ' + error.message); return }
-      }
-      for (const r of updateRecords) {
-        await supabase.from('line_friends').update({
-          line_display_name: r.line_display_name,
-          status: r.status,
-          registration_source: r.registration_source,
-          blocked_at: r.blocked_at,
-          registered_at: r.registered_at,
-        }).eq('line_user_id', r.line_user_id)
-      }
-      alert(`${newRecords.length}件追加、${updateRecords.length}件更新しました`)
+      const res = await fetch('/api/import-line-friends', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ records }),
+      })
+      const result = await res.json()
+      if (!res.ok) { alert('インポートに失敗しました: ' + result.error); return }
+      alert(`${result.added}件追加、${result.updated}件更新しました`)
       await fetchLineFriends()
     } catch (e) {
       alert('ファイル読み込みエラー: ' + String(e))
