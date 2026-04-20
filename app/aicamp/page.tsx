@@ -159,6 +159,12 @@ export default function AICampPage() {
   async function importLineFriendsCsv(file: File) {
     setLineFriendsImporting(true)
     try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        alert('セッションが切れています。一度ログアウトして再ログインしてください。')
+        setLineFriendsImporting(false)
+        return
+      }
       const buffer = await file.arrayBuffer()
       // LINEのCSVはShift-JIS。UTF-8 BOMがあればUTF-8として扱う
       const bytes = new Uint8Array(buffer)
