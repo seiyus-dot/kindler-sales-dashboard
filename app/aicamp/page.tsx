@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { supabase, AICampConsultation, AICampMonthlyGoal, AICampAdWeekly, Member, LineFriend, CONSULTATION_STATUSES, PAYMENT_METHODS, AI_EXPERIENCES } from '@/lib/supabase'
 import PageHeader from '@/components/PageHeader'
 
@@ -381,6 +382,20 @@ export default function AICampPage() {
   async function deleteConsultation(id: string) {
     if (!confirm('削除しますか？')) return
     await supabase.from('aicamp_consultations').delete().eq('id', id)
+    fetchAll()
+  }
+
+  async function registerContact(c: AICampConsultation) {
+    const name = c.name ?? c.line_name
+    if (!name) return
+    const { data: existing } = await supabase.from('contacts').select('id').eq('name', name).maybeSingle()
+    let contactId = existing?.id
+    if (!contactId) {
+      const { data: created } = await supabase.from('contacts').insert({ name }).select('id').single()
+      contactId = created?.id
+    }
+    if (!contactId) return
+    await supabase.from('aicamp_consultations').update({ contact_id: contactId }).eq('id', c.id)
     fetchAll()
   }
 
@@ -1260,6 +1275,10 @@ export default function AICampPage() {
                             >
                               詳細編集
                             </button>
+                            {c.contact_id
+                              ? <Link href={`/customers/contact/${c.contact_id}`} className="text-xs text-green-600 hover:underline whitespace-nowrap">顧客詳細</Link>
+                              : <button onClick={() => registerContact(c)} className="text-xs text-blue-400 hover:underline whitespace-nowrap">顧客登録</button>
+                            }
                           </div>
                         </td>
                       </tr>

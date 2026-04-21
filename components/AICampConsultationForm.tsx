@@ -8,14 +8,15 @@ type Props = {
   initial: AICampConsultation | null
   onClose: () => void
   onSaved: () => void
+  prefill?: { contact_id?: string; name?: string; line_name?: string }
 }
 
 const MONTHLY_INCOMES = ['〜10万円', '11～20万円', '21～30万円', '31～40万円', '41～50万円', '51～60万円', '61～70万円', '71～80万円', '81～90万円', '91～100万円', '101万円以上']
 
-export default function AICampConsultationForm({ members, initial, onClose, onSaved }: Props) {
+export default function AICampConsultationForm({ members, initial, onClose, onSaved, prefill }: Props) {
   const [form, setForm] = useState({
-    line_name: initial?.line_name ?? '',
-    name: initial?.name ?? '',
+    line_name: initial?.line_name ?? prefill?.line_name ?? '',
+    name: initial?.name ?? prefill?.name ?? '',
     age: initial?.age?.toString() ?? '',
     consultation_date: initial?.consultation_date ? initial.consultation_date.slice(0, 16) : '',
     member_id: initial?.member_id ?? '',
@@ -25,6 +26,8 @@ export default function AICampConsultationForm({ members, initial, onClose, onSa
     payment_amount: initial?.payment_amount?.toString() ?? '',
     payment_date: initial?.payment_date ?? '',
     payment_method: initial?.payment_method ?? '',
+    payment_count: initial?.payment_count?.toString() ?? '',
+    unit_amount: initial?.unit_amount?.toString() ?? '',
     customer_attribute: initial?.customer_attribute ?? '',
     motivation: initial?.motivation ?? '',
     reason: initial?.reason ?? '',
@@ -37,7 +40,7 @@ export default function AICampConsultationForm({ members, initial, onClose, onSa
     expectation: initial?.expectation ?? '',
     question: initial?.question ?? '',
     service_type: initial?.service_type ?? 'AI CAMP',
-    contact_id: initial?.contact_id ?? '',
+    contact_id: initial?.contact_id ?? prefill?.contact_id ?? '',
   })
   const [sourceMasters, setSourceMasters] = useState<SourceMaster[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
@@ -88,6 +91,8 @@ export default function AICampConsultationForm({ members, initial, onClose, onSa
       payment_amount: form.payment_amount ? parseInt(form.payment_amount) : null,
       payment_date: form.payment_date || null,
       payment_method: form.payment_method || null,
+      payment_count: form.payment_count ? parseInt(form.payment_count) : null,
+      unit_amount: form.unit_amount ? parseInt(form.unit_amount) : null,
       customer_attribute: form.customer_attribute || null,
       motivation: form.motivation || null,
       reason: form.reason || null,
@@ -196,18 +201,66 @@ export default function AICampConsultationForm({ members, initial, onClose, onSa
           {/* 成約情報 */}
           {isContracted && (
             <>
-              <Field label="着金額（円）">
-                <input type="number" value={form.payment_amount} onChange={e => set('payment_amount', e.target.value)} className="input font-mono" placeholder="200000" />
-              </Field>
-              <Field label="着金日">
-                <input type="date" value={form.payment_date} onChange={e => set('payment_date', e.target.value)} className="input" />
-              </Field>
               <Field label="支払い方法">
-                <select value={form.payment_method} onChange={e => set('payment_method', e.target.value)} className="input">
+                <select value={form.payment_method} onChange={e => {
+                  const v = e.target.value
+                  setForm(f => ({
+                    ...f,
+                    payment_method: v,
+                    ...(v !== 'stripe(分割)' ? { payment_count: '', unit_amount: '' } : {}),
+                  }))
+                }} className="input">
                   <option value="">-</option>
                   {PAYMENT_METHODS.map(p => <option key={p}>{p}</option>)}
                 </select>
               </Field>
+              <Field label="着金日">
+                <input type="date" value={form.payment_date} onChange={e => set('payment_date', e.target.value)} className="input" />
+              </Field>
+              {form.payment_method === 'stripe(分割)' ? (
+                <>
+                  <Field label="1回あたりの金額（円）">
+                    <input
+                      type="number"
+                      value={form.unit_amount}
+                      onChange={e => {
+                        const u = e.target.value
+                        const total = parseInt(u || '0') * parseInt(form.payment_count || '0')
+                        setForm(f => ({ ...f, unit_amount: u, payment_amount: total > 0 ? total.toString() : '' }))
+                      }}
+                      className="input font-mono"
+                      placeholder="66000"
+                    />
+                  </Field>
+                  <Field label="分割回数">
+                    <input
+                      type="number"
+                      value={form.payment_count}
+                      onChange={e => {
+                        const n = e.target.value
+                        const total = (parseInt(form.unit_amount || '0')) * parseInt(n || '0')
+                        setForm(f => ({ ...f, payment_count: n, payment_amount: total > 0 ? total.toString() : '' }))
+                      }}
+                      className="input font-mono"
+                      placeholder="3"
+                    />
+                  </Field>
+                  <div className="col-span-2">
+                    <Field label="合計着金額（自動計算）">
+                      <div className="input font-mono bg-gray-50 text-gray-600 flex items-center gap-2">
+                        {form.unit_amount && form.payment_count
+                          ? <>¥{parseInt(form.unit_amount).toLocaleString()} × {form.payment_count}回 = ¥{(parseInt(form.unit_amount) * parseInt(form.payment_count)).toLocaleString()}</>
+                          : <span className="text-gray-400">1回あたりの金額と回数を入力してください</span>
+                        }
+                      </div>
+                    </Field>
+                  </div>
+                </>
+              ) : (
+                <Field label="着金額（円）">
+                  <input type="number" value={form.payment_amount} onChange={e => set('payment_amount', e.target.value)} className="input font-mono" placeholder="200000" />
+                </Field>
+              )}
             </>
           )}
 

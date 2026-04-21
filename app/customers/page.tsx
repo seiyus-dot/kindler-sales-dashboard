@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import type { Contact, Company, DealToC, AICampConsultation, ProductAICampCustomer, DealToB } from '@/lib/supabase'
 import { Plus, X, Pencil, Trash2, ChevronRight } from 'lucide-react'
@@ -386,6 +387,7 @@ export default function CustomersPage() {
               </div>
             </div>
             <div className="flex items-center gap-1 ml-2 flex-shrink-0">
+              <Link href={`/customers/contact/${selectedContact.id}`} className="px-2 py-1 text-[10px] text-blue-600 hover:text-blue-800 border border-blue-200 rounded hover:bg-blue-50 transition">詳細</Link>
               <button onClick={() => openEditContact(selectedContact)} className="p-1.5 text-slate-400 hover:text-slate-700"><Pencil size={14} /></button>
               <button onClick={() => deleteContact(selectedContact.id)} className="p-1.5 text-slate-400 hover:text-red-600"><Trash2 size={14} /></button>
               <button onClick={() => setSelectedContact(null)} className="p-1.5 text-slate-400 hover:text-slate-700"><X size={16} /></button>
@@ -483,6 +485,7 @@ export default function CustomersPage() {
               {selectedCompany.industry && <p className="text-xs text-slate-400 mt-0.5">{selectedCompany.industry}</p>}
             </div>
             <div className="flex items-center gap-1 ml-2 flex-shrink-0">
+              <Link href={`/customers/company/${selectedCompany.id}`} className="px-2 py-1 text-[10px] text-blue-600 hover:text-blue-800 border border-blue-200 rounded hover:bg-blue-50 transition">詳細</Link>
               <button onClick={() => openEditCompany(selectedCompany)} className="p-1.5 text-slate-400 hover:text-slate-700"><Pencil size={14} /></button>
               <button onClick={() => deleteCompany(selectedCompany.id)} className="p-1.5 text-slate-400 hover:text-red-600"><Trash2 size={14} /></button>
               <button onClick={() => setSelectedCompany(null)} className="p-1.5 text-slate-400 hover:text-slate-700"><X size={16} /></button>

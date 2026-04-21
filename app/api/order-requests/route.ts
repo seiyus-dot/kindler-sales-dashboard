@@ -1,13 +1,13 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
-const supabase = createClient(
+const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
 export async function GET() {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from('order_requests')
     .select('*')
     .order('created_at', { ascending: false })
@@ -18,7 +18,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { error } = await supabase.from('order_requests').insert(body)
+    const { error } = await getSupabase().from('order_requests').insert(body)
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   const { id, status } = await request.json()
-  const { error } = await supabase.from('order_requests').update({ status }).eq('id', id)
+  const { error } = await getSupabase().from('order_requests').update({ status }).eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ ok: true })
 }

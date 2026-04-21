@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
+import Link from 'next/link'
 import { supabase, DealToB, DealAction, Member, MasterOption, ColumnConfig } from '@/lib/supabase'
 import DealToBForm from '@/components/DealToBForm'
 import CSVImport from '@/components/CSVImport'
@@ -136,7 +137,21 @@ export default function DealsPage() {
 
   async function deleteDeal(id: string) {
     if (!confirm('削除しますか？')) return
-    await supabase.from('deals_tob').delete().eq('id', id)
+    const { error } = await supabase.from('deals_tob').delete().eq('id', id)
+    if (error) { alert('削除失敗: ' + error.message); return }
+    fetchAll()
+  }
+
+  async function registerToCustomer(deal: DealToB) {
+    if (!deal.company_name) return
+    const { data: existing } = await supabase.from('companies').select('id').eq('name', deal.company_name).maybeSingle()
+    let companyId = existing?.id
+    if (!companyId) {
+      const { data: created } = await supabase.from('companies').insert({ name: deal.company_name, industry: deal.industry ?? null }).select('id').single()
+      companyId = created?.id
+    }
+    if (!companyId) return
+    await supabase.from('deals_tob').update({ company_id: companyId }).eq('id', deal.id)
     fetchAll()
   }
 
@@ -680,6 +695,10 @@ export default function DealsPage() {
                             <>
                               <button onClick={() => startEdit(deal)} className="text-sm text-navy hover:underline">編集</button>
                               <button onClick={() => deleteDeal(deal.id)} className="text-sm text-red-400 hover:underline">削除</button>
+                              {deal.company_id
+                                ? <Link href={`/customers/company/${deal.company_id}`} className="text-sm text-green-600 hover:underline whitespace-nowrap">顧客詳細</Link>
+                                : <button onClick={() => registerToCustomer(deal)} className="text-sm text-blue-500 hover:underline whitespace-nowrap">顧客登録</button>
+                              }
                             </>
                           )}
                         </div>

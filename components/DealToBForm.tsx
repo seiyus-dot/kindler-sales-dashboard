@@ -11,6 +11,7 @@ type Props = {
   onClose: () => void
   onSaved: () => void
   defaultMemberId?: string
+  prefill?: { company_id?: string; company_name?: string }
 }
 
 type Tab = 'info' | 'actions' | 'drive'
@@ -18,7 +19,7 @@ type Tab = 'info' | 'actions' | 'drive'
 const TOB_STATUSES = ['アポ取得', '商談中', '提案済', '交渉中', '見積提出', 'リード', '受注', '失注', '保留']
 const PRIORITIES = ['高', '中', '低']
 
-export default function DealToBForm({ members, initial, onClose, onSaved, defaultMemberId }: Props) {
+export default function DealToBForm({ members, initial, onClose, onSaved, defaultMemberId, prefill }: Props) {
   const [tab, setTab] = useState<Tab>('info')
   const [sources, setSources] = useState<MasterOption[]>([])
   const [services, setServices] = useState<MasterOption[]>([])
@@ -41,7 +42,7 @@ export default function DealToBForm({ members, initial, onClose, onSaved, defaul
 
   const [form, setForm] = useState({
     member_id: initial?.member_id ?? defaultMemberId ?? '',
-    company_name: initial?.company_name ?? '',
+    company_name: initial?.company_name ?? prefill?.company_name ?? '',
     contact_name: initial?.contact_name ?? '',
     industry: initial?.industry ?? '',
     service: initial?.service ?? '',
@@ -66,7 +67,7 @@ export default function DealToBForm({ members, initial, onClose, onSaved, defaul
     sub_member_id: initial?.sub_member_id ?? '',
     video_url: initial?.video_url ?? '',
     minutes_text: initial?.minutes_text ?? '',
-    company_id: initial?.company_id ?? '',
+    company_id: initial?.company_id ?? prefill?.company_id ?? '',
   })
   const [saving, setSaving] = useState(false)
   const [generatingMinutes, setGeneratingMinutes] = useState(false)
