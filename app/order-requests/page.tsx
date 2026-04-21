@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { X } from 'lucide-react'
 import type { OrderRequest } from '@/lib/supabase'
+import { DEMO_ORDER_REQUESTS } from '@/lib/demoData'
 import PageHeader from '@/components/PageHeader'
 
 const SERVICE_LABELS: Record<string, string> = {
@@ -105,21 +106,14 @@ export default function OrderRequestsPage() {
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<OrderRequest | null>(null)
 
-  const fetchAll = useCallback(async () => {
-    const res = await fetch('/api/order-requests')
-    const data = await res.json()
-    setRequests(Array.isArray(data) ? data : [])
+  const fetchAll = useCallback(() => {
+    setRequests(DEMO_ORDER_REQUESTS)
     setLoading(false)
   }, [])
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
-  const handleStatusChange = async (id: string, status: string) => {
-    await fetch('/api/order-requests', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, status }),
-    })
+  const handleStatusChange = (id: string, status: string) => {
     setRequests(prev => prev.map(r => r.id === id ? { ...r, status } : r))
     if (selected?.id === id) setSelected(prev => prev ? { ...prev, status } : null)
   }

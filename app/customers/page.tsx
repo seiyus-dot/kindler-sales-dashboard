@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
 import type { Contact, Company, DealToC, AICampConsultation, ProductAICampCustomer, DealToB } from '@/lib/supabase'
+import { DEMO_CONTACTS, DEMO_COMPANIES, DEMO_AICAMP, DEMO_TOB_DEALS } from '@/lib/demoData'
 import { Plus, X, Pencil, Trash2, ChevronRight } from 'lucide-react'
 
 type Tab = 'contacts' | 'companies'
@@ -58,99 +58,28 @@ export default function CustomersPage() {
 
   const [error, setError] = useState<string | null>(null)
 
-  // 受注済み案件から顧客マスタを自動生成・リンク
-  async function syncFromDeals() {
-    // ---- 法人: deals_tob の受注 → companies ----
-    const { data: wonDeals } = await supabase
-      .from('deals_tob')
-      .select('id, company_name, industry')
-      .eq('status', '受注')
-      .is('company_id', null)
+  function fetchAll() {
+    const contactsWithHistory: ContactWithHistory[] = DEMO_CONTACTS.map(ct => ({
+      ...ct,
+      deals_toc: [] as Pick<DealToC, 'id' | 'service' | 'status' | 'actual_amount' | 'payment_date'>[],
+      aicamp_consultations: DEMO_AICAMP
+        .filter(c => c.contact_id === ct.id || c.name === ct.name)
+        .map(c => ({ id: c.id, service_type: c.service_type, status: c.status, payment_amount: c.payment_amount, payment_date: c.payment_date })),
+      product_aicamp_customers: [] as (Pick<ProductAICampCustomer, 'id' | 'status'> & { session?: { title: string; session_date: string } | null })[],
+    }))
 
-    if (wonDeals && wonDeals.length > 0) {
-      // company_name でグループ化（重複排除）
-      const uniqueNames = [...new Map(wonDeals.map(d => [d.company_name, d])).values()]
-      for (const deal of uniqueNames) {
-        if (!deal.company_name) continue
-        // 既存チェック
-        const { data: existing } = await supabase
-          .from('companies')
-          .select('id')
-          .eq('name', deal.company_name)
-          .maybeSingle()
-        const companyId = existing?.id ?? (await supabase
-          .from('companies')
-          .insert({ name: deal.company_name, industry: deal.industry ?? null })
-          .select('id')
-          .single()
-        ).data?.id
-        if (!companyId) continue
-        // 同名の全受注案件をリンク
-        await supabase
-          .from('deals_tob')
-          .update({ company_id: companyId })
-          .eq('company_name', deal.company_name)
-          .eq('status', '受注')
-          .is('company_id', null)
-      }
-    }
+    const companiesWithHistory: CompanyWithHistory[] = DEMO_COMPANIES.map(co => ({
+      ...co,
+      deals_tob: DEMO_TOB_DEALS
+        .filter(d => d.company_id === co.id || d.company_name === co.name)
+        .map(d => ({ id: d.id, service: d.service, status: d.status, actual_amount: d.actual_amount, contract_amount: d.contract_amount, payment_date: d.payment_date, company_name: d.company_name, contract_date: d.contract_date, contract_start: d.contract_start, contract_end: d.contract_end })),
+    }))
 
-    // ---- 個人: aicamp_consultations の成約 → contacts ----
-    const { data: contracted } = await supabase
-      .from('aicamp_consultations')
-      .select('id, name, line_name')
-      .eq('status', '成約')
-      .is('contact_id', null)
-
-    if (contracted && contracted.length > 0) {
-      const uniqueNames = [...new Map(contracted.map(d => [d.name ?? d.line_name, d])).values()]
-      for (const c of uniqueNames) {
-        const name = c.name ?? c.line_name
-        if (!name) continue
-        const { data: existing } = await supabase
-          .from('contacts')
-          .select('id')
-          .eq('name', name)
-          .maybeSingle()
-        const contactId = existing?.id ?? (await supabase
-          .from('contacts')
-          .insert({ name })
-          .select('id')
-          .single()
-        ).data?.id
-        if (!contactId) continue
-        await supabase
-          .from('aicamp_consultations')
-          .update({ contact_id: contactId })
-          .eq('status', '成約')
-          .is('contact_id', null)
-          .or(`name.eq.${name},line_name.eq.${name}`)
-      }
-    }
+    setContacts(contactsWithHistory)
+    setCompanies(companiesWithHistory)
   }
 
-  async function fetchAll() {
-    const [cRes, coRes] = await Promise.all([
-      supabase.from('contacts').select(`
-        *,
-        deals_toc(id, service, status, actual_amount, payment_date),
-        aicamp_consultations(id, service_type, status, payment_amount, payment_date),
-        product_aicamp_customers(id, status, session:product_aicamp_sessions(title, session_date))
-      `).order('created_at', { ascending: false }),
-      supabase.from('companies').select(`
-        *,
-        deals_tob(id, service, status, actual_amount, contract_amount, payment_date, company_name, contract_date, contract_start, contract_end)
-      `).order('created_at', { ascending: false }),
-    ])
-    if (cRes.error) setError(cRes.error.message)
-    else setContacts(cRes.data as ContactWithHistory[])
-    if (coRes.error) setError(coRes.error.message)
-    else setCompanies(coRes.data as CompanyWithHistory[])
-  }
-
-  useEffect(() => {
-    syncFromDeals().then(() => fetchAll())
-  }, [])
+  useEffect(() => { fetchAll() }, [])
 
   // 検索フィルタ
   const filteredContacts = useMemo(() =>
@@ -195,25 +124,25 @@ export default function CustomersPage() {
     setContactModal(true)
   }
 
-  async function saveContact() {
+  function saveContact() {
     if (!contactDraft.name.trim()) { setError('氏名を入力してください'); return }
     setError(null)
     setSavingContact(true)
-    const payload = { name: contactDraft.name.trim(), phone: contactDraft.phone || null, email: contactDraft.email || null, notes: contactDraft.notes || null }
-    const { error: e } = editingContact
-      ? await supabase.from('contacts').update(payload).eq('id', editingContact.id)
-      : await supabase.from('contacts').insert(payload)
+    const payload = { name: contactDraft.name.trim(), phone: contactDraft.phone || undefined, email: contactDraft.email || undefined, notes: contactDraft.notes || undefined }
+    if (editingContact) {
+      setContacts(prev => prev.map(c => c.id === editingContact.id ? { ...c, ...payload } : c))
+    } else {
+      const now = new Date().toISOString()
+      setContacts(prev => [{ id: `demo-${Date.now()}`, created_at: now, updated_at: now, ...payload, deals_toc: [], aicamp_consultations: [], product_aicamp_customers: [] }, ...prev])
+    }
     setSavingContact(false)
-    if (e) { setError(e.message); return }
     setContactModal(false)
-    fetchAll()
   }
 
-  async function deleteContact(id: string) {
-    if (!confirm('この顧客を削除しますか？（リンクされた案件のcontact_idはnullになります）')) return
-    await supabase.from('contacts').delete().eq('id', id)
+  function deleteContact(id: string) {
+    if (!confirm('この顧客を削除しますか？')) return
+    setContacts(prev => prev.filter(c => c.id !== id))
     setSelectedContact(null)
-    fetchAll()
   }
 
   // ---------- 法人顧客 CRUD ----------
@@ -229,25 +158,25 @@ export default function CustomersPage() {
     setCompanyModal(true)
   }
 
-  async function saveCompany() {
+  function saveCompany() {
     if (!companyDraft.name.trim()) { setError('会社名を入力してください'); return }
     setError(null)
     setSavingCompany(true)
-    const payload = { name: companyDraft.name.trim(), industry: companyDraft.industry || null, notes: companyDraft.notes || null }
-    const { error: e } = editingCompany
-      ? await supabase.from('companies').update(payload).eq('id', editingCompany.id)
-      : await supabase.from('companies').insert(payload)
+    const payload = { name: companyDraft.name.trim(), industry: companyDraft.industry || undefined, notes: companyDraft.notes || undefined }
+    if (editingCompany) {
+      setCompanies(prev => prev.map(c => c.id === editingCompany.id ? { ...c, ...payload } : c))
+    } else {
+      const now = new Date().toISOString()
+      setCompanies(prev => [{ id: `demo-${Date.now()}`, created_at: now, updated_at: now, ...payload, deals_tob: [] }, ...prev])
+    }
     setSavingCompany(false)
-    if (e) { setError(e.message); return }
     setCompanyModal(false)
-    fetchAll()
   }
 
-  async function deleteCompany(id: string) {
-    if (!confirm('この法人顧客を削除しますか？（リンクされた案件のcompany_idはnullになります）')) return
-    await supabase.from('companies').delete().eq('id', id)
+  function deleteCompany(id: string) {
+    if (!confirm('この法人顧客を削除しますか？')) return
+    setCompanies(prev => prev.filter(c => c.id !== id))
     setSelectedCompany(null)
-    fetchAll()
   }
 
   return (

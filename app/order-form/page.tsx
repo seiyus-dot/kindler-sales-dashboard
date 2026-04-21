@@ -1,13 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { createBrowserClient } from '@supabase/ssr'
 import { CheckCircle2 } from 'lucide-react'
-
-const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
 
 const SERVICES = [
   { id: 'ai_kenshu', label: 'AI研修（法人）' },
@@ -68,8 +62,8 @@ export default function OrderFormPage() {
   const [form, setForm] = useState<FormState>(initialForm)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [submitted, setSubmitted] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [submitting] = useState(false)
+  const [submitError] = useState<string | null>(null)
 
   const set = (key: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [key]: e.target.value }))
@@ -125,42 +119,9 @@ export default function OrderFormPage() {
   const next = () => { if (validate()) setStep(s => s + 1) }
   const back = () => setStep(s => s - 1)
 
-  const submit = async () => {
+  const submit = () => {
     if (!validate()) return
-    setSubmitting(true)
-    const payload = {
-      company_name:       form.company_name,
-      rep_name_kanji:     form.rep_name_kanji,
-      rep_name_kana:      form.rep_name_kana,
-      company_phone:      form.company_phone,
-      contact_name_kanji: form.contact_name_kanji,
-      contact_name_kana:  form.contact_name_kana,
-      department:         form.department || null,
-      position:           form.position || null,
-      contact_email:      form.contact_email,
-      contact_phone:      form.contact_phone || null,
-      billing_zip:        form.billing_zip,
-      billing_address:    form.billing_address,
-      billing_name_kanji: form.billing_name_kanji,
-      billing_name_kana:  form.billing_name_kana,
-      billing_position:   form.billing_position || null,
-      billing_department: form.billing_department || null,
-      billing_email:      form.billing_email || null,
-      services:           form.services,
-      order_detail:       form.order_detail || null,
-    }
-    const res = await fetch('/api/order-requests', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-    setSubmitting(false)
-    if (!res.ok) {
-      const { error } = await res.json().catch(() => ({ error: '送信に失敗しました' }))
-      setSubmitError(error ?? '送信に失敗しました')
-    } else {
-      setSubmitted(true)
-    }
+    setSubmitted(true)
   }
 
   if (submitted) {

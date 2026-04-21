@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase, DealToB, Member, MasterOption, LOSS_REASONS, Company } from '@/lib/supabase'
+import { DealToB, Member, MasterOption, LOSS_REASONS, Company } from '@/lib/supabase'
+import { DEMO_MASTER_OPTIONS, DEMO_COMPANIES } from '@/lib/demoData'
 import DealActions from '@/components/DealActions'
 import DriveFolderPanel from '@/components/DriveFolderPanel'
 
@@ -27,17 +28,10 @@ export default function DealToBForm({ members, initial, onClose, onSaved, defaul
   const [companies, setCompanies] = useState<Company[]>([])
 
   useEffect(() => {
-    Promise.all([
-      supabase.from('master_options').select('*').eq('type', 'source').order('sort_order'),
-      supabase.from('master_options').select('*').eq('type', 'service').order('sort_order'),
-      supabase.from('master_options').select('*').eq('type', 'industry').order('sort_order'),
-      supabase.from('companies').select('*').order('name'),
-    ]).then(([srcRes, svcRes, indRes, coRes]) => {
-      if (srcRes.data) setSources(srcRes.data)
-      if (svcRes.data) setServices(svcRes.data)
-      if (indRes.data) setIndustries(indRes.data)
-      if (coRes.data) setCompanies(coRes.data)
-    })
+    setSources(DEMO_MASTER_OPTIONS.filter(o => o.type === 'source'))
+    setServices(DEMO_MASTER_OPTIONS.filter(o => o.type === 'service'))
+    setIndustries(DEMO_MASTER_OPTIONS.filter(o => o.type === 'industry'))
+    setCompanies(DEMO_COMPANIES)
   }, [])
 
   const [form, setForm] = useState({
@@ -77,88 +71,29 @@ export default function DealToBForm({ members, initial, onClose, onSaved, defaul
   const [folderId, setFolderId] = useState<string | undefined>(initial?.drive_folder_id ?? undefined)
 
   useEffect(() => {
-    if (!initial) return
-    supabase.from('aicoach_clients').select('id').eq('name', initial.company_name).maybeSingle()
-      .then(({ data }) => { if (data) setAdvisorId(data.id) })
+    // デモモード: AI顧問チェックはスキップ
   }, [initial])
 
   const set = (key: string, val: string) => setForm(f => ({ ...f, [key]: val }))
 
-  async function handleSubmit() {
+  function handleSubmit() {
     if (!form.member_id || !form.company_name) {
       setError('担当者と企業名は必須です')
       return
     }
-    setSaving(true)
-    const payload = {
-      member_id: form.member_id,
-      company_name: form.company_name,
-      contact_name: form.contact_name || null,
-      industry: form.industry || null,
-      service: form.service || null,
-      status: form.status || null,
-      priority: form.priority || null,
-      first_contact_date: form.first_contact_date || null,
-      last_contact_date: form.last_contact_date || null,
-      expected_amount: form.expected_amount ? parseInt(form.expected_amount) : null,
-      win_probability: form.win_probability ? parseInt(form.win_probability) : null,
-      source: form.source || null,
-      next_action: form.next_action || null,
-      next_action_date: form.next_action_date || null,
-      notes: form.notes || null,
-      payment_date: form.payment_date || null,
-      actual_amount: form.actual_amount ? parseInt(form.actual_amount) : null,
-      contract_amount: form.contract_amount ? parseInt(form.contract_amount) : null,
-      contract_date: form.contract_date || null,
-      contract_start: form.contract_start || null,
-      contract_end: form.contract_end || null,
-      loss_reason: form.loss_reason || null,
-      loss_detail: form.loss_detail || null,
-      sub_member_id: form.sub_member_id || null,
-      video_url: form.video_url || null,
-      minutes_text: form.minutes_text || null,
-      company_id: form.company_id || null,
-    }
-    const { error: err } = initial
-      ? await supabase.from('deals_tob').update(payload).eq('id', initial.id)
-      : await supabase.from('deals_tob').insert(payload)
-
-    setSaving(false)
-    if (err) { setError(err.message); return }
     onSaved()
   }
 
-  async function handleFolderCreated(newFolderId: string) {
+  function handleFolderCreated(newFolderId: string) {
     setFolderId(newFolderId)
-    if (initial) {
-      const { error } = await supabase.from('deals_tob').update({ drive_folder_id: newFolderId }).eq('id', initial.id)
-      if (error) {
-        alert('フォルダIDの保存に失敗しました: ' + error.message)
-      } else {
-        onSaved()
-      }
-    }
   }
 
-  async function handleFolderRemoved() {
+  function handleFolderRemoved() {
     setFolderId(undefined)
-    if (initial) {
-      await supabase.from('deals_tob').update({ drive_folder_id: null }).eq('id', initial.id)
-    }
   }
 
-  async function registerAsAdvisor() {
-    if (!form.company_name) return
-    setRegistering(true)
-    const { data } = await supabase.from('aicoach_clients').insert({
-      name: form.company_name,
-      plan: '6ヶ月',
-      start_date: new Date().toISOString().split('T')[0],
-      phase: 'ヒアリング',
-      goals: '',
-    }).select().single()
-    if (data) setAdvisorId(data.id)
-    setRegistering(false)
+  function registerAsAdvisor() {
+    alert('デモモードではAI顧問登録は行えません')
   }
 
   async function generateMinutes() {

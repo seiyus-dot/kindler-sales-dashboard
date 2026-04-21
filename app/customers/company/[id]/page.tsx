@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
 import type { Company, DealToB, Member } from '@/lib/supabase'
+import { DEMO_COMPANIES, DEMO_TOB_DEALS, DEMO_MEMBERS } from '@/lib/demoData'
 import PageHeader from '@/components/PageHeader'
 import DealToBForm from '@/components/DealToBForm'
 import { ChevronLeft } from 'lucide-react'
@@ -37,17 +37,16 @@ export default function CompanyDetailPage() {
 
   useEffect(() => { fetchData() }, [id])
 
-  async function fetchData() {
+  function fetchData() {
     setLoading(true)
-    const [cRes, mRes] = await Promise.all([
-      supabase.from('companies').select(`
-        *,
-        deals_tob(id, service, status, actual_amount, contract_amount, payment_date, company_name, contract_date, contract_start, contract_end, member:members(name))
-      `).eq('id', id).single(),
-      supabase.from('members').select('*').order('sort_order'),
-    ])
-    if (cRes.data) setCompany(cRes.data as CompanyDetail)
-    if (mRes.data) setMembers(mRes.data)
+    const co = DEMO_COMPANIES.find(c => c.id === id) ?? null
+    if (co) {
+      const deals = DEMO_TOB_DEALS
+        .filter(d => d.company_id === co.id || d.company_name === co.name)
+        .map(d => ({ id: d.id, service: d.service, status: d.status, actual_amount: d.actual_amount, contract_amount: d.contract_amount, payment_date: d.payment_date, company_name: d.company_name, contract_date: d.contract_date, contract_start: d.contract_start, contract_end: d.contract_end, member: d.member ? { name: d.member.name } : null }))
+      setCompany({ ...co, deals_tob: deals })
+    }
+    setMembers(DEMO_MEMBERS)
     setLoading(false)
   }
 
@@ -138,7 +137,7 @@ export default function CompanyDetailPage() {
           initial={editTarget}
           prefill={editTarget ? undefined : { company_id: company.id, company_name: company.name }}
           onClose={() => { setShowForm(false); setEditTarget(null) }}
-          onSaved={() => { setShowForm(false); setEditTarget(null); fetchData() }}
+          onSaved={() => { setShowForm(false); setEditTarget(null) }}
         />
       )}
     </div>

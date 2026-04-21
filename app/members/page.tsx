@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase, Member, DealToB, MemberMonthlyGoal, AICampConsultation } from '@/lib/supabase'
+import { Member, DealToB, MemberMonthlyGoal, AICampConsultation } from '@/lib/supabase'
+import { DEMO_MEMBERS, DEMO_TOB_DEALS, DEMO_MEMBER_GOALS, DEMO_AICAMP } from '@/lib/demoData'
 import Link from 'next/link'
 import MemberWhiteboard from '@/components/MemberWhiteboard'
 import PageHeader from '@/components/PageHeader'
@@ -24,18 +25,11 @@ export default function MembersPage() {
   const [loading, setLoading] = useState(true)
   const currentMonth = new Date().toISOString().slice(0, 7) // YYYY-MM
 
-  async function fetchAll() {
-    const [membersRes, tobRes, goalsRes, aicampRes] = await Promise.all([
-      supabase.from('members').select('*').order('sort_order'),
-      supabase.from('deals_tob').select('*'),
-      supabase.from('member_monthly_goals').select('*').eq('month', currentMonth),
-      supabase.from('aicamp_consultations').select('*'),
-    ])
-
-    const mData: Member[] = membersRes.data ?? []
-    const tobData: DealToB[] = tobRes.data ?? []
-    const gData: MemberMonthlyGoal[] = goalsRes.data ?? []
-    const aData: AICampConsultation[] = aicampRes.data ?? []
+  function fetchAll() {
+    const mData = DEMO_MEMBERS
+    const tobData = DEMO_TOB_DEALS
+    const gData = DEMO_MEMBER_GOALS.filter(g => g.month === currentMonth)
+    const aData = DEMO_AICAMP
 
     setMembers(mData)
     setTobDeals(tobData)

@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { supabase } from '@/lib/supabase'
 import type { AiCoachClient, AiCoachItem } from '@/lib/supabase'
+import { DEMO_ADVISOR_CLIENTS } from '@/lib/demoData'
 import { NotesSection } from '@/components/NotesSection'
 import PageHeader from '@/components/PageHeader'
 
@@ -589,77 +589,29 @@ export default function AdvisorPage() {
     return () => window.removeEventListener('resize', check)
   }, [])
 
-  const fetchAll = useCallback(async () => {
-    const [clientsRes, itemsRes] = await Promise.all([
-      supabase.from('aicoach_clients').select('*').order('created_at'),
-      supabase.from('aicoach_items').select('*').order('sort_order'),
-    ])
-    const clientsData = clientsRes.data ?? []
-    const itemsData = itemsRes.data ?? []
-    const merged: AiCoachClient[] = clientsData.map((c: { id: string; name: string; plan: string; start_date: string; phase: string; goals: string | null }) => ({
-      id: c.id,
-      name: c.name,
-      plan: c.plan,
-      startDate: c.start_date,
-      phase: c.phase,
-      goals: c.goals ?? '',
-      items: itemsData
-        .filter((i: { client_id: string }) => i.client_id === c.id)
-        .map((i: { id: string; label: string; start_date: string; end_date: string; color_idx: number }) => ({
-          id: i.id,
-          label: i.label,
-          start: i.start_date,
-          end: i.end_date,
-          colorIdx: i.color_idx,
-        })),
-    }))
-    setClients(merged)
+  const fetchAll = useCallback(() => {
+    setClients(DEMO_ADVISOR_CLIENTS)
     setLoading(false)
   }, [])
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
-  const saveClient = async (client: AiCoachClient) => {
+  const saveClient = (client: AiCoachClient) => {
     const isNew = !clients.find(c => c.id === client.id)
     if (isNew) {
-      const { data } = await supabase.from('aicoach_clients').insert({
-        name: client.name, plan: client.plan, start_date: client.startDate, phase: client.phase, goals: client.goals || null,
-      }).select().single()
-      if (data) {
-        const planEnd = addMonths(client.startDate, PLAN_MONTHS[client.plan] ?? 6)
-        const { data: itemData } = await supabase.from('aicoach_items').insert({
-          client_id: data.id, label: 'AI顧問契約期間', start_date: client.startDate, end_date: planEnd, color_idx: 0, sort_order: 0,
-        }).select().single()
-        const defaultItem: AiCoachItem = itemData
-          ? { id: itemData.id, label: itemData.label, start: itemData.start_date, end: itemData.end_date, colorIdx: itemData.color_idx }
-          : { id: crypto.randomUUID(), label: 'AI顧問契約期間', start: client.startDate, end: planEnd, colorIdx: 0 }
-        setClients(prev => [...prev, { ...client, id: data.id, items: [defaultItem] }])
-      }
+      const planEnd = addMonths(client.startDate, PLAN_MONTHS[client.plan] ?? 6)
+      const defaultItem: AiCoachItem = { id: crypto.randomUUID(), label: 'AI顧問契約期間', start: client.startDate, end: planEnd, colorIdx: 0 }
+      setClients(prev => [...prev, { ...client, id: crypto.randomUUID(), items: [defaultItem] }])
     } else {
-      await supabase.from('aicoach_clients').update({
-        name: client.name, plan: client.plan, start_date: client.startDate, phase: client.phase, goals: client.goals || null,
-      }).eq('id', client.id)
       setClients(prev => prev.map(c => c.id === client.id ? { ...client } : c))
     }
     setEditingClient(null)
     setAddingClient(false)
   }
 
-  const updateItems = async (clientId: string, items: AiCoachItem[]) => {
-    await supabase.from('aicoach_items').delete().eq('client_id', clientId)
-    if (items.length > 0) {
-      await supabase.from('aicoach_items').insert(
-        items.map((item, idx) => ({
-          client_id: clientId, label: item.label, start_date: item.start, end_date: item.end, color_idx: item.colorIdx, sort_order: idx,
-        }))
-      )
-    }
-    const { data: newItems } = await supabase.from('aicoach_items').select('*').eq('client_id', clientId).order('sort_order')
-    const updatedItems: AiCoachItem[] = (newItems ?? []).map((i: { id: string; label: string; start_date: string; end_date: string; color_idx: number }) => ({
-      id: i.id, label: i.label, start: i.start_date, end: i.end_date, colorIdx: i.color_idx,
-    }))
-    setClients(prev => prev.map(c => c.id === clientId ? { ...c, items: updatedItems } : c))
-    setDrillClient(prev => prev?.id === clientId ? { ...prev, items: updatedItems } : prev)
+  const updateItems = (clientId: string, items: AiCoachItem[]) => {
+    setClients(prev => prev.map(c => c.id === clientId ? { ...c, items } : c))
+    setDrillClient(prev => prev?.id === clientId ? { ...prev, items } : prev)
   }
 
   const currentClient = drillClient ? clients.find(c => c.id === drillClient.id) ?? drillClient : null

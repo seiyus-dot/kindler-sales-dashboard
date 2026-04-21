@@ -8,7 +8,6 @@ import { TableCell } from '@tiptap/extension-table-cell'
 import { TableHeader } from '@tiptap/extension-table-header'
 import { Placeholder } from '@tiptap/extension-placeholder'
 import { useEffect, useRef, useState } from 'react'
-import { supabase } from '@/lib/supabase'
 import type { AiCoachFile, AiCoachNote } from '@/lib/supabase'
 
 const todayStr = () => new Date().toISOString().split('T')[0]
@@ -60,11 +59,8 @@ function NoteEditor({ note }: { note: AiCoachNote }) {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const saveStatusTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const saveNote = async (html: string) => {
+  const saveNote = (html: string) => {
     setSaveStatus('saving')
-    await supabase.from('aicoach_notes')
-      .update({ content: html, updated_at: new Date().toISOString() })
-      .eq('id', note.id)
     setSaveStatus('saved')
     if (saveStatusTimer.current) clearTimeout(saveStatusTimer.current)
     saveStatusTimer.current = setTimeout(() => setSaveStatus('idle'), 2000)
@@ -157,14 +153,11 @@ function NoteCard({ note, isExpanded, onToggle, onDelete, onTitleChange }: {
   useEffect(() => { setTitle(note.title) }, [note.title])
   useEffect(() => { if (editingTitle) titleInputRef.current?.focus() }, [editingTitle])
 
-  const saveTitle = async () => {
+  const saveTitle = () => {
     const t = title.trim() || '（タイトルなし）'
     setTitle(t)
     setEditingTitle(false)
-    if (t !== note.title) {
-      await supabase.from('aicoach_notes').update({ title: t }).eq('id', note.id)
-      onTitleChange(note.id, t)
-    }
+    if (t !== note.title) onTitleChange(note.id, t)
   }
 
   return (
@@ -236,45 +229,34 @@ export function NotesSection({ clientId }: { clientId: string }) {
     setAddingNote(false)
     setFiles([])
 
-    const load = async () => {
-      const { data: notesData } = await supabase
-        .from('aicoach_notes').select('*')
-        .eq('client_id', clientId).order('created_at', { ascending: false })
-      setNotes(notesData ?? [])
-
-      const { data: filesData } = await supabase
-        .from('aicoach_files').select('*')
-        .eq('client_id', clientId).order('created_at')
-      setFiles(filesData ?? [])
-    }
-    load()
+    setNotes([])
+    setFiles([])
   }, [clientId])
 
   useEffect(() => {
     if (addingNote) { setNewTitle(''); setNewDate(todayStr()); setTimeout(() => newTitleRef.current?.focus(), 50) }
   }, [addingNote])
 
-  const addNote = async () => {
+  const addNote = () => {
     const t = newTitle.trim()
     if (!t) return
     setAddError(null)
-    const { data, error } = await supabase
-      .from('aicoach_notes')
-      .insert({ client_id: clientId, title: t, content: '', note_date: newDate || null, sort_order: 0 })
-      .select().single()
-    if (error) {
-      setAddError(`保存に失敗しました: ${error.message}`)
-      return
+    const newNote: AiCoachNote = {
+      id: `demo-${Date.now()}`,
+      client_id: clientId,
+      title: t,
+      content: '',
+      note_date: newDate || null,
+      sort_order: 0,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     }
-    if (data) {
-      setNotes(prev => [data, ...prev])
-      setExpandedId(data.id)
-    }
+    setNotes(prev => [newNote, ...prev])
+    setExpandedId(newNote.id)
     setAddingNote(false)
   }
 
-  const deleteNote = async (id: string) => {
-    await supabase.from('aicoach_notes').delete().eq('id', id)
+  const deleteNote = (id: string) => {
     setNotes(prev => prev.filter(n => n.id !== id))
     if (expandedId === id) setExpandedId(null)
   }
@@ -283,35 +265,16 @@ export function NotesSection({ clientId }: { clientId: string }) {
     setNotes(prev => prev.map(n => n.id === id ? { ...n, title } : n))
   }
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploading(true)
-    setUploadError(null)
-    const ext = file.name.includes('.') ? file.name.split('.').pop() : ''
-    const path = `${clientId}/${Date.now()}${ext ? '.' + ext : ''}`
-    const { error } = await supabase.storage.from('aicoach-files').upload(path, file)
-    if (error) {
-      setUploadError(`アップロードに失敗しました: ${error.message}`)
-    } else {
-      const { data } = await supabase
-        .from('aicoach_files')
-        .insert({ client_id: clientId, name: file.name, storage_path: path, size: file.size, mime_type: file.type })
-        .select().single()
-      if (data) setFiles(prev => [...prev, data])
-    }
-    setUploading(false)
+  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     e.target.value = ''
+    alert('デモモードではファイルアップロードは行えません')
   }
 
-  const deleteFile = async (id: string, storagePath: string) => {
-    await supabase.storage.from('aicoach-files').remove([storagePath])
-    await supabase.from('aicoach_files').delete().eq('id', id)
+  const deleteFile = (id: string, _storagePath: string) => {
     setFiles(prev => prev.filter(f => f.id !== id))
   }
 
-  const getPublicUrl = (path: string) =>
-    supabase.storage.from('aicoach-files').getPublicUrl(path).data.publicUrl
+  const getPublicUrl = (_path: string) => '#'
 
   return (
     <div style={{ background: '#fff', border: '1.5px solid #e0e6f0', borderRadius: 14, padding: '18px 20px', marginTop: 16 }}>

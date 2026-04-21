@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { supabase, Member, DealToB, DealAction, ACTION_TYPES, AICampConsultation, CONSULTATION_STATUSES } from '@/lib/supabase'
+import { Member, DealToB, DealAction, ACTION_TYPES, AICampConsultation, CONSULTATION_STATUSES } from '@/lib/supabase'
+import { DEMO_MEMBERS, DEMO_TOB_DEALS, DEMO_AICAMP, DEMO_DEAL_ACTIONS } from '@/lib/demoData'
 import Link from 'next/link'
 import { Plus } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
@@ -39,30 +40,14 @@ export default function MemberDetailPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
-  async function fetchAll() {
-    const [memberRes, membersRes, tobRes, aicampRes] = await Promise.all([
-      supabase.from('members').select('*').eq('id', id).single(),
-      supabase.from('members').select('*').order('sort_order'),
-      supabase.from('deals_tob').select('*').eq('member_id', id).order('created_at', { ascending: false }),
-      supabase.from('aicamp_consultations').select('*').eq('member_id', id).order('consultation_date', { ascending: false }),
-    ])
-    if (memberRes.data) setMember(memberRes.data)
-    if (membersRes.data) setMembers(membersRes.data)
-    const tob: DealToB[] = tobRes.data ?? []
+  function fetchAll() {
+    const m = DEMO_MEMBERS.find(m => m.id === id) ?? null
+    setMember(m)
+    setMembers(DEMO_MEMBERS)
+    const tob = DEMO_TOB_DEALS.filter(d => d.member_id === id)
     setTobDeals(tob)
-    setAicampDeals(aicampRes.data ?? [])
-
-    if (tob.length > 0) {
-      const { data: actionsData } = await supabase
-        .from('deal_actions')
-        .select('*')
-        .in('deal_id', tob.map(d => d.id))
-        .order('action_date', { ascending: false })
-      if (actionsData) setActions(actionsData)
-    } else {
-      setActions([])
-    }
-
+    setAicampDeals(DEMO_AICAMP.filter(d => d.member_id === id))
+    setActions(DEMO_DEAL_ACTIONS.filter(a => tob.some(d => d.id === a.deal_id)))
     setLoading(false)
   }
 

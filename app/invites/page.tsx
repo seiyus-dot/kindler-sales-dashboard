@@ -1,7 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { createBrowserClient } from '@supabase/ssr'
+import { useState, useEffect } from 'react'
 import { UserPlus, Trash2, Shield, User, Pencil } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
 
@@ -37,22 +36,17 @@ export default function InvitesPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
-
-  const fetchInvites = useCallback(async () => {
-    const { data } = await supabase
-      .from('allowed_emails')
-      .select('email, role, allowed_pages')
-    setInvites(data ?? [])
-    setLoading(false)
-  }, [])
+  const DEMO_INVITES: AllowedEmail[] = [
+    { email: 'admin@gokindler.com', role: 'admin', allowed_pages: ALL_PAGES.map(p => p.href) },
+    { email: 'member1@gokindler.com', role: 'member', allowed_pages: ['/aicamp', '/dashboard'] },
+    { email: 'member2@gokindler.com', role: 'member', allowed_pages: ['/aicamp'] },
+  ]
 
   useEffect(() => {
-    fetchInvites()
-  }, [fetchInvites])
+    setInvites(DEMO_INVITES)
+    setLoading(false)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function openAdd() {
     setEditTarget(null)
@@ -78,27 +72,23 @@ export default function InvitesPage() {
     setError(null)
   }
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!newEmail) return
     setSaving(true)
-    setError(null)
     const pages = newRole === 'admin' ? ALL_PAGES.map(p => p.href) : newPages
-    const { error: err } = await supabase
-      .from('allowed_emails')
-      .upsert({ email: newEmail.toLowerCase().trim(), role: newRole, allowed_pages: pages }, { onConflict: 'email' })
-    if (err) {
-      setError('保存に失敗しました。RLSポリシーの設定が必要かもしれません。')
+    const entry: AllowedEmail = { email: newEmail.toLowerCase().trim(), role: newRole, allowed_pages: pages }
+    if (editTarget) {
+      setInvites(prev => prev.map(i => i.email === editTarget.email ? entry : i))
     } else {
-      await fetchInvites()
-      closeForm()
+      setInvites(prev => [...prev, entry])
     }
     setSaving(false)
+    closeForm()
   }
 
-  const handleDelete = async (email: string) => {
+  const handleDelete = (email: string) => {
     if (!confirm(`${email} の招待を削除しますか？`)) return
-    await supabase.from('allowed_emails').delete().eq('email', email)
-    await fetchInvites()
+    setInvites(prev => prev.filter(i => i.email !== email))
   }
 
   const togglePage = (page: string) => {

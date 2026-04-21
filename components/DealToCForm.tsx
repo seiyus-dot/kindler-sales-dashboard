@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase, DealToC, Member, MasterOption, LOSS_REASONS, Contact } from '@/lib/supabase'
+import { DealToC, Member, MasterOption, LOSS_REASONS, Contact } from '@/lib/supabase'
+import { DEMO_MASTER_OPTIONS, DEMO_CONTACTS } from '@/lib/demoData'
 import DealActions from '@/components/DealActions'
 
 type Props = {
@@ -24,15 +25,9 @@ export default function DealToCForm({ members, initial, onClose, onSaved, defaul
   const [contacts, setContacts] = useState<Contact[]>([])
 
   useEffect(() => {
-    Promise.all([
-      supabase.from('master_options').select('*').eq('type', 'source').order('sort_order'),
-      supabase.from('master_options').select('*').eq('type', 'service').order('sort_order'),
-      supabase.from('contacts').select('*').order('name'),
-    ]).then(([srcRes, svcRes, ctRes]) => {
-      if (srcRes.data) setSources(srcRes.data)
-      if (svcRes.data) setServices(svcRes.data)
-      if (ctRes.data) setContacts(ctRes.data)
-    })
+    setSources(DEMO_MASTER_OPTIONS.filter(o => o.type === 'source'))
+    setServices(DEMO_MASTER_OPTIONS.filter(o => o.type === 'service'))
+    setContacts(DEMO_CONTACTS)
   }, [])
 
   const [form, setForm] = useState({
@@ -68,46 +63,11 @@ export default function DealToCForm({ members, initial, onClose, onSaved, defaul
 
   const set = (key: string, val: string) => setForm(f => ({ ...f, [key]: val }))
 
-  async function handleSubmit() {
+  function handleSubmit() {
     if (!form.member_id || !form.name) {
       setError('担当者と氏名は必須です')
       return
     }
-    setSaving(true)
-    const payload = {
-      member_id: form.member_id,
-      name: form.name,
-      contact: form.contact || null,
-      source: form.source || null,
-      status: form.status || null,
-      priority: form.priority || null,
-      first_contact_date: form.first_contact_date || null,
-      last_contact_date: form.last_contact_date || null,
-      service: form.service || null,
-      expected_amount: form.expected_amount ? parseInt(form.expected_amount) : null,
-      win_probability: form.win_probability ? parseInt(form.win_probability) : null,
-      next_action: form.next_action || null,
-      next_action_date: form.next_action_date || null,
-      notes: form.notes || null,
-      payment_date: form.payment_date || null,
-      actual_amount: form.actual_amount ? parseInt(form.actual_amount) : null,
-      loss_reason: form.loss_reason || null,
-      loss_detail: form.loss_detail || null,
-      sub_member_id: form.sub_member_id || null,
-      deal_type: form.deal_type,
-      monthly_amount: form.monthly_amount ? parseInt(form.monthly_amount) : null,
-      contract_start: form.contract_start || null,
-      contract_end: form.contract_end || null,
-      payment_status: form.payment_status || null,
-      payment_error_date: form.payment_error_date || null,
-      contact_id: form.contact_id || null,
-    }
-    const { error: err } = initial
-      ? await supabase.from('deals_toc').update(payload).eq('id', initial.id)
-      : await supabase.from('deals_toc').insert(payload)
-
-    setSaving(false)
-    if (err) { setError(err.message); return }
     onSaved()
   }
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { supabase, Member, MasterOption } from '@/lib/supabase'
+import { Member, MasterOption } from '@/lib/supabase'
 
 type Tab = 'tob' | 'toc'
 type ParsedRow = Record<string, string>
@@ -125,16 +125,9 @@ export default function CSVImport({ tab, members, onImported }: Props) {
     reader.readAsText(file, 'UTF-8')
   }
 
-  async function handleImport() {
+  function handleImport() {
     setImporting(true)
-    const table = tab === 'tob' ? 'deals_tob' : 'deals_toc'
-    let count = 0
-    for (const row of rows.filter(r => !r._error)) {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { member_name, _error, ...payload } = row
-      const { error } = await supabase.from(table).insert(payload)
-      if (!error) count++
-    }
+    const count = rows.filter(r => !r._error).length
     setImportedCount(count)
     setImporting(false)
     setStep(3)

@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
 import type { Contact, DealToC, AICampConsultation, ProductAICampCustomer, Member } from '@/lib/supabase'
+import { DEMO_CONTACTS, DEMO_AICAMP, DEMO_MEMBERS } from '@/lib/demoData'
 import PageHeader from '@/components/PageHeader'
 import AICampConsultationForm from '@/components/AICampConsultationForm'
 import { ChevronLeft } from 'lucide-react'
@@ -55,19 +55,21 @@ export default function ContactDetailPage() {
 
   useEffect(() => { fetchData() }, [id])
 
-  async function fetchData() {
+  function fetchData() {
     setLoading(true)
-    const [cRes, mRes] = await Promise.all([
-      supabase.from('contacts').select(`
-        *,
-        deals_toc(id, service, status, actual_amount, payment_date),
-        aicamp_consultations(id, service_type, status, payment_amount, payment_date, payment_method, unit_amount, payment_count, consultation_date, member:members(name)),
-        product_aicamp_customers(id, status, session:product_aicamp_sessions(title, session_date))
-      `).eq('id', id).single(),
-      supabase.from('members').select('*').order('sort_order'),
-    ])
-    if (cRes.data) setContact(cRes.data as ContactDetail)
-    if (mRes.data) setMembers(mRes.data)
+    const ct = DEMO_CONTACTS.find(c => c.id === id) ?? null
+    if (ct) {
+      const aicamp = DEMO_AICAMP
+        .filter(c => c.contact_id === ct.id || c.name === ct.name)
+        .map(c => ({ id: c.id, service_type: c.service_type, status: c.status, payment_amount: c.payment_amount, payment_date: c.payment_date, payment_method: c.payment_method, unit_amount: c.unit_amount, payment_count: c.payment_count, consultation_date: c.consultation_date, member: c.member ? { name: c.member.name } : null }))
+      setContact({
+        ...ct,
+        deals_toc: [] as Pick<DealToC, 'id' | 'service' | 'status' | 'actual_amount' | 'payment_date'>[],
+        aicamp_consultations: aicamp,
+        product_aicamp_customers: [] as (Pick<ProductAICampCustomer, 'id' | 'status'> & { session?: { title: string; session_date: string } | null })[],
+      })
+    }
+    setMembers(DEMO_MEMBERS)
     setLoading(false)
   }
 

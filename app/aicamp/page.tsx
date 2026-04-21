@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { supabase, AICampConsultation, AICampMonthlyGoal, AICampAdWeekly, Member, LineFriend, CONSULTATION_STATUSES, PAYMENT_METHODS, AI_EXPERIENCES } from '@/lib/supabase'
+import { AICampConsultation, AICampMonthlyGoal, AICampAdWeekly, Member, LineFriend, CONSULTATION_STATUSES, PAYMENT_METHODS, AI_EXPERIENCES } from '@/lib/supabase'
+import { DEMO_AICAMP, DEMO_MEMBERS, DEMO_AICAMP_GOALS, DEMO_AD_WEEKLY, DEMO_LINE_FRIENDS } from '@/lib/demoData'
 import PageHeader from '@/components/PageHeader'
 
 const MONTHLY_INCOMES = ['〜10万円', '11～20万円', '21～30万円', '31～40万円', '41～50万円', '51～60万円', '61～70万円', '71～80万円', '81～90万円', '91～100万円', '101万円以上']
@@ -150,100 +151,41 @@ export default function AICampPage() {
   useEffect(() => { fetchAll() }, [month])
   useEffect(() => { if (activeTab === 'line_friends') fetchLineFriends() }, [activeTab])
 
-  async function fetchLineFriends() {
+  function fetchLineFriends() {
     setLineFriendsLoading(true)
-    const { data } = await supabase.from('line_friends').select('*').order('registered_at', { ascending: false })
-    setLineFriends(data ?? [])
+    setLineFriends(DEMO_LINE_FRIENDS)
     setLineFriendsLoading(false)
   }
 
-  async function importLineFriendsCsv(file: File) {
-    setLineFriendsImporting(true)
-    try {
-      const buffer = await file.arrayBuffer()
-      // LINEのCSVはShift-JIS。UTF-8 BOMがあればUTF-8として扱う
-      const bytes = new Uint8Array(buffer)
-      const isUtf8Bom = bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF
-      const encoding = isUtf8Bom ? 'utf-8' : 'shift_jis'
-      const decoder = new TextDecoder(encoding)
-      const text = decoder.decode(buffer).replace(/^\uFEFF/, '') // BOM除去
-      const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
-      const lines = normalized.split('\n').map(l => l.trim()).filter(Boolean)
-      if (lines.length < 2) {
-        alert(`ヘッダー行のみでデータがありません。\nヘッダー: ${lines[0] ?? '(空)'}`)
-        setLineFriendsImporting(false)
-        return
-      }
-      const delimiter = lines[0].includes('\t') ? '\t' : ','
-      const headers = lines[0].split(delimiter).map(h => h.replace(/^"|"$/g, '').trim())
-      const rows = lines.slice(1).map(line => {
-        const vals = line.split(delimiter).map(v => v.replace(/^"|"$/g, '').trim())
-        return Object.fromEntries(headers.map((h, i) => [h, vals[i] ?? '']))
-      })
-      const records = rows.map(row => ({
-        line_user_id: row['全シナリオ共LINE友だちID'] || row['LINE友だちID'] || '',
-        line_display_name: row['アカウント共LINE登録名'] || row['LINE登録名'] || null,
-        status: row['ステータス'] || null,
-        registration_source: row['登録経路'] || null,
-        blocked_at: row['ブロック日時'] || null,
-        registered_at: row['登録日'] || null,
-      })).filter(r => r.line_user_id)
-      if (records.length === 0) {
-        alert(`マッピングできるデータがありませんでした。\n検出されたヘッダー: ${headers.join(', ')}`)
-        setLineFriendsImporting(false)
-        return
-      }
-      const res = await fetch('/api/import-line-friends', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ records }),
-      })
-      const result = await res.json()
-      if (!res.ok) { alert('インポートに失敗しました: ' + result.error); return }
-      alert(`${result.added}件追加、${result.updated}件更新しました`)
-      await fetchLineFriends()
-    } catch (e) {
-      alert('ファイル読み込みエラー: ' + String(e))
-    } finally {
-      setLineFriendsImporting(false)
-    }
+  function importLineFriendsCsv(_file: File) {
+    alert('デモモードではCSVインポートは行えません')
   }
 
-  async function deleteApplications() {
+  function deleteApplications() {
     if (appSelectedIds.size === 0) return
     if (!confirm(`${appSelectedIds.size}件を削除しますか？`)) return
     setAppDeleting(true)
-    await supabase.from('aicamp_consultations').delete().in('id', Array.from(appSelectedIds))
+    setConsultations(prev => prev.filter(c => !appSelectedIds.has(c.id)))
     setAppSelectedIds(new Set())
     setAppDeleting(false)
-    await fetchAll()
   }
 
-  async function fetchAll() {
+  function fetchAll() {
     setLoading(true)
-    const [consRes, membersRes, goalRes, adRes] = await Promise.all([
-      supabase
-        .from('aicamp_consultations')
-        .select('*, member:members(name)')
-        .or(`and(consultation_date.gte.${month}-01,consultation_date.lt.${nextMonth(month)}),and(payment_date.gte.${month}-01,payment_date.lt.${nextMonth(month)})`)
-        .order('consultation_date', { ascending: false }),
-      supabase.from('members').select('*').order('sort_order'),
-      supabase.from('aicamp_monthly_goals').select('*').eq('month', month).maybeSingle(),
-      supabase.from('aicamp_ad_weekly').select('*').eq('month', month).order('sort_order').order('created_at'),
-    ])
-    const fbRes = await supabase
-      .from('fb_ads')
-      .select('day, ad_set_name, amount_spent, registrations_completed, impressions, link_clicks, reach, cpm, cpc, ctr')
-      .gte('day', `${month}-01`)
-      .lt('day', nextMonth(month))
-      .order('day', { ascending: false })
-    if (consRes.data) setConsultations(consRes.data)
-    if (membersRes.data) setMembers(membersRes.data)
-    setGoal(goalRes.data ?? null)
-    setGoalInput(goalRes.data?.contract_goal?.toString() ?? '0')
-    setProductGoalInput(goalRes.data?.product_contract_goal?.toString() ?? '0')
-    setAdWeekly(adRes.data ?? [])
-    setFbAds(fbRes.data ?? [])
+    const nm = nextMonth(month)
+    const cons = DEMO_AICAMP.filter(c => {
+      const cd = c.consultation_date?.slice(0, 10) ?? ''
+      const pd = c.payment_date ?? ''
+      return (cd >= `${month}-01` && cd < nm) || (pd >= `${month}-01` && pd < nm)
+    })
+    const goalData = DEMO_AICAMP_GOALS.find(g => g.month === month) ?? null
+    setConsultations(cons)
+    setMembers(DEMO_MEMBERS)
+    setGoal(goalData)
+    setGoalInput(goalData?.contract_goal?.toString() ?? '0')
+    setProductGoalInput(goalData?.product_contract_goal?.toString() ?? '0')
+    setAdWeekly(DEMO_AD_WEEKLY.filter(a => a.month === month))
+    setFbAds([])
     setLoading(false)
   }
 
@@ -275,16 +217,14 @@ export default function AICampPage() {
     }
   }
 
-  async function saveGoal() {
+  function saveGoal() {
     const val = parseInt(goalInput) || 0
     const pval = parseInt(productGoalInput) || 0
-    const payload = { contract_goal: val, product_contract_goal: pval }
-    const { error } = goal
-      ? await supabase.from('aicamp_monthly_goals').update(payload).eq('id', goal.id)
-      : await supabase.from('aicamp_monthly_goals').insert({ month, ...payload })
-    if (error) { alert(`保存エラー: ${error.message}`); return }
+    setGoal(prev => prev
+      ? { ...prev, contract_goal: val, product_contract_goal: pval }
+      : { id: `demo-${Date.now()}`, month, contract_goal: val, product_contract_goal: pval, created_at: new Date().toISOString() }
+    )
     setEditingGoal(false)
-    fetchAll()
   }
 
   function startAdEdit(row: AICampAdWeekly) {
@@ -298,78 +238,72 @@ export default function AICampPage() {
     })
   }
 
-  async function saveAdRow() {
+  function saveAdRow() {
     if (!adEditId) return
     setAdSaving(true)
-    const editingRow = adWeekly.find(r => r.id === adEditId)
-    const computed = computeFbForWeek(adDraft.week_label, editingRow?.month ?? month)
-    await supabase.from('aicamp_ad_weekly').update({
+    setAdWeekly(prev => prev.map(r => r.id === adEditId ? {
+      ...r,
       week_label: adDraft.week_label,
-      ad_spend: computed?.ad_spend ?? 0,
-      list_count: computed?.list_count ?? 0,
       consultation_count: adDraft.consultation_count ? parseInt(adDraft.consultation_count) : null,
       seated_count: adDraft.seated_count ? parseInt(adDraft.seated_count) : null,
-    }).eq('id', adEditId)
+    } : r))
     setAdSaving(false)
     setAdEditId(null)
-    fetchAll()
   }
 
-  async function addWeekRow() {
+  function addWeekRow() {
     if (!newWeek.week_label.trim()) return
     setAdSaving(true)
-    const computed = computeFbForWeek(newWeek.week_label.trim(), month)
-    await supabase.from('aicamp_ad_weekly').insert({
+    const newRow: AICampAdWeekly = {
+      id: `demo-${Date.now()}`,
       month,
       week_label: newWeek.week_label.trim(),
-      ad_spend: computed?.ad_spend ?? 0,
-      list_count: computed?.list_count ?? 0,
-      consultation_count: newWeek.consultation_count ? parseInt(newWeek.consultation_count) : null,
-      seated_count: newWeek.seated_count ? parseInt(newWeek.seated_count) : null,
+      ad_spend: 0,
+      list_count: 0,
+      consultation_count: newWeek.consultation_count ? parseInt(newWeek.consultation_count) : undefined,
+      seated_count: newWeek.seated_count ? parseInt(newWeek.seated_count) : undefined,
       sort_order: adWeekly.filter(r => (r.service_type ?? 'プロダクト AI CAMP') === adServiceType).length,
       service_type: adServiceType,
-    })
+      created_at: new Date().toISOString(),
+    }
+    setAdWeekly(prev => [...prev, newRow])
     setAdSaving(false)
     setShowAddWeek(false)
     setNewWeek({ week_label: '', ad_spend: '', list_count: '', consultation_count: '', seated_count: '' })
-    fetchAll()
   }
 
-  async function deleteAdRow(id: string) {
+  function deleteAdRow(id: string) {
     if (!confirm('この週のデータを削除しますか？')) return
-    await supabase.from('aicamp_ad_weekly').delete().eq('id', id)
-    fetchAll()
+    setAdWeekly(prev => prev.filter(r => r.id !== id))
   }
 
-
-  async function saveInlineEdit(id: string) {
+  function saveInlineEdit(id: string) {
     setInlineSaving(true)
-    const payload = {
-      consultation_date: inlineDraft.consultation_date || null,
-      member_id: inlineDraft.member_id || null,
-      service_type: inlineDraft.service_type,
-      line_name: inlineDraft.line_name || null,
-      name: inlineDraft.name || null,
-      age: inlineDraft.age ? parseInt(inlineDraft.age) : null,
-      source: inlineDraft.source || null,
-      registration_source: inlineDraft.registration_source || null,
-      status: inlineDraft.status,
-      payment_amount: inlineDraft.payment_amount ? parseInt(inlineDraft.payment_amount) : null,
-      payment_date: inlineDraft.payment_date || null,
-      payment_method: inlineDraft.payment_method || null,
-      reply_deadline: inlineDraft.reply_deadline || null,
-      occupation: inlineDraft.occupation || null,
-      monthly_income: inlineDraft.monthly_income || null,
-      ai_experience: inlineDraft.ai_experience || null,
-      customer_attribute: inlineDraft.customer_attribute || null,
-      motivation: inlineDraft.motivation || null,
-      reason: inlineDraft.reason || null,
-      minutes_url: inlineDraft.minutes_url || null,
-    }
-    await supabase.from('aicamp_consultations').update(payload).eq('id', id)
+    setConsultations(prev => prev.map(c => c.id !== id ? c : {
+      ...c,
+      consultation_date: inlineDraft.consultation_date || c.consultation_date,
+      member_id: inlineDraft.member_id || c.member_id,
+      service_type: inlineDraft.service_type || c.service_type,
+      line_name: inlineDraft.line_name || c.line_name,
+      name: inlineDraft.name || c.name,
+      age: inlineDraft.age ? parseInt(inlineDraft.age) : c.age,
+      source: inlineDraft.source || c.source,
+      registration_source: inlineDraft.registration_source || c.registration_source,
+      status: inlineDraft.status || c.status,
+      payment_amount: inlineDraft.payment_amount ? parseInt(inlineDraft.payment_amount) : c.payment_amount,
+      payment_date: inlineDraft.payment_date || c.payment_date,
+      payment_method: inlineDraft.payment_method || c.payment_method,
+      reply_deadline: inlineDraft.reply_deadline || c.reply_deadline,
+      occupation: inlineDraft.occupation || c.occupation,
+      monthly_income: inlineDraft.monthly_income || c.monthly_income,
+      ai_experience: inlineDraft.ai_experience || c.ai_experience,
+      customer_attribute: inlineDraft.customer_attribute || c.customer_attribute,
+      motivation: inlineDraft.motivation || c.motivation,
+      reason: inlineDraft.reason || c.reason,
+      minutes_url: inlineDraft.minutes_url || c.minutes_url,
+    }))
     setInlineSaving(false)
     setInlineEditId(null)
-    fetchAll()
   }
 
   function cancelInlineEdit() {
@@ -379,24 +313,13 @@ export default function AICampPage() {
 
   const setDraft = (k: string, v: string) => setInlineDraft(d => ({ ...d, [k]: v }))
 
-  async function deleteConsultation(id: string) {
+  function deleteConsultation(id: string) {
     if (!confirm('削除しますか？')) return
-    await supabase.from('aicamp_consultations').delete().eq('id', id)
-    fetchAll()
+    setConsultations(prev => prev.filter(c => c.id !== id))
   }
 
-  async function registerContact(c: AICampConsultation) {
-    const name = c.name ?? c.line_name
-    if (!name) return
-    const { data: existing } = await supabase.from('contacts').select('id').eq('name', name).maybeSingle()
-    let contactId = existing?.id
-    if (!contactId) {
-      const { data: created } = await supabase.from('contacts').insert({ name }).select('id').single()
-      contactId = created?.id
-    }
-    if (!contactId) return
-    await supabase.from('aicamp_consultations').update({ contact_id: contactId }).eq('id', c.id)
-    fetchAll()
+  function registerContact(_c: AICampConsultation) {
+    alert('デモモードでは顧客登録は行えません')
   }
 
   function toggleSelect(id: string) {
@@ -415,14 +338,13 @@ export default function AICampPage() {
     }
   }
 
-  async function bulkDelete() {
+  function bulkDelete() {
     if (selectedIds.size === 0) return
     if (!confirm(`選択した ${selectedIds.size} 件を削除しますか？`)) return
     setBulkDeleting(true)
-    await supabase.from('aicamp_consultations').delete().in('id', Array.from(selectedIds))
+    setConsultations(prev => prev.filter(c => !selectedIds.has(c.id)))
     setSelectedIds(new Set())
     setBulkDeleting(false)
-    fetchAll()
   }
 
   const contractGoal = goal?.contract_goal ?? 0
@@ -1260,9 +1182,9 @@ export default function AICampPage() {
                           <div className="flex gap-2 items-center">
                             <select
                               defaultValue={c.status ?? '予定'}
-                              onChange={async e => {
-                                await supabase.from('aicamp_consultations').update({ status: e.target.value }).eq('id', c.id)
-                                fetchAll()
+                              onChange={e => {
+                                const newStatus = e.target.value
+                                setConsultations(prev => prev.map(x => x.id === c.id ? { ...x, status: newStatus } : x))
                               }}
                               className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none"
                               onClick={e => e.stopPropagation()}
