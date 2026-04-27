@@ -73,6 +73,54 @@ function toMonthStr(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
+function CalcPanel({ rows }: { rows: { label: string; value: string }[] }) {
+  return (
+    <div className="mt-2 px-3 py-2 bg-blue-50 border border-blue-100 rounded text-xs text-gray-700 space-y-1">
+      {rows.map((r, i) => (
+        <div key={i} className="flex justify-between gap-4">
+          <span className="text-gray-500">{r.label}</span>
+          <span className="font-mono">{r.value}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function BreakdownPanel({ title, headers, rows }: {
+  title?: string
+  headers: string[]
+  rows: (string | number)[][]
+}) {
+  if (rows.length === 0) return (
+    <div className="overflow-x-auto rounded border border-blue-100">
+      <p className="px-3 py-2 text-xs text-gray-400">データなし</p>
+    </div>
+  )
+  return (
+    <div className="overflow-x-auto rounded border border-blue-100">
+      {title && <p className="px-3 py-1.5 text-xs font-bold text-gray-500 bg-blue-50 border-b border-blue-100">{title}</p>}
+      <table className="w-full text-xs border-collapse">
+        <thead>
+          <tr className="bg-blue-50">
+            {headers.map((h, i) => (
+              <th key={i} className="px-3 py-1.5 text-left text-gray-500 font-medium border-b border-blue-100 whitespace-nowrap">{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, i) => (
+            <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
+              {row.map((cell, j) => (
+                <td key={j} className="px-3 py-1.5 text-gray-700 whitespace-nowrap">{cell}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 export default function AICampPage() {
   const today = new Date()
   const [month, setMonth] = useState(toMonthStr(today))
@@ -128,6 +176,7 @@ export default function AICampPage() {
   const [lineFriendsDeleting, setLineFriendsDeleting] = useState(false)
   const [appSelectedIds, setAppSelectedIds] = useState<Set<string>>(new Set())
   const [appDeleting, setAppDeleting] = useState(false)
+  const [openCardKey, setOpenCardKey] = useState<string | null>(null)
   const [visibleCols, setVisibleCols] = useState<Set<ColKey>>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('aicamp-visible-cols')
@@ -533,21 +582,30 @@ export default function AICampPage() {
       {activeTab === 'overview' && (<>
       {/* 売上サマリー - スマホ横スクロール */}
       <div className="flex lg:grid lg:grid-cols-3 gap-3 lg:gap-4 overflow-x-auto scrollbar-hide -mx-4 px-4 lg:mx-0 lg:px-0 lg:overflow-x-visible snap-x snap-mandatory lg:snap-none pb-1">
-        <div className="bg-white border border-gray-200 rounded p-4 lg:p-5 min-w-[180px] flex-shrink-0 lg:flex-shrink lg:min-w-0 snap-start">
+        <div
+          className={`bg-white border rounded p-4 lg:p-5 min-w-[180px] flex-shrink-0 lg:flex-shrink lg:min-w-0 snap-start cursor-pointer transition ${openCardKey === 'rev_total' ? 'border-blue-300 ring-1 ring-blue-200' : 'border-gray-200 hover:border-blue-200'}`}
+          onClick={() => setOpenCardKey(openCardKey === 'rev_total' ? null : 'rev_total')}
+        >
           <p className="text-xs font-bold text-gray-400 mb-1">全体売上</p>
           <p className="text-xl lg:text-3xl font-black font-mono text-gray-900 break-all">
             ¥{totalRevenue.toLocaleString()}
           </p>
           <p className="text-xs text-gray-400 mt-1">成約 {contracted.length}件</p>
         </div>
-        <div className="bg-white border border-gray-200 rounded p-4 lg:p-5 min-w-[180px] flex-shrink-0 lg:flex-shrink lg:min-w-0 snap-start">
+        <div
+          className={`bg-white border rounded p-4 lg:p-5 min-w-[180px] flex-shrink-0 lg:flex-shrink lg:min-w-0 snap-start cursor-pointer transition ${openCardKey === 'rev_meta' ? 'border-blue-300 ring-1 ring-blue-200' : 'border-gray-200 hover:border-blue-200'}`}
+          onClick={() => setOpenCardKey(openCardKey === 'rev_meta' ? null : 'rev_meta')}
+        >
           <p className="text-xs font-bold text-gray-400 mb-1">広告リスト売上</p>
           <p className="text-xl lg:text-3xl font-black font-mono text-blue-600 break-all">
             ¥{metaRevenue.toLocaleString()}
           </p>
           <p className="text-xs text-gray-400 mt-1">Meta広告経由 {metaContracted.length}件</p>
         </div>
-        <div className="bg-white border border-gray-200 rounded p-4 lg:p-5 min-w-[180px] flex-shrink-0 lg:flex-shrink lg:min-w-0 snap-start">
+        <div
+          className={`bg-white border rounded p-4 lg:p-5 min-w-[180px] flex-shrink-0 lg:flex-shrink lg:min-w-0 snap-start cursor-pointer transition ${openCardKey === 'rev_other' ? 'border-blue-300 ring-1 ring-blue-200' : 'border-gray-200 hover:border-blue-200'}`}
+          onClick={() => setOpenCardKey(openCardKey === 'rev_other' ? null : 'rev_other')}
+        >
           <p className="text-xs font-bold text-gray-400 mb-1">その他売上</p>
           <p className="text-xl lg:text-3xl font-black font-mono text-gray-600 break-all">
             ¥{nonMetaRevenue.toLocaleString()}
@@ -555,6 +613,42 @@ export default function AICampPage() {
           <p className="text-xs text-gray-400 mt-1">広告以外 {contracted.length - metaContracted.length}件</p>
         </div>
       </div>
+      {openCardKey === 'rev_total' && (
+        <BreakdownPanel
+          title="全体売上 — 成約者一覧"
+          headers={['担当者', '氏名', '着金額', '着金日']}
+          rows={[...contracted].sort((a, b) => (b.payment_amount ?? 0) - (a.payment_amount ?? 0)).map(c => [
+            members.find(m => m.id === c.member_id)?.name ?? '-',
+            c.name ?? '-',
+            `¥${(c.payment_amount ?? 0).toLocaleString()}`,
+            c.payment_date ?? '-',
+          ])}
+        />
+      )}
+      {openCardKey === 'rev_meta' && (
+        <BreakdownPanel
+          title="広告リスト売上 — Meta広告経由 成約者一覧"
+          headers={['担当者', '氏名', '着金額', '着金日']}
+          rows={[...metaContracted].sort((a, b) => (b.payment_amount ?? 0) - (a.payment_amount ?? 0)).map(c => [
+            members.find(m => m.id === c.member_id)?.name ?? '-',
+            c.name ?? '-',
+            `¥${(c.payment_amount ?? 0).toLocaleString()}`,
+            c.payment_date ?? '-',
+          ])}
+        />
+      )}
+      {openCardKey === 'rev_other' && (
+        <BreakdownPanel
+          title="その他売上 — 広告以外 成約者一覧"
+          headers={['担当者', '氏名', '着金額', '着金日']}
+          rows={[...contracted.filter(c => !c.source?.toLowerCase().includes('meta'))].sort((a, b) => (b.payment_amount ?? 0) - (a.payment_amount ?? 0)).map(c => [
+            members.find(m => m.id === c.member_id)?.name ?? '-',
+            c.name ?? '-',
+            `¥${(c.payment_amount ?? 0).toLocaleString()}`,
+            c.payment_date ?? '-',
+          ])}
+        />
+      )}
 
       {/* 目標進捗 */}
       <div className="bg-white border border-gray-200 rounded p-4 lg:p-5 space-y-4">
@@ -608,12 +702,16 @@ export default function AICampPage() {
       {/* サマリーKPI */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 lg:gap-4">
         {[
-          { label: '成約数', value: contracted.length, unit: '件', color: 'text-green-600' },
-          { label: '実商談数', value: conducted.length, unit: '件', color: 'text-gray-800' },
-          { label: 'キャンセル率', value: cancelRate, unit: '%', color: cancelRate > 20 ? 'text-red-500' : 'text-gray-800' },
-          { label: '成約率', value: contractRate, unit: '%', color: 'text-blue-600' },
+          { label: '成約数',     cardKey: 'kpi_contracted', value: contracted.length,  unit: '件', color: 'text-green-600' },
+          { label: '実商談数',   cardKey: 'kpi_conducted',  value: conducted.length,   unit: '件', color: 'text-gray-800' },
+          { label: 'キャンセル率', cardKey: 'kpi_cancel',  value: cancelRate,          unit: '%',  color: cancelRate > 20 ? 'text-red-500' : 'text-gray-800' },
+          { label: '成約率',     cardKey: 'kpi_contract',   value: contractRate,       unit: '%',  color: 'text-blue-600' },
         ].map(k => (
-          <div key={k.label} className="bg-white border border-gray-200 rounded p-3 lg:p-4">
+          <div
+            key={k.label}
+            className={`bg-white border rounded p-3 lg:p-4 cursor-pointer transition ${openCardKey === k.cardKey ? 'border-blue-300 ring-1 ring-blue-200' : 'border-gray-200 hover:border-blue-200'}`}
+            onClick={() => setOpenCardKey(openCardKey === k.cardKey ? null : k.cardKey)}
+          >
             <p className="text-xs text-gray-400 font-bold mb-1">{k.label}</p>
             <p className={`text-xl lg:text-2xl font-black font-mono ${k.color}`}>
               {k.value}<span className="text-xs lg:text-sm font-bold text-gray-400 ml-0.5">{k.unit}</span>
@@ -621,6 +719,66 @@ export default function AICampPage() {
           </div>
         ))}
       </div>
+      {openCardKey === 'kpi_contracted' && (
+        <BreakdownPanel
+          title="成約数 — 担当者別内訳"
+          headers={['担当者', '成約数', '売上']}
+          rows={[...memberStats].sort((a, b) => b.contracted - a.contracted).filter(s => s.contracted > 0).map(s => [
+            s.member.name,
+            `${s.contracted}件`,
+            `¥${s.revenue.toLocaleString()}`,
+          ])}
+        />
+      )}
+      {openCardKey === 'kpi_conducted' && (
+        <BreakdownPanel
+          title="実商談数 — 担当者別内訳"
+          headers={['担当者', '実商談数', '成約', '失注', '保留']}
+          rows={[...memberStats].sort((a, b) => b.conducted - a.conducted).filter(s => s.conducted > 0).map(s => [
+            s.member.name,
+            `${s.conducted}件`,
+            `${s.contracted}件`,
+            `${s.conducted - s.contracted - s.held}件`,
+            `${s.held}件`,
+          ])}
+        />
+      )}
+      {openCardKey === 'kpi_cancel' && (
+        <div className="space-y-2">
+          <BreakdownPanel
+            title="キャンセル率 — 担当者別"
+            headers={['担当者', 'キャンセル', '総数', 'キャンセル率']}
+            rows={[...memberStats].sort((a, b) => b.cancelRate - a.cancelRate).filter(s => s.cancelled > 0).map(s => [
+              s.member.name,
+              `${s.cancelled}件`,
+              `${s.conducted + s.cancelled}件`,
+              `${s.cancelRate}%`,
+            ])}
+          />
+          <BreakdownPanel
+            title="キャンセル一覧"
+            headers={['担当者', '氏名', 'ステータス', '日付']}
+            rows={[...cancelled].sort((a, b) => (b.consultation_date ?? '').localeCompare(a.consultation_date ?? '')).map(c => [
+              members.find(m => m.id === c.member_id)?.name ?? '-',
+              c.name ?? '-',
+              c.status ?? '-',
+              c.consultation_date?.slice(0, 10) ?? '-',
+            ])}
+          />
+        </div>
+      )}
+      {openCardKey === 'kpi_contract' && (
+        <BreakdownPanel
+          title="成約率 — 担当者別内訳"
+          headers={['担当者', '実商談', '成約', '成約率']}
+          rows={[...memberStats].sort((a, b) => b.contractRate - a.contractRate).filter(s => s.conducted > 0).map(s => [
+            s.member.name,
+            `${s.conducted}件`,
+            `${s.contracted}件`,
+            `${s.contractRate}%`,
+          ])}
+        />
+      )}
       </>)}
 
       {activeTab === 'ads' && (<>
@@ -795,16 +953,72 @@ export default function AICampPage() {
             {fbAds.length > 0 && (
               <div className="border-t border-gray-100 px-5 py-4 grid grid-cols-2 sm:grid-cols-5 gap-4">
                 {[
-                  { label: 'CPA', value: cpa ? `¥${cpa.toLocaleString()}` : '-', sub: '広告費÷リスト数' },
-                  { label: '面談申込CPA', value: meetingCpa ? `¥${meetingCpa.toLocaleString()}` : '-', sub: '広告費÷面談申込数' },
-                  { label: '着座単価', value: seatedCpa ? `¥${seatedCpa.toLocaleString()}` : '-', sub: '広告費÷着座数' },
-                  { label: 'CPO', value: cpo ? `¥${cpo.toLocaleString()}` : '-', sub: `広告費÷Meta成約${metaContracted.length}件` },
-                  { label: 'ROAS', value: roas !== null ? `${roas}%` : '-', sub: `売上÷広告費`, color: roas !== null ? (roas >= 100 ? 'text-green-600' : roas >= 60 ? 'text-amber-500' : 'text-red-500') : 'text-gray-300' },
+                  {
+                    label: 'CPA', cardKey: 'ad_cpa',
+                    value: cpa ? `¥${cpa.toLocaleString()}` : '-',
+                    sub: '広告費÷リスト数',
+                    calcRows: [
+                      { label: '式', value: '広告費 ÷ リスト数' },
+                      { label: '広告費', value: `¥${Math.round(totalAdSpend).toLocaleString()}` },
+                      { label: 'リスト数', value: `${totalListCount}人` },
+                      { label: '= CPA', value: cpa ? `¥${cpa.toLocaleString()}` : '-' },
+                    ],
+                  },
+                  {
+                    label: '面談申込CPA', cardKey: 'ad_meeting_cpa',
+                    value: meetingCpa ? `¥${meetingCpa.toLocaleString()}` : '-',
+                    sub: '広告費÷面談申込数',
+                    calcRows: [
+                      { label: '式', value: '広告費 ÷ 面談申込数' },
+                      { label: '広告費', value: `¥${Math.round(totalAdSpend).toLocaleString()}` },
+                      { label: '面談申込数', value: `${totalConsultation}人` },
+                      { label: '= 面談申込CPA', value: meetingCpa ? `¥${meetingCpa.toLocaleString()}` : '-' },
+                    ],
+                  },
+                  {
+                    label: '着座単価', cardKey: 'ad_seated_cpa',
+                    value: seatedCpa ? `¥${seatedCpa.toLocaleString()}` : '-',
+                    sub: '広告費÷着座数',
+                    calcRows: [
+                      { label: '式', value: '広告費 ÷ 着座数' },
+                      { label: '広告費', value: `¥${Math.round(totalAdSpend).toLocaleString()}` },
+                      { label: '着座数', value: `${totalSeated}人` },
+                      { label: '= 着座単価', value: seatedCpa ? `¥${seatedCpa.toLocaleString()}` : '-' },
+                    ],
+                  },
+                  {
+                    label: 'CPO', cardKey: 'ad_cpo',
+                    value: cpo ? `¥${cpo.toLocaleString()}` : '-',
+                    sub: `広告費÷Meta成約${metaContracted.length}件`,
+                    calcRows: [
+                      { label: '式', value: '広告費 ÷ Meta成約数' },
+                      { label: '広告費', value: `¥${Math.round(totalAdSpend).toLocaleString()}` },
+                      { label: 'Meta成約数', value: `${metaContracted.length}件` },
+                      { label: '= CPO', value: cpo ? `¥${cpo.toLocaleString()}` : '-' },
+                    ],
+                  },
+                  {
+                    label: 'ROAS', cardKey: 'ad_roas',
+                    value: roas !== null ? `${roas}%` : '-',
+                    sub: '売上÷広告費',
+                    color: roas !== null ? (roas >= 100 ? 'text-green-600' : roas >= 60 ? 'text-amber-500' : 'text-red-500') : 'text-gray-300',
+                    calcRows: [
+                      { label: '式', value: 'Meta売上 ÷ 広告費 × 100' },
+                      { label: 'Meta売上', value: `¥${adFilteredMetaRevenue.toLocaleString()}` },
+                      { label: '広告費', value: `¥${Math.round(totalAdSpend).toLocaleString()}` },
+                      { label: '= ROAS', value: roas !== null ? `${roas}%` : '-' },
+                    ],
+                  },
                 ].map(k => (
-                  <div key={k.label}>
+                  <div
+                    key={k.label}
+                    className="cursor-pointer"
+                    onClick={() => setOpenCardKey(openCardKey === k.cardKey ? null : k.cardKey)}
+                  >
                     <p className="text-xs text-gray-400 font-bold mb-0.5">{k.label}</p>
                     <p className={`text-xl font-black font-mono ${k.color ?? 'text-gray-800'}`}>{k.value}</p>
                     <p className="text-xs text-gray-300 mt-0.5">{k.sub}</p>
+                    {openCardKey === k.cardKey && <CalcPanel rows={k.calcRows} />}
                   </div>
                 ))}
               </div>
@@ -841,16 +1055,66 @@ export default function AICampPage() {
             {/* サマリKPI */}
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 px-5 py-4 border-b border-gray-100">
               {[
-                { label: '広告費', value: `¥${Math.round(totalSpend).toLocaleString()}`, mono: true },
-                { label: '登録数', value: `${totalRegs}件`, color: 'text-blue-600' },
-                { label: 'CPR', value: cpr ? `¥${cpr.toLocaleString()}` : '-', sub: '広告費÷登録数' },
-                { label: 'CPC', value: cpc ? `¥${cpc.toLocaleString()}` : '-', sub: '広告費÷クリック数' },
-                { label: 'CTR', value: ctr ? `${ctr}%` : '-', sub: 'クリック率' },
+                {
+                  label: '広告費', cardKey: 'meta_spend',
+                  value: `¥${Math.round(totalSpend).toLocaleString()}`,
+                  calcRows: [
+                    { label: 'データ元', value: 'fb_ads' },
+                    { label: 'amount_spent 合計', value: `¥${Math.round(totalSpend).toLocaleString()}` },
+                  ],
+                },
+                {
+                  label: '登録数', cardKey: 'meta_regs',
+                  value: `${totalRegs}件`,
+                  color: 'text-blue-600',
+                  calcRows: [
+                    { label: 'データ元', value: 'fb_ads' },
+                    { label: 'registrations_completed 合計', value: `${totalRegs}件` },
+                  ],
+                },
+                {
+                  label: 'CPR', cardKey: 'meta_cpr',
+                  value: cpr ? `¥${cpr.toLocaleString()}` : '-',
+                  sub: '広告費÷登録数',
+                  calcRows: [
+                    { label: '式', value: '広告費 ÷ 登録数' },
+                    { label: '広告費', value: `¥${Math.round(totalSpend).toLocaleString()}` },
+                    { label: '登録数', value: `${totalRegs}件` },
+                    { label: '= CPR', value: cpr ? `¥${cpr.toLocaleString()}` : '-' },
+                  ],
+                },
+                {
+                  label: 'CPC', cardKey: 'meta_cpc',
+                  value: cpc ? `¥${cpc.toLocaleString()}` : '-',
+                  sub: '広告費÷クリック数',
+                  calcRows: [
+                    { label: '式', value: '広告費 ÷ クリック数' },
+                    { label: '広告費', value: `¥${Math.round(totalSpend).toLocaleString()}` },
+                    { label: 'クリック数', value: `${totalClicks}回` },
+                    { label: '= CPC', value: cpc ? `¥${cpc.toLocaleString()}` : '-' },
+                  ],
+                },
+                {
+                  label: 'CTR', cardKey: 'meta_ctr',
+                  value: ctr ? `${ctr}%` : '-',
+                  sub: 'クリック率',
+                  calcRows: [
+                    { label: '式', value: 'クリック ÷ インプレッション × 100' },
+                    { label: 'クリック数', value: `${totalClicks}回` },
+                    { label: 'インプレッション', value: `${totalImpressions.toLocaleString()}回` },
+                    { label: '= CTR', value: ctr ? `${ctr}%` : '-' },
+                  ],
+                },
               ].map(k => (
-                <div key={k.label}>
+                <div
+                  key={k.label}
+                  className="cursor-pointer"
+                  onClick={() => setOpenCardKey(openCardKey === k.cardKey ? null : k.cardKey)}
+                >
                   <p className="text-xs text-gray-400 font-bold mb-0.5">{k.label}</p>
                   <p className={`text-xl font-black font-mono ${k.color ?? 'text-gray-800'}`}>{k.value}</p>
                   {k.sub && <p className="text-xs text-gray-300 mt-0.5">{k.sub}</p>}
+                  {openCardKey === k.cardKey && <CalcPanel rows={k.calcRows} />}
                 </div>
               ))}
             </div>
