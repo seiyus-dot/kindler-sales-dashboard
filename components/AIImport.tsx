@@ -6,6 +6,7 @@ import { Member } from '@/lib/supabase'
 type Props = {
   members: Member[]
   onImported: () => void
+  defaultServiceType?: string
 }
 
 type PreviewResult = {
@@ -101,12 +102,15 @@ function parseText(text: string, hasHeader: boolean): Record<string, unknown>[] 
   })
 }
 
-export default function AIImport({ members, onImported }: Props) {
+const SERVICE_TYPE_OPTIONS = ['', 'AI CAMP', 'プロダクト AI CAMP']
+
+export default function AIImport({ members, onImported, defaultServiceType }: Props) {
   const [open, setOpen] = useState(false)
   const [inputMode, setInputMode] = useState<'file' | 'text'>('text')
   const [pasteText, setPasteText] = useState('')
   const [hasHeader, setHasHeader] = useState(true)
   const [memberId, setMemberId] = useState('')
+  const [serviceType, setServiceType] = useState(defaultServiceType ?? '')
   const [step, setStep] = useState<'upload' | 'preview' | 'done'>('upload')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<PreviewResult | null>(null)
@@ -124,6 +128,7 @@ export default function AIImport({ members, onImported }: Props) {
     setImported(null)
     setPasteText('')
     setSelectedIndices(new Set())
+    setServiceType(defaultServiceType ?? '')
     if (fileRef.current) fileRef.current.value = ''
   }
 
@@ -140,6 +145,7 @@ export default function AIImport({ members, onImported }: Props) {
           sampleRows: rawRows.slice(0, 5),
           allRows: rawRows,
           defaultMemberId: memberId || null,
+          defaultServiceType: serviceType || null,
           members: members.map(m => ({ id: m.id, name: m.name })),
           forceTable: forceTable || null,
         }),
@@ -311,6 +317,14 @@ export default function AIImport({ members, onImported }: Props) {
               <select value={memberId} onChange={e => setMemberId(e.target.value)} className="input">
                 <option value="">未割り当て（データ内の担当者名を自動照合）</option>
                 {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-gray-500">デフォルトサービス種別（任意・商談インポート時）</label>
+              <select value={serviceType} onChange={e => setServiceType(e.target.value)} className="input">
+                <option value="">自動判定（データ内のサービス列を使用）</option>
+                {SERVICE_TYPE_OPTIONS.filter(Boolean).map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
 

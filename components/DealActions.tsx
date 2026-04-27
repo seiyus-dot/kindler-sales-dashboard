@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase, DealAction, Member, ACTION_TYPES, LOSS_REASONS } from '@/lib/supabase'
+import { DealAction, Member, ACTION_TYPES, LOSS_REASONS } from '@/lib/supabase'
+import { DEMO_DEAL_ACTIONS } from '@/lib/demoData'
 
 type Props = {
   dealId: string
@@ -45,44 +46,34 @@ export default function DealActions({
   const [savingLoss, setSavingLoss] = useState(false)
   const [lossSaved, setLossSaved] = useState(false)
 
-  useEffect(() => { fetchActions() }, [dealId])
+  useEffect(() => {
+    setActions(DEMO_DEAL_ACTIONS.filter(a => a.deal_id === dealId).sort((a, b) => b.action_date.localeCompare(a.action_date)))
+  }, [dealId])
 
-  async function fetchActions() {
-    const { data, error } = await supabase
-      .from('deal_actions')
-      .select('*, member:members!member_id(name)')
-      .eq('deal_id', dealId)
-      .order('action_date', { ascending: false })
-    if (error) console.error('fetchActions error:', error)
-    setActions(data ?? [])
-  }
-
-  async function addAction() {
+  function addAction() {
     if (!form.action_type || !form.action_date) return
     setSaving(true)
     setSaveError('')
-    const { error } = await supabase.from('deal_actions').insert({
+    const newAction: DealAction = {
+      id: `demo-${Date.now()}`,
       deal_id: dealId,
       deal_type: dealType,
       action_type: form.action_type,
       action_date: form.action_date,
       notes: form.notes || null,
       member_id: form.member_id || null,
-    })
-    setSaving(false)
-    if (error) {
-      setSaveError(error.message)
-      return
+      created_at: new Date().toISOString(),
+      member: members.find(m => m.id === form.member_id),
     }
+    setActions(prev => [newAction, ...prev])
+    setSaving(false)
     setShowForm(false)
     setForm({ action_type: '', action_date: new Date().toISOString().slice(0, 10), notes: '', member_id: defaultMemberId ?? '' })
-    fetchActions()
   }
 
-  async function deleteAction(id: string) {
+  function deleteAction(id: string) {
     if (!confirm('削除しますか？')) return
-    await supabase.from('deal_actions').delete().eq('id', id)
-    fetchActions()
+    setActions(prev => prev.filter(a => a.id !== id))
   }
 
   async function extractLossReason() {
@@ -103,29 +94,25 @@ export default function DealActions({
     setExtracting(false)
   }
 
-  async function saveLossReason() {
+  function saveLossReason() {
     if (!extracted) return
     setSavingLoss(true)
-    const table = dealType === 'tob' ? 'deals_tob' : 'deals_toc'
-    await supabase.from(table).update({
-      loss_reason: extracted.category,
-      loss_detail: extracted.detail,
-    }).eq('id', dealId)
-    // アクション履歴にも記録
-    await supabase.from('deal_actions').insert({
+    const logAction: DealAction = {
+      id: `demo-${Date.now()}`,
       deal_id: dealId,
       deal_type: dealType,
       action_type: 'その他',
       action_date: new Date().toISOString().slice(0, 10),
       notes: `【失注分析】${extracted.category}：${extracted.detail}`,
-      member_id: defaultMemberId || null,
-    })
+      member_id: defaultMemberId || undefined,
+      created_at: new Date().toISOString(),
+    }
+    setActions(prev => [logAction, ...prev])
     setSavingLoss(false)
     setLossSaved(true)
     setShowExtract(false)
     setExtracted(null)
     setExtractNotes('')
-    fetchActions()
     onLossSaved?.()
   }
 

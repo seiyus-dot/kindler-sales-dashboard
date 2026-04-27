@@ -33,6 +33,8 @@ export default function MemberDetailPage() {
   const [editToB, setEditToB] = useState<DealToB | null>(null)
   const [showAICampForm, setShowAICampForm] = useState(false)
   const [editAICamp, setEditAICamp] = useState<AICampConsultation | null>(null)
+  const [filterToBStatus, setFilterToBStatus] = useState('')
+  const [filterAICampStatus, setFilterAICampStatus] = useState('')
 
   useEffect(() => {
     fetchAll()
@@ -314,15 +316,21 @@ export default function MemberDetailPage() {
       <div className="bg-white rounded border border-gray-100 shadow-sm p-7">
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
-            法人案件 ({tobDeals.length}件)
+            法人案件 ({(filterToBStatus ? tobDeals.filter(d => d.status === filterToBStatus) : tobDeals).length}件)
           </h3>
-          <button
-            onClick={() => { setEditToB(null); setShowToBForm(true) }}
-            className="flex items-center gap-1.5 text-xs font-bold text-navy hover:text-[#152f5a] bg-[#f0f4ff] hover:bg-[#e8eeff] px-3 py-1.5 rounded transition-colors"
-          >
-            <Plus size={13} />
-            法人案件を追加
-          </button>
+          <div className="flex items-center gap-2">
+            <select value={filterToBStatus} onChange={e => setFilterToBStatus(e.target.value)} className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none">
+              <option value="">ステータス: 全て</option>
+              {TOB_STATUSES.map(s => <option key={s}>{s}</option>)}
+            </select>
+            <button
+              onClick={() => { setEditToB(null); setShowToBForm(true) }}
+              className="flex items-center gap-1.5 text-xs font-bold text-navy hover:text-[#152f5a] bg-[#f0f4ff] hover:bg-[#e8eeff] px-3 py-1.5 rounded transition-colors"
+            >
+              <Plus size={13} />
+              法人案件を追加
+            </button>
+          </div>
         </div>
         {tobDeals.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-6">案件がありません</p>
@@ -337,7 +345,7 @@ export default function MemberDetailPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {tobDeals.map(d => (
+                {(filterToBStatus ? tobDeals.filter(d => d.status === filterToBStatus) : tobDeals).map(d => (
                   <tr
                     key={d.id}
                     onClick={() => { setEditToB(d); setShowToBForm(true) }}
@@ -366,15 +374,21 @@ export default function MemberDetailPage() {
       <div className="bg-white rounded border border-gray-100 shadow-sm p-7">
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
-            商談一覧 ({aicampDeals.length}件)
+            商談一覧 ({(filterAICampStatus ? aicampDeals.filter(d => d.status === filterAICampStatus) : aicampDeals).length}件)
           </h3>
-          <button
-            onClick={() => { setEditAICamp(null); setShowAICampForm(true) }}
-            className="flex items-center gap-1.5 text-xs font-bold text-green-700 hover:text-green-800 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded transition-colors"
-          >
-            <Plus size={13} />
-            相談を追加
-          </button>
+          <div className="flex items-center gap-2">
+            <select value={filterAICampStatus} onChange={e => setFilterAICampStatus(e.target.value)} className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none">
+              <option value="">ステータス: 全て</option>
+              {CONSULTATION_STATUSES.map(s => <option key={s}>{s}</option>)}
+            </select>
+            <button
+              onClick={() => { setEditAICamp(null); setShowAICampForm(true) }}
+              className="flex items-center gap-1.5 text-xs font-bold text-green-700 hover:text-green-800 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded transition-colors"
+            >
+              <Plus size={13} />
+              相談を追加
+            </button>
+          </div>
         </div>
         {aicampDeals.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-6">相談がありません</p>
@@ -389,7 +403,7 @@ export default function MemberDetailPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {aicampDeals.map(d => (
+                {(filterAICampStatus ? aicampDeals.filter(d => d.status === filterAICampStatus) : aicampDeals).map(d => (
                   <tr
                     key={d.id}
                     onClick={() => { setEditAICamp(d); setShowAICampForm(true) }}

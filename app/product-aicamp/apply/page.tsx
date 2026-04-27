@@ -1,15 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createBrowserClient } from '@supabase/ssr'
 import { CheckCircle2 } from 'lucide-react'
 import type { ProductAICampSession } from '@/lib/supabase'
-
-// セッション一覧取得のみ anon client を使用（RLS で SELECT は公開）
-const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+import { DEMO_PRODUCT_SESSIONS } from '@/lib/demoData'
 
 function FieldLabel({ label, required }: { label: string; required?: boolean }) {
   return (
@@ -24,16 +18,12 @@ export default function ProductAICampApplyPage() {
   const [sessions, setSessions] = useState<ProductAICampSession[]>([])
   const [form, setForm] = useState({ name: '', phone: '', email: '', session_id: '' })
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [submitting, setSubmitting] = useState(false)
+  const [submitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
-  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [submitError] = useState<string | null>(null)
 
   useEffect(() => {
-    supabase
-      .from('product_aicamp_sessions')
-      .select('*')
-      .order('session_date')
-      .then(({ data }) => setSessions((data ?? []) as ProductAICampSession[]))
+    setSessions(DEMO_PRODUCT_SESSIONS)
   }, [])
 
   const validate = () => {
@@ -46,26 +36,9 @@ export default function ProductAICampApplyPage() {
     return Object.keys(e).length === 0
   }
 
-  const submit = async () => {
+  const submit = () => {
     if (!validate()) return
-    setSubmitting(true)
-    setSubmitError(null)
-    const res = await fetch('/api/product-aicamp/apply', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name:       form.name.trim(),
-        phone:      form.phone.trim(),
-        email:      form.email.trim(),
-        session_id: form.session_id,
-      }),
-    })
-    setSubmitting(false)
-    if (!res.ok) {
-      setSubmitError('送信に失敗しました。もう一度お試しください。')
-    } else {
-      setSubmitted(true)
-    }
+    setSubmitted(true)
   }
 
   if (submitted) {
