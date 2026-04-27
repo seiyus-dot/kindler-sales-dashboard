@@ -58,6 +58,7 @@ const AICAMP_COLUMNS = [
 type ColKey = typeof AICAMP_COLUMNS[number]['key']
 import AICampConsultationForm from '@/components/AICampConsultationForm'
 import AIImport from '@/components/AIImport'
+import DedupeModal from '@/components/DedupeModal'
 import SourceMasterModal from '@/components/SourceMasterModal'
 
 const STATUS_COLORS: Record<string, string> = {
@@ -1380,6 +1381,7 @@ export default function AICampPage() {
                 {(filterServiceType || rangeStart || rangeEnd) && (
                   <button onClick={() => { setFilterServiceType(''); setRangeStart(''); setRangeEnd('') }} className="text-xs text-gray-400 hover:text-gray-600 px-1">✕ クリア</button>
                 )}
+                <DedupeModal records={consultations} onMergeComplete={fetchAll} />
                 <AIImport members={members} onImported={fetchAll} />
               </div>
             </div>
