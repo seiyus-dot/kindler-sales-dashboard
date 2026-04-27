@@ -500,19 +500,11 @@ export default function AICampPage() {
   const totalRevenue = contracted.reduce((s, c) => s + (c.payment_amount ?? 0), 0)
   const metaRevenue = metaContracted.reduce((s, c) => s + (c.payment_amount ?? 0), 0)
 
-  // 広告タブ用：選択サービスでフィルタリング
-  const adFilteredWeekly = adWeekly.filter(r => (r.service_type ?? 'プロダクト AI CAMP') === adServiceType)
-  const adFilteredContracted = contracted.filter(c =>
-    adServiceType === 'AI CAMP'
-      ? (c.service_type ?? 'AI CAMP') === 'AI CAMP'
-      : c.service_type === 'プロダクト AI CAMP'
-  )
+  // 広告タブ用：全サービス合計
+  const adFilteredWeekly = adWeekly
+  const adFilteredContracted = contracted
   const adFilteredMetaRevenue = metaRevenue
-  const adFilteredConsultations = consultations.filter(c =>
-    adServiceType === 'AI CAMP'
-      ? (c.service_type ?? 'AI CAMP') === 'AI CAMP'
-      : c.service_type === 'プロダクト AI CAMP'
-  )
+  const adFilteredConsultations = consultations
   const nonMetaRevenue = totalRevenue - metaRevenue
   const progressPct = contractGoal > 0 ? Math.min(Math.round(aicampContracted.length / contractGoal * 100), 100) : 0
   const productProgressPct = productContractGoal > 0 ? Math.min(Math.round(productContracted.length / productContractGoal * 100), 100) : 0
@@ -782,20 +774,6 @@ export default function AICampPage() {
       </>)}
 
       {activeTab === 'ads' && (<>
-      {/* サービス切り替えトグル */}
-      <div className="flex gap-1 bg-gray-100 rounded p-1 w-fit">
-        {(['プロダクト AI CAMP', 'AI CAMP'] as const).map(st => (
-          <button
-            key={st}
-            onClick={() => setAdServiceType(st)}
-            className={`px-4 py-1.5 rounded text-xs font-medium transition-colors ${
-              adServiceType === st ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            {st}
-          </button>
-        ))}
-      </div>
 
       {/* 広告数値 */}
       {(() => {
