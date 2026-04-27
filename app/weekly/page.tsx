@@ -1,8 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { WeeklyLog } from '@/lib/supabase'
-import { DEMO_WEEKLY_LOGS } from '@/lib/demoData'
+import { supabase, WeeklyLog } from '@/lib/supabase'
 import PageHeader from '@/components/PageHeader'
 
 export default function WeeklyPage() {
@@ -21,17 +20,19 @@ export default function WeeklyPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    setLogs([...DEMO_WEEKLY_LOGS].reverse())
-  }, [])
+  useEffect(() => { fetchLogs() }, [])
+
+  async function fetchLogs() {
+    const { data } = await supabase.from('weekly_logs').select('*').order('log_date', { ascending: false })
+    if (data) setLogs(data)
+  }
 
   const set = (key: string, val: string) => setForm(f => ({ ...f, [key]: val }))
 
-  function handleSave() {
+  async function handleSave() {
     if (!form.log_date) { setError('日付は必須です'); return }
     setSaving(true)
-    const payload: WeeklyLog = {
-      id: `demo-${Date.now()}`,
+    const payload = {
       log_date: form.log_date,
       tob_count: parseInt(form.tob_count) || 0,
       toc_count: parseInt(form.toc_count) || 0,
@@ -39,19 +40,19 @@ export default function WeeklyPage() {
       toc_amount: parseInt(form.toc_amount) || 0,
       weighted_total: parseInt(form.weighted_total) || 0,
       cumulative_orders: parseInt(form.cumulative_orders) || 0,
-      memo: form.memo || undefined,
+      memo: form.memo || null,
     }
-    setLogs(prev => {
-      const filtered = prev.filter(l => l.log_date !== payload.log_date)
-      return [payload, ...filtered].sort((a, b) => b.log_date.localeCompare(a.log_date))
-    })
+    const { error: err } = await supabase.from('weekly_logs').upsert(payload, { onConflict: 'log_date' })
     setSaving(false)
+    if (err) { setError(err.message); return }
     setShowForm(false)
+    fetchLogs()
   }
 
-  function deleteLog(id: string) {
+  async function deleteLog(id: string) {
     if (!confirm('削除しますか？')) return
-    setLogs(prev => prev.filter(l => l.id !== id))
+    await supabase.from('weekly_logs').delete().eq('id', id)
+    fetchLogs()
   }
 
   return (

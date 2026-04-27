@@ -2,8 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
-import { DealToB, DealAction, Member, MasterOption, ColumnConfig } from '@/lib/supabase'
-import { DEMO_TOB_DEALS, DEMO_MEMBERS, DEMO_COLUMN_CONFIG, DEMO_MASTER_OPTIONS, DEMO_DEAL_ACTIONS } from '@/lib/demoData'
+import { supabase, DealToB, DealAction, Member, MasterOption, ColumnConfig } from '@/lib/supabase'
 import DealToBForm from '@/components/DealToBForm'
 import CSVImport from '@/components/CSVImport'
 import StripeCSVImport from '@/components/StripeCSVImport'
@@ -67,18 +66,29 @@ export default function DealsPage() {
 
   useEffect(() => { fetchAll() }, [])
 
-  function fetchAll() {
-    setTobDeals(DEMO_TOB_DEALS)
-    setMembers(DEMO_MEMBERS)
-    setTobCols(DEMO_COLUMN_CONFIG.filter(c => c.table_type === 'tob' && c.visible))
-    setSources(DEMO_MASTER_OPTIONS.filter(o => o.type === 'source'))
-    setServices(DEMO_MASTER_OPTIONS.filter(o => o.type === 'service'))
-    setIndustries(DEMO_MASTER_OPTIONS.filter(o => o.type === 'industry'))
-    const map = new Map<string, DealAction>()
-    for (const a of DEMO_DEAL_ACTIONS.filter(a => a.deal_type === 'tob' && a.action_type === '商談')) {
-      if (!map.has(a.deal_id)) map.set(a.deal_id, a)
+  async function fetchAll() {
+    const [tobRes, membersRes, colRes, srcRes, svcRes, indRes, meetingRes] = await Promise.all([
+      supabase.from('deals_tob').select('*, member:members!member_id(name), sub_member:members!sub_member_id(name)').order('created_at', { ascending: false }),
+      supabase.from('members').select('*').order('sort_order'),
+      supabase.from('column_config').select('*').order('sort_order'),
+      supabase.from('master_options').select('*').eq('type', 'source').order('sort_order'),
+      supabase.from('master_options').select('*').eq('type', 'service').order('sort_order'),
+      supabase.from('master_options').select('*').eq('type', 'industry').order('sort_order'),
+      supabase.from('deal_actions').select('*').eq('deal_type', 'tob').eq('action_type', '商談').order('action_date', { ascending: false }),
+    ])
+    if (tobRes.data) setTobDeals(tobRes.data)
+    if (membersRes.data) setMembers(membersRes.data)
+    if (colRes.data) setTobCols(colRes.data.filter((c: ColumnConfig) => c.table_type === 'tob' && c.visible))
+    if (srcRes.data) setSources(srcRes.data)
+    if (svcRes.data) setServices(svcRes.data)
+    if (indRes.data) setIndustries(indRes.data)
+    if (meetingRes.data) {
+      const map = new Map<string, DealAction>()
+      for (const a of meetingRes.data) {
+        if (!map.has(a.deal_id)) map.set(a.deal_id, a)
+      }
+      setLatestMeetings(map)
     }
-    setLatestMeetings(map)
   }
 
   function startEdit(deal: DealToB) {
@@ -106,7 +116,7 @@ export default function DealsPage() {
     setShowConfirm(false)
   }
 
-  function confirmSave() {
+  async function confirmSave() {
     if (!editingId) return
     setSaving(true)
     const payload: Record<string, string | number | null> = {}
@@ -117,29 +127,42 @@ export default function DealsPage() {
         payload[k] = v || null
       }
     })
-    setTobDeals(prev => prev.map(d => d.id === editingId ? { ...d, ...payload } : d))
+    await supabase.from('deals_tob').update(payload).eq('id', editingId)
     setSaving(false)
     setShowConfirm(false)
     setEditingId(null)
     setDraft({})
+    fetchAll()
   }
 
-  function deleteDeal(id: string) {
+  async function deleteDeal(id: string) {
     if (!confirm('削除しますか？')) return
-    setTobDeals(prev => prev.filter(d => d.id !== id))
+    const { error } = await supabase.from('deals_tob').delete().eq('id', id)
+    if (error) { alert('削除失敗: ' + error.message); return }
+    fetchAll()
   }
 
-  function registerToCustomer(deal: DealToB) {
-    alert('デモモードでは顧客登録は行えません')
+  async function registerToCustomer(deal: DealToB) {
+    if (!deal.company_name) return
+    const { data: existing } = await supabase.from('companies').select('id').eq('name', deal.company_name).maybeSingle()
+    let companyId = existing?.id
+    if (!companyId) {
+      const { data: created } = await supabase.from('companies').insert({ name: deal.company_name, industry: deal.industry ?? null }).select('id').single()
+      companyId = created?.id
+    }
+    if (!companyId) return
+    await supabase.from('deals_tob').update({ company_id: companyId }).eq('id', deal.id)
+    fetchAll()
   }
 
-  function bulkDelete() {
+  async function bulkDelete() {
     if (selectedIds.size === 0) return
     if (!confirm(`選択した ${selectedIds.size} 件を削除しますか？`)) return
     setBulkDeleting(true)
-    setTobDeals(prev => prev.filter(d => !selectedIds.has(d.id)))
+    await supabase.from('deals_tob').delete().in('id', Array.from(selectedIds))
     setSelectedIds(new Set())
     setBulkDeleting(false)
+    fetchAll()
   }
 
   function toggleSelect(id: string) {

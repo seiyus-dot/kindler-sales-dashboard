@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { AICampConsultation, Member, SourceMaster, CONSULTATION_STATUSES, PAYMENT_METHODS, AI_EXPERIENCES, Contact } from '@/lib/supabase'
-import { DEMO_SOURCE_MASTERS, DEMO_CONTACTS } from '@/lib/demoData'
+import { supabase, AICampConsultation, Member, SourceMaster, CONSULTATION_STATUSES, PAYMENT_METHODS, AI_EXPERIENCES, Contact } from '@/lib/supabase'
 
 type Props = {
   members: Member[]
@@ -45,12 +44,17 @@ export default function AICampConsultationForm({ members, initial, onClose, onSa
   })
   const [sourceMasters, setSourceMasters] = useState<SourceMaster[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
-  const [saving] = useState(false)
-  const [error] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => {
-    setSourceMasters(DEMO_SOURCE_MASTERS)
-    setContacts(DEMO_CONTACTS)
+    Promise.all([
+      supabase.from('source_master').select('*').order('source').order('registration_source'),
+      supabase.from('contacts').select('*').order('name'),
+    ]).then(([smRes, ctRes]) => {
+      setSourceMasters(smRes.data ?? [])
+      if (ctRes.data) setContacts(ctRes.data)
+    })
   }, [])
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
@@ -73,7 +77,41 @@ export default function AICampConsultationForm({ members, initial, onClose, onSa
 
   const isContracted = form.status === '成約'
 
-  function handleSubmit() {
+  async function handleSubmit() {
+    setSaving(true)
+    const payload = {
+      line_name: form.line_name || null,
+      name: form.name || null,
+      age: form.age ? parseInt(form.age) : null,
+      consultation_date: form.consultation_date || null,
+      member_id: form.member_id || null,
+      source: form.source || null,
+      registration_source: form.registration_source || null,
+      status: form.status,
+      payment_amount: form.payment_amount ? parseInt(form.payment_amount) : null,
+      payment_date: form.payment_date || null,
+      payment_method: form.payment_method || null,
+      payment_count: form.payment_count ? parseInt(form.payment_count) : null,
+      unit_amount: form.unit_amount ? parseInt(form.unit_amount) : null,
+      customer_attribute: form.customer_attribute || null,
+      motivation: form.motivation || null,
+      reason: form.reason || null,
+      reply_deadline: form.reply_deadline || null,
+      minutes_url: form.minutes_url || null,
+      occupation: form.occupation || null,
+      monthly_income: form.monthly_income || null,
+      ai_experience: form.ai_experience || null,
+      ai_purpose: form.ai_purpose || null,
+      expectation: form.expectation || null,
+      question: form.question || null,
+      service_type: form.service_type,
+      contact_id: form.contact_id || null,
+    }
+    const { error: err } = initial
+      ? await supabase.from('aicamp_consultations').update(payload).eq('id', initial.id)
+      : await supabase.from('aicamp_consultations').insert(payload)
+    setSaving(false)
+    if (err) { setError(err.message); return }
     onSaved()
   }
 

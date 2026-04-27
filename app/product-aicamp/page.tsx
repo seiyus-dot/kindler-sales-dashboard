@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { supabase } from '@/lib/supabase'
 import type { ProductAICampSession, ProductAICampCustomer, Contact } from '@/lib/supabase'
-import { DEMO_PRODUCT_SESSIONS, DEMO_PRODUCT_CUSTOMERS, DEMO_CONTACTS } from '@/lib/demoData'
 import { ChevronLeft, ChevronRight, Plus, X, Pencil, Trash2, Users } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
 
@@ -63,10 +63,17 @@ export default function ProductAICampPage() {
   const [participantsModal, setParticipantsModal] = useState<ParticipantsModalState>(null)
   const [error, setError] = useState<string | null>(null)
 
-  function fetchAll() {
-    setSessions(DEMO_PRODUCT_SESSIONS)
-    setCustomers(DEMO_PRODUCT_CUSTOMERS)
-    setContacts(DEMO_CONTACTS as Contact[])
+  async function fetchAll() {
+    const [sessRes, cusRes, ctRes] = await Promise.all([
+      supabase.from('product_aicamp_sessions').select('*').order('session_date'),
+      supabase.from('product_aicamp_customers').select('*, session:product_aicamp_sessions(*)').order('created_at', { ascending: false }),
+      supabase.from('contacts').select('*').order('name'),
+    ])
+    if (sessRes.error) setError(sessRes.error.message)
+    else setSessions(sessRes.data as ProductAICampSession[])
+    if (cusRes.error) setError(cusRes.error.message)
+    else setCustomers(cusRes.data as ProductAICampCustomer[])
+    if (ctRes.data) setContacts(ctRes.data)
   }
 
   useEffect(() => { fetchAll() }, [])
@@ -138,32 +145,34 @@ export default function ProductAICampPage() {
     }))
   }
 
-  function saveSession() {
+  async function saveSession() {
     if (!sessionDraft.title.trim()) { setError('期名を入力してください'); return }
     if (!sessionDraft.session_date) { setError('開始日を入力してください'); return }
     setError(null)
     setSavingSession(true)
-    const payload: ProductAICampSession = {
-      id: editingSessionId ?? `demo-${Date.now()}`,
+    const payload = {
       title: sessionDraft.title.trim(),
       session_date: sessionDraft.session_date,
       end_date: sessionDraft.end_date || sessionDraft.session_date,
-      max_capacity: sessionDraft.max_capacity || undefined,
-      notes: sessionDraft.notes || undefined,
-      created_at: new Date().toISOString(),
+      max_capacity: sessionDraft.max_capacity || null,
+      notes: sessionDraft.notes || null,
     }
     if (editingSessionId) {
-      setSessions(prev => prev.map(s => s.id === editingSessionId ? payload : s))
+      const { error: e } = await supabase.from('product_aicamp_sessions').update(payload).eq('id', editingSessionId)
+      if (e) { setError(e.message); setSavingSession(false); return }
     } else {
-      setSessions(prev => [...prev, payload].sort((a, b) => a.session_date.localeCompare(b.session_date)))
+      const { error: e } = await supabase.from('product_aicamp_sessions').insert(payload)
+      if (e) { setError(e.message); setSavingSession(false); return }
     }
     setSavingSession(false)
     setSessionModal(false)
+    fetchAll()
   }
 
-  function deleteSession(id: string) {
+  async function deleteSession(id: string) {
     if (!confirm('このセッションを削除しますか？')) return
-    setSessions(prev => prev.filter(s => s.id !== id))
+    await supabase.from('product_aicamp_sessions').delete().eq('id', id)
+    fetchAll()
   }
 
   function openNewCustomer() {
@@ -186,37 +195,37 @@ export default function ProductAICampPage() {
     setCustomerModal(true)
   }
 
-  function saveCustomer() {
+  async function saveCustomer() {
     if (!customerDraft.name.trim()) { setError('顧客名を入力してください'); return }
     if (!customerDraft.phone.trim()) { setError('電話番号を入力してください'); return }
     if (!customerDraft.email.trim()) { setError('メールアドレスを入力してください'); return }
     setError(null)
     setSavingCustomer(true)
-    const session = sessions.find(s => s.id === customerDraft.session_id)
-    const payload: ProductAICampCustomer = {
-      id: editingCustomerId ?? `demo-${Date.now()}`,
+    const payload = {
       name: customerDraft.name.trim(),
       phone: customerDraft.phone.trim(),
       email: customerDraft.email.trim(),
-      session_id: customerDraft.session_id || undefined,
-      contact_id: customerDraft.contact_id || undefined,
+      session_id: customerDraft.session_id || null,
+      contact_id: customerDraft.contact_id || null,
       status: customerDraft.status,
-      notes: customerDraft.notes || undefined,
-      created_at: new Date().toISOString(),
-      session: session ?? undefined,
+      notes: customerDraft.notes || null,
     }
     if (editingCustomerId) {
-      setCustomers(prev => prev.map(c => c.id === editingCustomerId ? payload : c))
+      const { error: e } = await supabase.from('product_aicamp_customers').update(payload).eq('id', editingCustomerId)
+      if (e) { setError(e.message); setSavingCustomer(false); return }
     } else {
-      setCustomers(prev => [payload, ...prev])
+      const { error: e } = await supabase.from('product_aicamp_customers').insert(payload)
+      if (e) { setError(e.message); setSavingCustomer(false); return }
     }
     setSavingCustomer(false)
     setCustomerModal(false)
+    fetchAll()
   }
 
-  function deleteCustomer(id: string) {
+  async function deleteCustomer(id: string) {
     if (!confirm('この顧客を削除しますか？')) return
-    setCustomers(prev => prev.filter(c => c.id !== id))
+    await supabase.from('product_aicamp_customers').delete().eq('id', id)
+    fetchAll()
   }
 
   const todayStr = new Date().toISOString().slice(0, 10)

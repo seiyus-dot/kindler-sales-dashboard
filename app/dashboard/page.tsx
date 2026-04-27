@@ -1,8 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { WeeklyLog, DealToB, AICampConsultation, Member } from '@/lib/supabase'
-import { DEMO_WEEKLY_LOGS, DEMO_TOB_DEALS, DEMO_AICAMP, DEMO_MEMBERS } from '@/lib/demoData'
+import { supabase, WeeklyLog, DealToB, AICampConsultation, Member } from '@/lib/supabase'
 import DealToBForm from '@/components/DealToBForm'
 import PageHeader from '@/components/PageHeader'
 import {
@@ -76,16 +75,26 @@ export default function DashboardPage() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
   }
 
-  function fetchDeals() {
-    setTobDeals(DEMO_TOB_DEALS)
+  async function fetchDeals() {
+    const { data } = await supabase.from('deals_tob').select('*, member:members!member_id(name)')
+    if (data) setTobDeals(data)
   }
 
   useEffect(() => {
-    setLogs(DEMO_WEEKLY_LOGS)
-    setMembers(DEMO_MEMBERS)
-    setTobDeals(DEMO_TOB_DEALS)
-    setAicampDeals(DEMO_AICAMP.filter(c => c.status === '成約'))
-    setLoading(false)
+    async function fetchAll() {
+      const [logsRes, membersRes, tobRes, aicampRes] = await Promise.all([
+        supabase.from('weekly_logs').select('*').order('log_date'),
+        supabase.from('members').select('*').order('sort_order'),
+        supabase.from('deals_tob').select('*, member:members!member_id(name)'),
+        supabase.from('aicamp_consultations').select('*').eq('status', '成約'),
+      ])
+      if (logsRes.data) setLogs(logsRes.data)
+      if (membersRes.data) setMembers(membersRes.data)
+      if (tobRes.data) setTobDeals(tobRes.data)
+      if (aicampRes.data) setAicampDeals(aicampRes.data)
+      setLoading(false)
+    }
+    fetchAll()
   }, [])
 
   const latest = logs[logs.length - 1]
