@@ -35,6 +35,7 @@ export default function MemberDetailPage() {
   const [editAICamp, setEditAICamp] = useState<AICampConsultation | null>(null)
   const [filterToBStatus, setFilterToBStatus] = useState('')
   const [filterAICampStatus, setFilterAICampStatus] = useState('')
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchAll()
@@ -66,6 +67,22 @@ export default function MemberDetailPage() {
     }
 
     setLoading(false)
+  }
+
+  async function handleDeleteToB(id: string) {
+    if (!confirm('この法人案件を削除しますか？')) return
+    setDeletingId(id)
+    await supabase.from('deals_tob').delete().eq('id', id)
+    setDeletingId(null)
+    fetchAll()
+  }
+
+  async function handleDeleteAICamp(id: string) {
+    if (!confirm('この商談を削除しますか？')) return
+    setDeletingId(id)
+    await supabase.from('aicamp_consultations').delete().eq('id', id)
+    setDeletingId(null)
+    fetchAll()
   }
 
   if (loading) return (
@@ -313,19 +330,19 @@ export default function MemberDetailPage() {
       </div>
 
       {/* 法人案件テーブル */}
-      <div className="bg-white rounded border border-gray-100 shadow-sm p-7">
-        <div className="flex items-center justify-between mb-5">
+      <div className="bg-white rounded border border-gray-100 shadow-sm p-4 lg:p-7">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-4 lg:mb-5">
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
             法人案件 ({(filterToBStatus ? tobDeals.filter(d => d.status === filterToBStatus) : tobDeals).length}件)
           </h3>
           <div className="flex items-center gap-2">
-            <select value={filterToBStatus} onChange={e => setFilterToBStatus(e.target.value)} className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none">
+            <select value={filterToBStatus} onChange={e => setFilterToBStatus(e.target.value)} className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none flex-1 sm:flex-none">
               <option value="">ステータス: 全て</option>
               {TOB_STATUSES.map(s => <option key={s}>{s}</option>)}
             </select>
             <button
               onClick={() => { setEditToB(null); setShowToBForm(true) }}
-              className="flex items-center gap-1.5 text-xs font-bold text-navy hover:text-[#152f5a] bg-[#f0f4ff] hover:bg-[#e8eeff] px-3 py-1.5 rounded transition-colors"
+              className="flex items-center gap-1.5 text-xs font-bold text-navy hover:text-[#152f5a] bg-[#f0f4ff] hover:bg-[#e8eeff] px-3 py-1.5 rounded transition-colors whitespace-nowrap"
             >
               <Plus size={13} />
               法人案件を追加
@@ -335,55 +352,86 @@ export default function MemberDetailPage() {
         {tobDeals.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-6">案件がありません</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-base">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  {['企業名', 'ステータス', '見込み金額', '受注確度', '次回期日', '次回アクション', ''].map(h => (
-                    <th key={h} className="text-left text-xs font-black text-gray-400 uppercase tracking-wider pb-3 pr-4">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {(filterToBStatus ? tobDeals.filter(d => d.status === filterToBStatus) : tobDeals).map(d => (
-                  <tr
-                    key={d.id}
-                    onClick={() => { setEditToB(d); setShowToBForm(true) }}
-                    className="hover:bg-gray-50 transition-colors cursor-pointer"
-                  >
-                    <td className="py-3 pr-4 font-medium text-gray-800">{d.company_name}</td>
-                    <td className="py-3 pr-4">
-                      {d.status && <span className={`px-2 py-0.5 rounded text-xs font-bold ${statusBadge(d.status)}`}>{d.status}</span>}
-                    </td>
-                    <td className="py-3 pr-4 font-mono text-gray-700">{d.expected_amount?.toLocaleString() ?? '-'}万円</td>
-                    <td className="py-3 pr-4 font-mono text-gray-500">{d.win_probability != null ? `${d.win_probability}%` : '-'}</td>
-                    <td className="py-3 pr-4 text-gray-500 text-sm">{d.next_action_date ?? '-'}</td>
-                    <td className="py-3 pr-4 text-gray-500 text-sm">{d.next_action ?? '-'}</td>
-                    <td className="py-3">
-                      <button onClick={(e) => { e.stopPropagation(); setEditToB(d); setShowToBForm(true) }} className="text-xs text-navy hover:text-[#152f5a] font-bold">編集</button>
-                    </td>
+          <>
+            {/* モバイル: カード表示 */}
+            <div className="md:hidden space-y-3">
+              {(filterToBStatus ? tobDeals.filter(d => d.status === filterToBStatus) : tobDeals).map(d => (
+                <div
+                  key={d.id}
+                  onClick={() => { setEditToB(d); setShowToBForm(true) }}
+                  className="border border-gray-100 rounded-lg p-3 cursor-pointer active:bg-gray-50"
+                >
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <span className="font-bold text-gray-800 text-sm leading-tight">{d.company_name}</span>
+                    {d.status && <span className={`px-2 py-0.5 rounded text-xs font-bold flex-shrink-0 ${statusBadge(d.status)}`}>{d.status}</span>}
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-500 mb-2">
+                    <div><span className="text-gray-400">見込み </span><span className="font-mono font-bold text-gray-700">{d.expected_amount?.toLocaleString() ?? '-'}万円</span></div>
+                    <div><span className="text-gray-400">確度 </span><span className="font-mono font-bold text-gray-700">{d.win_probability != null ? `${d.win_probability}%` : '-'}</span></div>
+                    {d.next_action_date && <div><span className="text-gray-400">期日 </span><span className="font-mono">{d.next_action_date}</span></div>}
+                    {d.next_action && <div className="col-span-2"><span className="text-gray-400">次回 </span>{d.next_action}</div>}
+                  </div>
+                  <div className="flex items-center gap-3 pt-1 border-t border-gray-50">
+                    <button onClick={(e) => { e.stopPropagation(); setEditToB(d); setShowToBForm(true) }} className="text-xs text-navy font-bold py-1">編集</button>
+                    <button onClick={(e) => { e.stopPropagation(); handleDeleteToB(d.id) }} disabled={deletingId === d.id} className="text-xs text-red-400 font-bold py-1 disabled:opacity-40">削除</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* デスクトップ: テーブル表示 */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-base">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    {['企業名', 'ステータス', '見込み金額', '受注確度', '次回期日', '次回アクション', ''].map(h => (
+                      <th key={h} className="text-left text-xs font-black text-gray-400 uppercase tracking-wider pb-3 pr-4">{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {(filterToBStatus ? tobDeals.filter(d => d.status === filterToBStatus) : tobDeals).map(d => (
+                    <tr
+                      key={d.id}
+                      onClick={() => { setEditToB(d); setShowToBForm(true) }}
+                      className="hover:bg-gray-50 transition-colors cursor-pointer"
+                    >
+                      <td className="py-3 pr-4 font-medium text-gray-800">{d.company_name}</td>
+                      <td className="py-3 pr-4">
+                        {d.status && <span className={`px-2 py-0.5 rounded text-xs font-bold ${statusBadge(d.status)}`}>{d.status}</span>}
+                      </td>
+                      <td className="py-3 pr-4 font-mono text-gray-700">{d.expected_amount?.toLocaleString() ?? '-'}万円</td>
+                      <td className="py-3 pr-4 font-mono text-gray-500">{d.win_probability != null ? `${d.win_probability}%` : '-'}</td>
+                      <td className="py-3 pr-4 text-gray-500 text-sm">{d.next_action_date ?? '-'}</td>
+                      <td className="py-3 pr-4 text-gray-500 text-sm">{d.next_action ?? '-'}</td>
+                      <td className="py-3">
+                        <div className="flex items-center gap-2">
+                          <button onClick={(e) => { e.stopPropagation(); setEditToB(d); setShowToBForm(true) }} className="text-xs text-navy hover:text-[#152f5a] font-bold">編集</button>
+                          <button onClick={(e) => { e.stopPropagation(); handleDeleteToB(d.id) }} disabled={deletingId === d.id} className="text-xs text-red-400 hover:text-red-600 font-bold disabled:opacity-40">削除</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
       {/* AI CAMP相談一覧 */}
-      <div className="bg-white rounded border border-gray-100 shadow-sm p-7">
-        <div className="flex items-center justify-between mb-5">
+      <div className="bg-white rounded border border-gray-100 shadow-sm p-4 lg:p-7">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-4 lg:mb-5">
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">
             商談一覧 ({(filterAICampStatus ? aicampDeals.filter(d => d.status === filterAICampStatus) : aicampDeals).length}件)
           </h3>
           <div className="flex items-center gap-2">
-            <select value={filterAICampStatus} onChange={e => setFilterAICampStatus(e.target.value)} className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none">
+            <select value={filterAICampStatus} onChange={e => setFilterAICampStatus(e.target.value)} className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none flex-1 sm:flex-none">
               <option value="">ステータス: 全て</option>
               {CONSULTATION_STATUSES.map(s => <option key={s}>{s}</option>)}
             </select>
             <button
               onClick={() => { setEditAICamp(null); setShowAICampForm(true) }}
-              className="flex items-center gap-1.5 text-xs font-bold text-green-700 hover:text-green-800 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded transition-colors"
+              className="flex items-center gap-1.5 text-xs font-bold text-green-700 hover:text-green-800 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded transition-colors whitespace-nowrap"
             >
               <Plus size={13} />
               相談を追加
@@ -393,46 +441,99 @@ export default function MemberDetailPage() {
         {aicampDeals.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-6">相談がありません</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  {['実施日時', 'サービス', '氏名', 'LINE名', '流入経路', '登録経路', 'ステータス', '着金額', ''].map(h => (
-                    <th key={h} className="text-left text-xs font-black text-gray-400 uppercase tracking-wider pb-3 pr-4 whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {(filterAICampStatus ? aicampDeals.filter(d => d.status === filterAICampStatus) : aicampDeals).map(d => (
-                  <tr
+          <>
+            {/* モバイル: カード表示 */}
+            <div className="md:hidden space-y-3">
+              {(filterAICampStatus ? aicampDeals.filter(d => d.status === filterAICampStatus) : aicampDeals).map(d => {
+                const statusColor: Record<string, string> = {
+                  '成約': 'bg-green-100 text-green-700',
+                  '失注': 'bg-red-100 text-red-600',
+                  '保留': 'bg-amber-100 text-amber-700',
+                  'ドタキャン': 'bg-red-50 text-red-400',
+                  'キャンセル': 'bg-gray-100 text-gray-500',
+                  '予定': 'bg-blue-100 text-blue-600',
+                }
+                return (
+                  <div
                     key={d.id}
                     onClick={() => { setEditAICamp(d); setShowAICampForm(true) }}
-                    className="hover:bg-gray-50 transition-colors cursor-pointer"
+                    className="border border-gray-100 rounded-lg p-3 cursor-pointer active:bg-gray-50"
                   >
-                    <td className="py-3 pr-4 text-gray-500 whitespace-nowrap">{d.consultation_date ? d.consultation_date.slice(0, 16).replace('T', ' ') : '-'}</td>
-                    <td className="py-3 pr-4 text-gray-600 whitespace-nowrap">{d.service_type ?? '-'}</td>
-                    <td className="py-3 pr-4 font-medium text-gray-800 whitespace-nowrap">{d.name ?? '-'}</td>
-                    <td className="py-3 pr-4 text-gray-500 whitespace-nowrap">{d.line_name ?? '-'}</td>
-                    <td className="py-3 pr-4 text-gray-500">{d.source ?? '-'}</td>
-                    <td className="py-3 pr-4 text-gray-500">{d.registration_source ?? '-'}</td>
-                    <td className="py-3 pr-4">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div>
+                        <span className="font-bold text-gray-800 text-sm">{d.name ?? '-'}</span>
+                        {d.line_name && d.line_name !== d.name && (
+                          <span className="text-xs text-gray-400 ml-1">({d.line_name})</span>
+                        )}
+                      </div>
                       {d.status && (
-                        <span className={`px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap ${
-                          { '成約': 'bg-green-100 text-green-700', '失注': 'bg-red-100 text-red-600', '保留': 'bg-amber-100 text-amber-700', 'ドタキャン': 'bg-red-50 text-red-400', 'キャンセル': 'bg-gray-100 text-gray-500', '予定': 'bg-blue-100 text-blue-600' }[d.status] ?? 'bg-gray-100 text-gray-600'
-                        }`}>{d.status}</span>
+                        <span className={`px-2 py-0.5 rounded text-xs font-bold flex-shrink-0 ${statusColor[d.status] ?? 'bg-gray-100 text-gray-600'}`}>{d.status}</span>
                       )}
-                    </td>
-                    <td className="py-3 pr-4 font-mono text-gray-700 whitespace-nowrap">
-                      {d.payment_amount != null ? `¥${d.payment_amount.toLocaleString()}` : '-'}
-                    </td>
-                    <td className="py-3">
-                      <button onClick={(e) => { e.stopPropagation(); setEditAICamp(d); setShowAICampForm(true) }} className="text-xs text-green-700 hover:text-green-800 font-bold">編集</button>
-                    </td>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-500 mb-2">
+                      {d.consultation_date && (
+                        <div className="col-span-2"><span className="text-gray-400">日時 </span><span className="font-mono">{d.consultation_date.slice(0, 16).replace('T', ' ')}</span></div>
+                      )}
+                      {d.service_type && <div><span className="text-gray-400">サービス </span>{d.service_type}</div>}
+                      {d.payment_amount != null && (
+                        <div><span className="text-gray-400">着金 </span><span className="font-mono font-bold text-gray-700">¥{d.payment_amount.toLocaleString()}</span></div>
+                      )}
+                      {d.source && <div><span className="text-gray-400">流入 </span>{d.source}</div>}
+                      {d.registration_source && <div><span className="text-gray-400">登録 </span>{d.registration_source}</div>}
+                    </div>
+                    <div className="flex items-center gap-3 pt-1 border-t border-gray-50">
+                      <button onClick={(e) => { e.stopPropagation(); setEditAICamp(d); setShowAICampForm(true) }} className="text-xs text-green-700 font-bold py-1">編集</button>
+                      <button onClick={(e) => { e.stopPropagation(); handleDeleteAICamp(d.id) }} disabled={deletingId === d.id} className="text-xs text-red-400 font-bold py-1 disabled:opacity-40">削除</button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            {/* デスクトップ: テーブル表示 */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    {['実施日時', 'サービス', '氏名', 'LINE名', '流入経路', '登録経路', 'ステータス', '着金額', ''].map(h => (
+                      <th key={h} className="text-left text-xs font-black text-gray-400 uppercase tracking-wider pb-3 pr-4 whitespace-nowrap">{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {(filterAICampStatus ? aicampDeals.filter(d => d.status === filterAICampStatus) : aicampDeals).map(d => (
+                    <tr
+                      key={d.id}
+                      onClick={() => { setEditAICamp(d); setShowAICampForm(true) }}
+                      className="hover:bg-gray-50 transition-colors cursor-pointer"
+                    >
+                      <td className="py-3 pr-4 text-gray-500 whitespace-nowrap">{d.consultation_date ? d.consultation_date.slice(0, 16).replace('T', ' ') : '-'}</td>
+                      <td className="py-3 pr-4 text-gray-600 whitespace-nowrap">{d.service_type ?? '-'}</td>
+                      <td className="py-3 pr-4 font-medium text-gray-800 whitespace-nowrap">{d.name ?? '-'}</td>
+                      <td className="py-3 pr-4 text-gray-500 whitespace-nowrap">{d.line_name ?? '-'}</td>
+                      <td className="py-3 pr-4 text-gray-500">{d.source ?? '-'}</td>
+                      <td className="py-3 pr-4 text-gray-500">{d.registration_source ?? '-'}</td>
+                      <td className="py-3 pr-4">
+                        {d.status && (
+                          <span className={`px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap ${
+                            { '成約': 'bg-green-100 text-green-700', '失注': 'bg-red-100 text-red-600', '保留': 'bg-amber-100 text-amber-700', 'ドタキャン': 'bg-red-50 text-red-400', 'キャンセル': 'bg-gray-100 text-gray-500', '予定': 'bg-blue-100 text-blue-600' }[d.status] ?? 'bg-gray-100 text-gray-600'
+                          }`}>{d.status}</span>
+                        )}
+                      </td>
+                      <td className="py-3 pr-4 font-mono text-gray-700 whitespace-nowrap">
+                        {d.payment_amount != null ? `¥${d.payment_amount.toLocaleString()}` : '-'}
+                      </td>
+                      <td className="py-3">
+                        <div className="flex items-center gap-2">
+                          <button onClick={(e) => { e.stopPropagation(); setEditAICamp(d); setShowAICampForm(true) }} className="text-xs text-green-700 hover:text-green-800 font-bold">編集</button>
+                          <button onClick={(e) => { e.stopPropagation(); handleDeleteAICamp(d.id) }} disabled={deletingId === d.id} className="text-xs text-red-400 hover:text-red-600 font-bold disabled:opacity-40">削除</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
