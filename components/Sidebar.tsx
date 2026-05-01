@@ -3,12 +3,13 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, BriefcaseBusiness, ClipboardList, Settings, Users, Menu, X, BookOpen, Tent, UserPlus, Zap, GanttChartSquare, FileText, List, MonitorPlay, ChevronDown, Contact } from 'lucide-react'
+import { LayoutDashboard, BriefcaseBusiness, ClipboardList, Settings, Users, Menu, X, BookOpen, Tent, UserPlus, Zap, GanttChartSquare, FileText, List, MonitorPlay, ChevronDown, Contact, TrendingUp } from 'lucide-react'
 
 const navItems = [
   { href: '/dashboard',      label: 'ダッシュボード',    icon: LayoutDashboard },
   { href: '/deals',          label: '法人案件',          icon: BriefcaseBusiness },
   { href: '/weekly',         label: '週次ログ',          icon: ClipboardList },
+  { href: '/mrr',            label: 'MRR推移',           icon: TrendingUp },
   { href: '/members',        label: 'メンバー',          icon: Users },
   { href: '/settings',       label: 'マスタ設定',        icon: Settings },
   { href: '/knowledge',      label: '営業ナレッジ',      icon: BookOpen },
