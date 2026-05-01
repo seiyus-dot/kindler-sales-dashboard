@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { UserPlus, Trash2, Shield, User, Pencil } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
+import { supabase } from '@/lib/supabase'
 
 type AllowedEmail = {
   email: string
@@ -23,6 +24,7 @@ const ALL_PAGES = [
   { href: '/advisor',         label: 'AI顧問管理' },
   { href: '/order-form',     label: '発注フォーム' },
   { href: '/order-requests', label: '発注リスト' },
+  { href: '/mrr',            label: 'MRR推移' },
 ]
 
 export default function InvitesPage() {
@@ -36,15 +38,22 @@ export default function InvitesPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const DEMO_INVITES: AllowedEmail[] = [
-    { email: 'admin@gokindler.com', role: 'admin', allowed_pages: ALL_PAGES.map(p => p.href) },
-    { email: 'member1@gokindler.com', role: 'member', allowed_pages: ['/aicamp', '/dashboard'] },
-    { email: 'member2@gokindler.com', role: 'member', allowed_pages: ['/aicamp'] },
-  ]
+  async function fetchInvites() {
+    setLoading(true)
+    const { data, error } = await supabase
+      .from('allowed_emails')
+      .select('email, role, allowed_pages')
+      .order('email')
+    if (error) {
+      setError('データの読み込みに失敗しました')
+    } else {
+      setInvites((data ?? []) as AllowedEmail[])
+    }
+    setLoading(false)
+  }
 
   useEffect(() => {
-    setInvites(DEMO_INVITES)
-    setLoading(false)
+    fetchInvites()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -72,23 +81,42 @@ export default function InvitesPage() {
     setError(null)
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!newEmail) return
     setSaving(true)
+    setError(null)
     const pages = newRole === 'admin' ? ALL_PAGES.map(p => p.href) : newPages
-    const entry: AllowedEmail = { email: newEmail.toLowerCase().trim(), role: newRole, allowed_pages: pages }
+    const entry = { email: newEmail.toLowerCase().trim(), role: newRole, allowed_pages: pages }
+
     if (editTarget) {
-      setInvites(prev => prev.map(i => i.email === editTarget.email ? entry : i))
+      const { error } = await supabase
+        .from('allowed_emails')
+        .update({ role: entry.role, allowed_pages: entry.allowed_pages })
+        .eq('email', editTarget.email)
+      if (error) { setError('更新に失敗しました: ' + error.message); setSaving(false); return }
     } else {
-      setInvites(prev => [...prev, entry])
+      const { error } = await supabase
+        .from('allowed_emails')
+        .insert(entry)
+      if (error) { setError('追加に失敗しました: ' + error.message); setSaving(false); return }
     }
+
     setSaving(false)
     closeForm()
+    fetchInvites()
   }
 
-  const handleDelete = (email: string) => {
+  const handleDelete = async (email: string) => {
     if (!confirm(`${email} の招待を削除しますか？`)) return
-    setInvites(prev => prev.filter(i => i.email !== email))
+    const { error } = await supabase
+      .from('allowed_emails')
+      .delete()
+      .eq('email', email)
+    if (error) {
+      alert('削除に失敗しました: ' + error.message)
+      return
+    }
+    fetchInvites()
   }
 
   const togglePage = (page: string) => {
