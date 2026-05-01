@@ -321,7 +321,13 @@ export default function DealsPage() {
   const inProgressDeals = useMemo(() => tobDeals.filter(d => !['受注', '失注'].includes(d.status ?? '')), [tobDeals])
   const monthlyPaid = useMemo(() => tobDeals.filter(d => d.status === '受注' && (d.contract_amount ?? 0) > 0 && d.contract_date?.startsWith(selectedMonth)), [tobDeals, selectedMonth])
   const salesTotal = useMemo(() => monthlyPaid.reduce((s, d) => s + (d.contract_amount ?? 0), 0), [monthlyPaid])
-  const paidTotal = useMemo(() => monthlyPaid.reduce((s, d) => s + (d.actual_amount ?? 0), 0), [monthlyPaid])
+  // 着金額: payment_dateがあればpayment_dateの月、なければcontract_dateの月で紐づける
+  const monthlyActual = useMemo(() => tobDeals.filter(d => {
+    if (d.status !== '受注') return false
+    const dateKey = d.payment_date ?? d.contract_date
+    return dateKey?.startsWith(selectedMonth) ?? false
+  }), [tobDeals, selectedMonth])
+  const paidTotal = useMemo(() => monthlyActual.reduce((s, d) => s + (d.actual_amount ?? 0), 0), [monthlyActual])
   const pipeline = useMemo(() => inProgressDeals.reduce((s, d) => s + (d.expected_amount ?? 0), 0), [inProgressDeals])
   const weightedPipeline = useMemo(() => inProgressDeals.reduce((s, d) => s + Math.round((d.expected_amount ?? 0) * (d.win_probability ?? 0) / 100), 0), [inProgressDeals])
 
@@ -735,10 +741,10 @@ export default function DealsPage() {
             }
           }
           if (kpiModal === 'paid') {
-            const rows = monthlyPaid.map(d => ({ deal: d, amount: d.actual_amount ?? 0, label: '' }))
+            const rows = monthlyActual.map(d => ({ deal: d, amount: d.actual_amount ?? 0, label: '' }))
             return {
               title: `着金額　${selectedMonth}`,
-              desc: `受注済み・着金日が ${selectedMonth} の実着金額合計`,
+              desc: `受注済み・着金日（なければ契約日）が ${selectedMonth} の実着金額合計`,
               rows,
               total: paidTotal,
               totalLabel: '着金合計',

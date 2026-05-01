@@ -1,0 +1,386 @@
+'use client'
+
+import { useState, useCallback } from 'react'
+import { Upload, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp } from 'lucide-react'
+import PageHeader from '@/components/PageHeader'
+import {
+  AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid,
+  Tooltip, Legend, ResponsiveContainer, LabelList,
+} from 'recharts'
+
+// ────────────────────────────────────────────
+// サービスカテゴリ定義
+// ────────────────────────────────────────────
+const CATEGORY_KEYS: { category: string; prefixes: string[] }[] = [
+  { category: 'AI CAMP',         prefixes: ['SOSO', 'SOSWRij', 'TfY6', 'SO0W', 'SfEN', 'UOR8', 'UPTK', 'TMmcV', 'TNAU', 'Tndy', 'Tx7n', 'ULLc', 'ULVO', 'U7aH', 'TOb5', 'TEmi', 'SNHu', 'TsDj', 'Tr40'] },
+  { category: 'Product AI CAMP', prefixes: ['UCRY'] },
+  { category: 'AIスタッフ',      prefixes: ['U3Pb', 'S0nj', 'SNkl', 'TGnp'] },
+  { category: 'SARI',            prefixes: ['NiW5'] },
+  { category: 'HARU',            prefixes: ['Nkne'] },
+  { category: 'レビューAI',      prefixes: ['U4XY'] },
+  { category: 'MFB',             prefixes: ['PAPk'] },
+  { category: '仕組み化ハブ',    prefixes: ['U90v'] },
+  { category: 'SNSセミナー',     prefixes: ['Ro9D'] },
+  { category: 'フェイススキャン', prefixes: ['Q6q3'] },
+  { category: '花巡りai',        prefixes: ['OYKC'] },
+]
+
+const CATEGORY_COLORS: Record<string, string> = {
+  'AI CAMP':         '#1a3a6e',
+  'Product AI CAMP': '#2563eb',
+  'AIスタッフ':      '#b8902a',
+  'SARI':            '#16a34a',
+  'HARU':            '#db2777',
+  'レビューAI':      '#7c3aed',
+  'MFB':             '#0891b2',
+  '仕組み化ハブ':    '#ea580c',
+  'SNSセミナー':     '#65a30d',
+  'フェイススキャン': '#6b7280',
+  '花巡りai':        '#e11d48',
+  'その他':          '#9ca3af',
+}
+
+function getCategory(productId: string): string {
+  const key = productId.replace('prod_', '')
+  for (const { category, prefixes } of CATEGORY_KEYS) {
+    if (prefixes.some(p => key.startsWith(p))) return category
+  }
+  return 'その他'
+}
+
+// ────────────────────────────────────────────
+// CSVパース
+// ────────────────────────────────────────────
+interface RawRow {
+  product_id: string
+  month_end: string   // YYYY-MM-DD
+  mrr_usd: number
+}
+
+function parseCsv(text: string): RawRow[] {
+  const lines = text.split('\n').filter(l => l.trim())
+  if (lines.length < 2) return []
+  const header = lines[0].split(',').map(h => h.replace(/"/g, '').trim())
+  const idxProductId  = header.findIndex(h => h === 'product_id')
+  const idxMonthEnd   = header.findIndex(h => h === 'month_end')
+  const idxMrr        = header.findIndex(h => h === 'total_mrr_in_usd')
+  if (idxProductId < 0 || idxMonthEnd < 0 || idxMrr < 0) return []
+
+  const rows: RawRow[] = []
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(',').map(c => c.replace(/"/g, '').trim())
+    const productId = cols[idxProductId] ?? ''
+    const monthEnd  = cols[idxMonthEnd] ?? ''
+    const mrrRaw    = cols[idxMrr] ?? ''
+    if (!productId || !monthEnd) continue
+    const mrr = mrrRaw === '' ? 0 : parseFloat(mrrRaw)
+    rows.push({ product_id: productId, month_end: monthEnd, mrr_usd: isNaN(mrr) ? 0 : mrr })
+  }
+  return rows
+}
+
+// ────────────────────────────────────────────
+// 集計
+// ────────────────────────────────────────────
+interface ChartRow {
+  month: string           // "2024-04" 形式
+  [category: string]: number | string
+}
+
+function aggregate(rows: RawRow[], rate: number): { chartData: ChartRow[]; categories: string[] } {
+  // month_end "YYYY-MM-DD" → "YYYY-MM"
+  const map = new Map<string, Map<string, number>>()
+
+  for (const row of rows) {
+    const month = row.month_end.substring(0, 7)
+    const cat   = getCategory(row.product_id)
+    if (!map.has(month)) map.set(month, new Map())
+    const catMap = map.get(month)!
+    catMap.set(cat, (catMap.get(cat) ?? 0) + row.mrr_usd)
+  }
+
+  const months = Array.from(map.keys()).sort()
+  const categorySet = new Set<string>()
+  map.forEach(m => m.forEach((_, c) => categorySet.add(c)))
+  // AI CAMP を先頭に
+  const categories = Array.from(categorySet).sort((a, b) => {
+    const order = ['AI CAMP', 'Product AI CAMP', 'AIスタッフ', 'SARI', 'HARU', 'レビューAI', 'MFB', '仕組み化ハブ', 'SNSセミナー', 'フェイススキャン', '花巡りai', 'その他']
+    return order.indexOf(a) - order.indexOf(b)
+  })
+
+  const chartData: ChartRow[] = months.map(month => {
+    const row: ChartRow = { month }
+    const catMap = map.get(month)!
+    for (const cat of categories) {
+      const usd = catMap.get(cat) ?? 0
+      // 万円換算
+      row[cat] = Math.round(usd * rate / 10000)
+    }
+    return row
+  })
+
+  return { chartData, categories }
+}
+
+// ────────────────────────────────────────────
+// ページ
+// ────────────────────────────────────────────
+export default function MrrPage() {
+  const [chartData, setChartData]     = useState<ChartRow[]>([])
+  const [categories, setCategories]   = useState<string[]>([])
+  const [rate, setRate]               = useState(150)
+  const [rateInput, setRateInput]     = useState('150')
+  const [rawRows, setRawRows]         = useState<RawRow[]>([])
+  const [isDragging, setIsDragging]   = useState(false)
+  const [fileName, setFileName]       = useState('')
+  const [tableOpen, setTableOpen]     = useState(false)
+
+  const processFile = useCallback((file: File) => {
+    setFileName(file.name)
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const text = e.target?.result as string
+      const rows = parseCsv(text)
+      setRawRows(rows)
+      const { chartData, categories } = aggregate(rows, rate)
+      setChartData(chartData)
+      setCategories(categories)
+    }
+    reader.readAsText(file, 'UTF-8')
+  }, [rate])
+
+  const applyRate = () => {
+    const r = parseFloat(rateInput)
+    if (!isNaN(r) && r > 0) {
+      setRate(r)
+      if (rawRows.length > 0) {
+        const { chartData, categories } = aggregate(rawRows, r)
+        setChartData(chartData)
+        setCategories(categories)
+      }
+    }
+  }
+
+  // KPI計算
+  const latestMonth  = chartData.length > 0 ? chartData[chartData.length - 1] : null
+  const prevMonth    = chartData.length > 1 ? chartData[chartData.length - 2] : null
+  const totalLatest  = latestMonth ? categories.reduce((s, c) => s + ((latestMonth[c] as number) || 0), 0) : 0
+  const totalPrev    = prevMonth ? categories.reduce((s, c) => s + ((prevMonth[c] as number) || 0), 0) : 0
+  const momChange    = totalPrev > 0 ? Math.round((totalLatest - totalPrev) / totalPrev * 100) : 0
+
+  // 最新月カテゴリ別BarChart用
+  const barData = latestMonth
+    ? categories
+        .map(c => ({ name: c, 金額: (latestMonth[c] as number) || 0 }))
+        .filter(d => d.金額 > 0)
+        .sort((a, b) => b.金額 - a.金額)
+    : []
+
+  return (
+    <div className="p-6 max-w-7xl mx-auto space-y-6">
+      <PageHeader title="MRR推移" sub="Stripe CSV をアップロードするとサービス別MRR推移を表示します" />
+
+      {/* 設定 & アップロード */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        {/* 為替レート */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center gap-3 flex-shrink-0">
+          <span className="text-sm font-medium text-slate-600 whitespace-nowrap">USD → JPY レート</span>
+          <input
+            className="input w-24"
+            value={rateInput}
+            onChange={e => setRateInput(e.target.value)}
+            onBlur={applyRate}
+            onKeyDown={e => e.key === 'Enter' && applyRate()}
+          />
+          <span className="text-sm text-slate-400">円</span>
+        </div>
+
+        {/* ドロップゾーン */}
+        <div
+          className={`flex-1 border-2 border-dashed rounded-2xl p-5 flex items-center justify-center gap-3 cursor-pointer transition-colors ${
+            isDragging ? 'border-navy bg-navy/5' : 'border-slate-300 hover:border-navy/50 hover:bg-slate-50'
+          }`}
+          onDragOver={e => { e.preventDefault(); setIsDragging(true) }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={e => {
+            e.preventDefault()
+            setIsDragging(false)
+            const file = e.dataTransfer.files[0]
+            if (file) processFile(file)
+          }}
+          onClick={() => document.getElementById('mrr-file-input')?.click()}
+        >
+          <Upload size={18} className="text-slate-400" />
+          <div>
+            {fileName
+              ? <p className="text-sm font-medium text-navy">{fileName}</p>
+              : <p className="text-sm text-slate-500">CSV をドロップ または クリックして選択</p>
+            }
+            <p className="text-xs text-slate-400 mt-0.5">Total_monthly_recurring_revenue__MRR__by_product-*.csv</p>
+          </div>
+          <input
+            id="mrr-file-input"
+            type="file"
+            accept=".csv"
+            className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) processFile(f) }}
+          />
+        </div>
+      </div>
+
+      {chartData.length > 0 && (
+        <>
+          {/* KPIカード */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-white rounded-2xl border border-slate-200 p-5">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">最新月 MRR</p>
+              <p className="text-2xl font-bold text-navy">{totalLatest.toLocaleString()} <span className="text-base font-medium text-slate-400">万円</span></p>
+              <p className="text-xs text-slate-400 mt-1">{latestMonth?.month}</p>
+            </div>
+            <div className="bg-white rounded-2xl border border-slate-200 p-5">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">前月比</p>
+              <div className="flex items-center gap-2">
+                {momChange > 0
+                  ? <TrendingUp size={20} className="text-green-500" />
+                  : momChange < 0
+                  ? <TrendingDown size={20} className="text-red-500" />
+                  : <Minus size={20} className="text-slate-400" />
+                }
+                <p className={`text-2xl font-bold ${momChange > 0 ? 'text-green-600' : momChange < 0 ? 'text-red-500' : 'text-slate-500'}`}>
+                  {momChange > 0 ? '+' : ''}{momChange}%
+                </p>
+              </div>
+              <p className="text-xs text-slate-400 mt-1">{totalPrev.toLocaleString()} 万円 → {totalLatest.toLocaleString()} 万円</p>
+            </div>
+            <div className="bg-white rounded-2xl border border-slate-200 p-5">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">最大カテゴリ</p>
+              {barData[0] && (
+                <>
+                  <p className="text-2xl font-bold" style={{ color: CATEGORY_COLORS[barData[0].name] ?? '#1a3a6e' }}>
+                    {barData[0].name}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-1">{barData[0].金額.toLocaleString()} 万円</p>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* AreaChart：推移 */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-6">
+            <h2 className="text-sm font-bold text-slate-700 mb-4">月別MRR推移（万円）</h2>
+            <ResponsiveContainer width="100%" height={320}>
+              <AreaChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef0f8" />
+                <XAxis
+                  dataKey="month"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 11, fill: '#8a96b0', fontWeight: 700 }}
+                  tickFormatter={v => v.substring(5)}
+                />
+                <YAxis
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 11, fill: '#8a96b0', fontWeight: 700 }}
+                  tickFormatter={v => `${v}万`}
+                />
+                <Tooltip
+                  formatter={(v: number, name: string) => [`${v.toLocaleString()} 万円`, name]}
+                  labelFormatter={l => `${l}`}
+                />
+                <Legend verticalAlign="top" align="right" height={36} iconSize={10} wrapperStyle={{ fontSize: 11 }} />
+                {categories.map(cat => (
+                  <Area
+                    key={cat}
+                    type="monotone"
+                    dataKey={cat}
+                    stackId="1"
+                    stroke={CATEGORY_COLORS[cat] ?? '#9ca3af'}
+                    fill={CATEGORY_COLORS[cat] ?? '#9ca3af'}
+                    fillOpacity={0.7}
+                  />
+                ))}
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* BarChart：最新月カテゴリ別 */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-6">
+            <h2 className="text-sm font-bold text-slate-700 mb-4">
+              {latestMonth?.month} カテゴリ別MRR（万円）
+            </h2>
+            <ResponsiveContainer width="100%" height={Math.max(200, barData.length * 44)}>
+              <BarChart data={barData} layout="vertical" margin={{ right: 70, left: 8 }}>
+                <XAxis type="number" hide domain={[0, (d: number) => Math.ceil(d * 1.4)]} />
+                <YAxis
+                  dataKey="name"
+                  type="category"
+                  axisLine={false}
+                  tickLine={false}
+                  width={120}
+                  tick={{ fontSize: 12, fill: '#8a96b0', fontWeight: 700 }}
+                />
+                <Tooltip formatter={(v: number) => [`${v.toLocaleString()} 万円`, '金額']} />
+                <Bar dataKey="金額" radius={[0, 4, 4, 0]} barSize={20}>
+                  {barData.map(entry => (
+                    <Cell key={entry.name} fill={CATEGORY_COLORS[entry.name] ?? '#9ca3af'} />
+                  ))}
+                  <LabelList
+                    dataKey="金額"
+                    position="right"
+                    formatter={(v: number) => `${v.toLocaleString()}万`}
+                    style={{ fontSize: 11, fill: '#64748b', fontWeight: 700 }}
+                  />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* 月別 × カテゴリ テーブル */}
+          <div className="bg-white rounded-2xl border border-slate-200">
+            <button
+              className="w-full flex items-center justify-between px-6 py-4 text-sm font-bold text-slate-700"
+              onClick={() => setTableOpen(o => !o)}
+            >
+              <span>月別詳細テーブル</span>
+              {tableOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </button>
+            {tableOpen && (
+              <div className="overflow-x-auto border-t border-slate-100">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-slate-50">
+                      <th className="px-4 py-2 text-left text-slate-500 font-semibold whitespace-nowrap">月</th>
+                      {categories.map(c => (
+                        <th key={c} className="px-4 py-2 text-right text-slate-500 font-semibold whitespace-nowrap">{c}</th>
+                      ))}
+                      <th className="px-4 py-2 text-right text-slate-700 font-bold whitespace-nowrap">合計</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...chartData].reverse().map((row, i) => {
+                      const total = categories.reduce((s, c) => s + ((row[c] as number) || 0), 0)
+                      return (
+                        <tr key={row.month} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                          <td className="px-4 py-2 text-slate-600 font-medium">{row.month}</td>
+                          {categories.map(c => (
+                            <td key={c} className="px-4 py-2 text-right text-slate-600 tabular-nums">
+                              {((row[c] as number) || 0) > 0 ? ((row[c] as number)).toLocaleString() : '—'}
+                            </td>
+                          ))}
+                          <td className="px-4 py-2 text-right font-bold text-navy tabular-nums">
+                            {total.toLocaleString()}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
