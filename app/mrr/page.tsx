@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useCallback } from 'react'
-import { Upload, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp } from 'lucide-react'
+import { useState, useCallback, useEffect } from 'react'
+import { Upload, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
 import {
   AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid,
@@ -23,6 +23,11 @@ const CATEGORY_KEYS: { category: string; prefixes: string[] }[] = [
   { category: 'SNSセミナー',     prefixes: ['Ro9D'] },
   { category: 'フェイススキャン', prefixes: ['Q6q3'] },
   { category: '花巡りai',        prefixes: ['OYKC'] },
+]
+
+const CATEGORY_ORDER = [
+  'AI CAMP', 'Product AI CAMP', 'AIスタッフ', 'SARI', 'HARU',
+  'レビューAI', 'MFB', '仕組み化ハブ', 'SNSセミナー', 'フェイススキャン', '花巡りai', 'その他',
 ]
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -49,21 +54,28 @@ function getCategory(productId: string): string {
 }
 
 // ────────────────────────────────────────────
-// CSVパース
+// 型・パース・集計
 // ────────────────────────────────────────────
 interface RawRow {
   product_id: string
-  month_end: string   // YYYY-MM-DD
+  month_end: string
   mrr_usd: number
 }
+
+interface ChartRow {
+  month: string
+  [category: string]: number | string
+}
+
+const STORAGE_KEY = 'kindler_mrr_data'
 
 function parseCsv(text: string): RawRow[] {
   const lines = text.split('\n').filter(l => l.trim())
   if (lines.length < 2) return []
   const header = lines[0].split(',').map(h => h.replace(/"/g, '').trim())
-  const idxProductId  = header.findIndex(h => h === 'product_id')
-  const idxMonthEnd   = header.findIndex(h => h === 'month_end')
-  const idxMrr        = header.findIndex(h => h === 'total_mrr_in_usd')
+  const idxProductId = header.findIndex(h => h === 'product_id')
+  const idxMonthEnd  = header.findIndex(h => h === 'month_end')
+  const idxMrr       = header.findIndex(h => h === 'total_mrr_in_usd')
   if (idxProductId < 0 || idxMonthEnd < 0 || idxMrr < 0) return []
 
   const rows: RawRow[] = []
@@ -79,18 +91,8 @@ function parseCsv(text: string): RawRow[] {
   return rows
 }
 
-// ────────────────────────────────────────────
-// 集計
-// ────────────────────────────────────────────
-interface ChartRow {
-  month: string           // "2024-04" 形式
-  [category: string]: number | string
-}
-
 function aggregate(rows: RawRow[], rate: number): { chartData: ChartRow[]; categories: string[] } {
-  // month_end "YYYY-MM-DD" → "YYYY-MM"
   const map = new Map<string, Map<string, number>>()
-
   for (const row of rows) {
     const month = row.month_end.substring(0, 7)
     const cat   = getCategory(row.product_id)
@@ -102,19 +104,15 @@ function aggregate(rows: RawRow[], rate: number): { chartData: ChartRow[]; categ
   const months = Array.from(map.keys()).sort()
   const categorySet = new Set<string>()
   map.forEach(m => m.forEach((_, c) => categorySet.add(c)))
-  // AI CAMP を先頭に
-  const categories = Array.from(categorySet).sort((a, b) => {
-    const order = ['AI CAMP', 'Product AI CAMP', 'AIスタッフ', 'SARI', 'HARU', 'レビューAI', 'MFB', '仕組み化ハブ', 'SNSセミナー', 'フェイススキャン', '花巡りai', 'その他']
-    return order.indexOf(a) - order.indexOf(b)
-  })
+  const categories = Array.from(categorySet).sort(
+    (a, b) => CATEGORY_ORDER.indexOf(a) - CATEGORY_ORDER.indexOf(b)
+  )
 
   const chartData: ChartRow[] = months.map(month => {
     const row: ChartRow = { month }
     const catMap = map.get(month)!
     for (const cat of categories) {
-      const usd = catMap.get(cat) ?? 0
-      // 万円換算
-      row[cat] = Math.round(usd * rate / 10000)
+      row[cat] = Math.round((catMap.get(cat) ?? 0) * rate / 10000)
     }
     return row
   })
@@ -126,28 +124,52 @@ function aggregate(rows: RawRow[], rate: number): { chartData: ChartRow[]; categ
 // ページ
 // ────────────────────────────────────────────
 export default function MrrPage() {
-  const [chartData, setChartData]     = useState<ChartRow[]>([])
-  const [categories, setCategories]   = useState<string[]>([])
-  const [rate, setRate]               = useState(150)
-  const [rateInput, setRateInput]     = useState('150')
-  const [rawRows, setRawRows]         = useState<RawRow[]>([])
-  const [isDragging, setIsDragging]   = useState(false)
-  const [fileName, setFileName]       = useState('')
-  const [tableOpen, setTableOpen]     = useState(false)
+  const [rawRows, setRawRows]       = useState<RawRow[]>([])
+  const [chartData, setChartData]   = useState<ChartRow[]>([])
+  const [categories, setCategories] = useState<string[]>([])
+  const [hidden, setHidden]         = useState<Set<string>>(new Set())
+  const [rate, setRate]             = useState(150)
+  const [rateInput, setRateInput]   = useState('150')
+  const [isDragging, setIsDragging] = useState(false)
+  const [fileName, setFileName]     = useState('')
+  const [tableOpen, setTableOpen]   = useState(false)
 
-  const processFile = useCallback((file: File) => {
+  // ── localStorage 復元
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY)
+      if (!saved) return
+      const { rows, rate: savedRate, fileName: savedName } = JSON.parse(saved) as {
+        rows: RawRow[]; rate: number; fileName: string
+      }
+      setRawRows(rows)
+      setRate(savedRate)
+      setRateInput(String(savedRate))
+      setFileName(savedName)
+      const { chartData, categories } = aggregate(rows, savedRate)
+      setChartData(chartData)
+      setCategories(categories)
+    } catch { /* 無視 */ }
+  }, [])
+
+  // ── CSV 処理 & 保存
+  const processFile = useCallback((file: File, currentRate: number) => {
     setFileName(file.name)
     const reader = new FileReader()
     reader.onload = (e) => {
       const text = e.target?.result as string
       const rows = parseCsv(text)
       setRawRows(rows)
-      const { chartData, categories } = aggregate(rows, rate)
+      const { chartData, categories } = aggregate(rows, currentRate)
       setChartData(chartData)
       setCategories(categories)
+      setHidden(new Set())
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ rows, rate: currentRate, fileName: file.name }))
+      } catch { /* 容量超過等は無視 */ }
     }
     reader.readAsText(file, 'UTF-8')
-  }, [rate])
+  }, [])
 
   const applyRate = () => {
     const r = parseFloat(rateInput)
@@ -157,20 +179,47 @@ export default function MrrPage() {
         const { chartData, categories } = aggregate(rawRows, r)
         setChartData(chartData)
         setCategories(categories)
+        try {
+          const saved = localStorage.getItem(STORAGE_KEY)
+          if (saved) {
+            const parsed = JSON.parse(saved)
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...parsed, rate: r }))
+          }
+        } catch { /* 無視 */ }
       }
     }
   }
 
-  // KPI計算
-  const latestMonth  = chartData.length > 0 ? chartData[chartData.length - 1] : null
-  const prevMonth    = chartData.length > 1 ? chartData[chartData.length - 2] : null
-  const totalLatest  = latestMonth ? categories.reduce((s, c) => s + ((latestMonth[c] as number) || 0), 0) : 0
-  const totalPrev    = prevMonth ? categories.reduce((s, c) => s + ((prevMonth[c] as number) || 0), 0) : 0
-  const momChange    = totalPrev > 0 ? Math.round((totalLatest - totalPrev) / totalPrev * 100) : 0
+  const clearData = () => {
+    localStorage.removeItem(STORAGE_KEY)
+    setRawRows([])
+    setChartData([])
+    setCategories([])
+    setHidden(new Set())
+    setFileName('')
+  }
 
-  // 最新月カテゴリ別BarChart用
+  const toggleCategory = (cat: string) => {
+    setHidden(prev => {
+      const next = new Set(prev)
+      next.has(cat) ? next.delete(cat) : next.add(cat)
+      return next
+    })
+  }
+
+  // ── 表示対象のカテゴリ
+  const visibleCategories = categories.filter(c => !hidden.has(c))
+
+  // ── KPI
+  const latestMonth = chartData.length > 0 ? chartData[chartData.length - 1] : null
+  const prevMonth   = chartData.length > 1 ? chartData[chartData.length - 2] : null
+  const totalLatest = latestMonth ? visibleCategories.reduce((s, c) => s + ((latestMonth[c] as number) || 0), 0) : 0
+  const totalPrev   = prevMonth   ? visibleCategories.reduce((s, c) => s + ((prevMonth[c]   as number) || 0), 0) : 0
+  const momChange   = totalPrev > 0 ? Math.round((totalLatest - totalPrev) / totalPrev * 100) : 0
+
+  // ── 最新月 BarChart 用
   const barData = latestMonth
-    ? categories
+    ? visibleCategories
         .map(c => ({ name: c, 金額: (latestMonth[c] as number) || 0 }))
         .filter(d => d.金額 > 0)
         .sort((a, b) => b.金額 - a.金額)
@@ -184,9 +233,9 @@ export default function MrrPage() {
       <div className="flex flex-col sm:flex-row gap-4">
         {/* 為替レート */}
         <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center gap-3 flex-shrink-0">
-          <span className="text-sm font-medium text-slate-600 whitespace-nowrap">USD → JPY レート</span>
+          <span className="text-sm font-medium text-slate-600 whitespace-nowrap">USD → JPY</span>
           <input
-            className="input w-24"
+            className="input w-20"
             value={rateInput}
             onChange={e => setRateInput(e.target.value)}
             onBlur={applyRate}
@@ -206,35 +255,88 @@ export default function MrrPage() {
             e.preventDefault()
             setIsDragging(false)
             const file = e.dataTransfer.files[0]
-            if (file) processFile(file)
+            if (file) processFile(file, rate)
           }}
           onClick={() => document.getElementById('mrr-file-input')?.click()}
         >
-          <Upload size={18} className="text-slate-400" />
-          <div>
+          <Upload size={18} className="text-slate-400 flex-shrink-0" />
+          <div className="min-w-0">
             {fileName
-              ? <p className="text-sm font-medium text-navy">{fileName}</p>
+              ? <p className="text-sm font-medium text-navy truncate">{fileName}</p>
               : <p className="text-sm text-slate-500">CSV をドロップ または クリックして選択</p>
             }
-            <p className="text-xs text-slate-400 mt-0.5">Total_monthly_recurring_revenue__MRR__by_product-*.csv</p>
+            <p className="text-xs text-slate-400 mt-0.5">前回アップロードは自動で復元されます</p>
           </div>
           <input
             id="mrr-file-input"
             type="file"
             accept=".csv"
             className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) processFile(f) }}
+            onChange={e => { const f = e.target.files?.[0]; if (f) processFile(f, rate) }}
           />
         </div>
+
+        {/* クリアボタン */}
+        {rawRows.length > 0 && (
+          <button
+            onClick={clearData}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 text-sm text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors flex-shrink-0"
+          >
+            <RefreshCw size={14} />
+            クリア
+          </button>
+        )}
       </div>
 
       {chartData.length > 0 && (
         <>
+          {/* カテゴリフィルター */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-4">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">表示カテゴリ</p>
+            <div className="flex flex-wrap gap-2">
+              {categories.map(cat => {
+                const isVisible = !hidden.has(cat)
+                return (
+                  <button
+                    key={cat}
+                    onClick={() => toggleCategory(cat)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
+                      isVisible
+                        ? 'text-white border-transparent'
+                        : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'
+                    }`}
+                    style={isVisible ? { backgroundColor: CATEGORY_COLORS[cat] ?? '#9ca3af', borderColor: CATEGORY_COLORS[cat] ?? '#9ca3af' } : {}}
+                  >
+                    <span
+                      className="w-2 h-2 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: isVisible ? 'rgba(255,255,255,0.7)' : (CATEGORY_COLORS[cat] ?? '#9ca3af') }}
+                    />
+                    {cat}
+                  </button>
+                )
+              })}
+              <button
+                onClick={() => setHidden(new Set())}
+                className="px-3 py-1.5 rounded-full text-xs font-medium text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                すべて表示
+              </button>
+              <button
+                onClick={() => setHidden(new Set(categories))}
+                className="px-3 py-1.5 rounded-full text-xs font-medium text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                すべて非表示
+              </button>
+            </div>
+          </div>
+
           {/* KPIカード */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white rounded-2xl border border-slate-200 p-5">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">最新月 MRR</p>
-              <p className="text-2xl font-bold text-navy">{totalLatest.toLocaleString()} <span className="text-base font-medium text-slate-400">万円</span></p>
+              <p className="text-2xl font-bold text-navy">
+                {totalLatest.toLocaleString()} <span className="text-base font-medium text-slate-400">万円</span>
+              </p>
               <p className="text-xs text-slate-400 mt-1">{latestMonth?.month}</p>
             </div>
             <div className="bg-white rounded-2xl border border-slate-200 p-5">
@@ -250,7 +352,9 @@ export default function MrrPage() {
                   {momChange > 0 ? '+' : ''}{momChange}%
                 </p>
               </div>
-              <p className="text-xs text-slate-400 mt-1">{totalPrev.toLocaleString()} 万円 → {totalLatest.toLocaleString()} 万円</p>
+              <p className="text-xs text-slate-400 mt-1">
+                {totalPrev.toLocaleString()} 万円 → {totalLatest.toLocaleString()} 万円
+              </p>
             </div>
             <div className="bg-white rounded-2xl border border-slate-200 p-5">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">最大カテゴリ</p>
@@ -268,40 +372,43 @@ export default function MrrPage() {
           {/* AreaChart：推移 */}
           <div className="bg-white rounded-2xl border border-slate-200 p-6">
             <h2 className="text-sm font-bold text-slate-700 mb-4">月別MRR推移（万円）</h2>
-            <ResponsiveContainer width="100%" height={320}>
-              <AreaChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef0f8" />
-                <XAxis
-                  dataKey="month"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 11, fill: '#8a96b0', fontWeight: 700 }}
-                  tickFormatter={v => v.substring(5)}
-                />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 11, fill: '#8a96b0', fontWeight: 700 }}
-                  tickFormatter={v => `${v}万`}
-                />
-                <Tooltip
-                  formatter={(v: number, name: string) => [`${v.toLocaleString()} 万円`, name]}
-                  labelFormatter={l => `${l}`}
-                />
-                <Legend verticalAlign="top" align="right" height={36} iconSize={10} wrapperStyle={{ fontSize: 11 }} />
-                {categories.map(cat => (
-                  <Area
-                    key={cat}
-                    type="monotone"
-                    dataKey={cat}
-                    stackId="1"
-                    stroke={CATEGORY_COLORS[cat] ?? '#9ca3af'}
-                    fill={CATEGORY_COLORS[cat] ?? '#9ca3af'}
-                    fillOpacity={0.7}
+            {visibleCategories.length > 0 ? (
+              <ResponsiveContainer width="100%" height={320}>
+                <AreaChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef0f8" />
+                  <XAxis
+                    dataKey="month"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 11, fill: '#8a96b0', fontWeight: 700 }}
+                    tickFormatter={v => v.substring(5)}
                   />
-                ))}
-              </AreaChart>
-            </ResponsiveContainer>
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 11, fill: '#8a96b0', fontWeight: 700 }}
+                    tickFormatter={v => `${v}万`}
+                  />
+                  <Tooltip
+                    formatter={(v: number, name: string) => [`${v.toLocaleString()} 万円`, name]}
+                  />
+                  <Legend verticalAlign="top" align="right" height={36} iconSize={10} wrapperStyle={{ fontSize: 11 }} />
+                  {visibleCategories.map(cat => (
+                    <Area
+                      key={cat}
+                      type="monotone"
+                      dataKey={cat}
+                      stackId="1"
+                      stroke={CATEGORY_COLORS[cat] ?? '#9ca3af'}
+                      fill={CATEGORY_COLORS[cat] ?? '#9ca3af'}
+                      fillOpacity={0.7}
+                    />
+                  ))}
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-sm text-slate-400 text-center py-16">表示するカテゴリを選択してください</p>
+            )}
           </div>
 
           {/* BarChart：最新月カテゴリ別 */}
@@ -309,31 +416,35 @@ export default function MrrPage() {
             <h2 className="text-sm font-bold text-slate-700 mb-4">
               {latestMonth?.month} カテゴリ別MRR（万円）
             </h2>
-            <ResponsiveContainer width="100%" height={Math.max(200, barData.length * 44)}>
-              <BarChart data={barData} layout="vertical" margin={{ right: 70, left: 8 }}>
-                <XAxis type="number" hide domain={[0, (d: number) => Math.ceil(d * 1.4)]} />
-                <YAxis
-                  dataKey="name"
-                  type="category"
-                  axisLine={false}
-                  tickLine={false}
-                  width={120}
-                  tick={{ fontSize: 12, fill: '#8a96b0', fontWeight: 700 }}
-                />
-                <Tooltip formatter={(v: number) => [`${v.toLocaleString()} 万円`, '金額']} />
-                <Bar dataKey="金額" radius={[0, 4, 4, 0]} barSize={20}>
-                  {barData.map(entry => (
-                    <Cell key={entry.name} fill={CATEGORY_COLORS[entry.name] ?? '#9ca3af'} />
-                  ))}
-                  <LabelList
-                    dataKey="金額"
-                    position="right"
-                    formatter={(v: number) => `${v.toLocaleString()}万`}
-                    style={{ fontSize: 11, fill: '#64748b', fontWeight: 700 }}
+            {barData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={Math.max(200, barData.length * 44)}>
+                <BarChart data={barData} layout="vertical" margin={{ right: 70, left: 8 }}>
+                  <XAxis type="number" hide domain={[0, (d: number) => Math.ceil(d * 1.4)]} />
+                  <YAxis
+                    dataKey="name"
+                    type="category"
+                    axisLine={false}
+                    tickLine={false}
+                    width={120}
+                    tick={{ fontSize: 12, fill: '#8a96b0', fontWeight: 700 }}
                   />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+                  <Tooltip formatter={(v: number) => [`${v.toLocaleString()} 万円`, '金額']} />
+                  <Bar dataKey="金額" radius={[0, 4, 4, 0]} barSize={20}>
+                    {barData.map(entry => (
+                      <Cell key={entry.name} fill={CATEGORY_COLORS[entry.name] ?? '#9ca3af'} />
+                    ))}
+                    <LabelList
+                      dataKey="金額"
+                      position="right"
+                      formatter={(v: number) => `${v.toLocaleString()}万`}
+                      style={{ fontSize: 11, fill: '#64748b', fontWeight: 700 }}
+                    />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-sm text-slate-400 text-center py-16">表示するカテゴリを選択してください</p>
+            )}
           </div>
 
           {/* 月別 × カテゴリ テーブル */}
@@ -351,7 +462,7 @@ export default function MrrPage() {
                   <thead>
                     <tr className="bg-slate-50">
                       <th className="px-4 py-2 text-left text-slate-500 font-semibold whitespace-nowrap">月</th>
-                      {categories.map(c => (
+                      {visibleCategories.map(c => (
                         <th key={c} className="px-4 py-2 text-right text-slate-500 font-semibold whitespace-nowrap">{c}</th>
                       ))}
                       <th className="px-4 py-2 text-right text-slate-700 font-bold whitespace-nowrap">合計</th>
@@ -359,13 +470,13 @@ export default function MrrPage() {
                   </thead>
                   <tbody>
                     {[...chartData].reverse().map((row, i) => {
-                      const total = categories.reduce((s, c) => s + ((row[c] as number) || 0), 0)
+                      const total = visibleCategories.reduce((s, c) => s + ((row[c] as number) || 0), 0)
                       return (
                         <tr key={row.month} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
                           <td className="px-4 py-2 text-slate-600 font-medium">{row.month}</td>
-                          {categories.map(c => (
+                          {visibleCategories.map(c => (
                             <td key={c} className="px-4 py-2 text-right text-slate-600 tabular-nums">
-                              {((row[c] as number) || 0) > 0 ? ((row[c] as number)).toLocaleString() : '—'}
+                              {((row[c] as number) || 0) > 0 ? (row[c] as number).toLocaleString() : '—'}
                             </td>
                           ))}
                           <td className="px-4 py-2 text-right font-bold text-navy tabular-nums">
