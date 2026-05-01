@@ -92,11 +92,20 @@ function parseCsv(text: string): RawRow[] {
 }
 
 // Stripeは month_end が翌月1日（"2026-05-01"）になることがあるため
-// 1日引いてから月を取り出すことで正しい月にマッピングする
+// 日付が1日の場合は前月として扱う（文字列ベースで処理しタイムゾーン誤差を回避）
 function monthEndToKey(monthEnd: string): string {
-  const d = new Date(monthEnd)
-  d.setDate(d.getDate() - 1)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  const datePart = monthEnd.trim().split(/[\sT]/)[0]
+  const parts = datePart.split('-')
+  if (parts.length < 3) return datePart.substring(0, 7)
+  let year = parseInt(parts[0], 10)
+  let month = parseInt(parts[1], 10)
+  const day = parseInt(parts[2], 10)
+  if (isNaN(year) || isNaN(month) || isNaN(day)) return datePart.substring(0, 7)
+  if (day === 1) {
+    month -= 1
+    if (month === 0) { month = 12; year -= 1 }
+  }
+  return `${year}-${String(month).padStart(2, '0')}`
 }
 
 function aggregate(rows: RawRow[], rate: number): { chartData: ChartRow[]; categories: string[] } {
