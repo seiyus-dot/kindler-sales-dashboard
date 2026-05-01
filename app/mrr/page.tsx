@@ -5,7 +5,7 @@ import { Upload, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Refres
 import PageHeader from '@/components/PageHeader'
 import {
   AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer, LabelList,
+  Tooltip, Legend, ResponsiveContainer, LabelList, ReferenceLine,
 } from 'recharts'
 
 // ────────────────────────────────────────────
@@ -149,7 +149,8 @@ export default function MrrPage() {
   const [rateInput, setRateInput]   = useState('150')
   const [isDragging, setIsDragging] = useState(false)
   const [fileName, setFileName]     = useState('')
-  const [tableOpen, setTableOpen]   = useState(false)
+  const [tableOpen, setTableOpen]         = useState(false)
+  const [growthTableOpen, setGrowthTableOpen] = useState(false)
 
   // ── localStorage 復元
   useEffect(() => {
@@ -225,6 +226,37 @@ export default function MrrPage() {
   }
 
   const visibleCategories = categories.filter(c => !hidden.has(c))
+
+  // ── 月次成長率
+  const monthlyTotals = chartData.map(row => ({
+    month: row.month,
+    total: visibleCategories.reduce((s, c) => s + ((row[c] as number) || 0), 0),
+  }))
+  const growthData = monthlyTotals.slice(1).map((m, i) => ({
+    month: m.month,
+    pct: monthlyTotals[i].total > 0
+      ? Math.round((m.total - monthlyTotals[i].total) / monthlyTotals[i].total * 100)
+      : 0,
+  }))
+
+  // ── テーブル行（前月比付き）
+  const tableRows = [...chartData].reverse().map((row, i, arr) => {
+    const total = visibleCategories.reduce((s, c) => s + ((row[c] as number) || 0), 0)
+    const prevRow = arr[i + 1]
+    const prevTotal = prevRow
+      ? visibleCategories.reduce((s, c) => s + ((prevRow[c] as number) || 0), 0)
+      : null
+    const momPct = prevTotal !== null && prevTotal > 0
+      ? Math.round((total - prevTotal) / prevTotal * 100)
+      : null
+    const catGrowths: Record<string, number | null> = {}
+    for (const cat of visibleCategories) {
+      const curr = (row[cat] as number) || 0
+      const prev = prevRow !== undefined ? ((prevRow[cat] as number) || 0) : null
+      catGrowths[cat] = prev !== null && prev > 0 ? Math.round((curr - prev) / prev * 100) : null
+    }
+    return { row, total, momPct, catGrowths }
+  })
 
   // ── KPI
   const latestMonth = chartData.length > 0 ? chartData[chartData.length - 1] : null
@@ -385,6 +417,44 @@ export default function MrrPage() {
             </div>
           </div>
 
+          {/* 月次成長率チャート */}
+          {growthData.length > 0 && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-6">
+              <h2 className="text-sm font-bold text-slate-700 mb-4">月次MRR成長率（前月比 %）</h2>
+              <ResponsiveContainer width="100%" height={160}>
+                <BarChart data={growthData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef0f8" />
+                  <XAxis
+                    dataKey="month"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 11, fill: '#8a96b0', fontWeight: 700 }}
+                    tickFormatter={v => v.substring(5)}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 11, fill: '#8a96b0', fontWeight: 700 }}
+                    tickFormatter={v => `${v}%`}
+                  />
+                  <Tooltip formatter={(v: number) => [`${v > 0 ? '+' : ''}${v}%`, '前月比']} />
+                  <ReferenceLine y={0} stroke="#cbd5e1" strokeWidth={1} />
+                  <Bar dataKey="pct" radius={[3, 3, 0, 0]} barSize={20}>
+                    {growthData.map(entry => (
+                      <Cell key={entry.month} fill={entry.pct >= 0 ? '#16a34a' : '#ef4444'} fillOpacity={0.8} />
+                    ))}
+                    <LabelList
+                      dataKey="pct"
+                      position="top"
+                      formatter={(v: number) => `${v > 0 ? '+' : ''}${v}%`}
+                      style={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }}
+                    />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
           {/* AreaChart：推移 */}
           <div className="bg-white rounded-2xl border border-slate-200 p-6">
             <h2 className="text-sm font-bold text-slate-700 mb-4">月別MRR推移（万円）</h2>
@@ -463,13 +533,13 @@ export default function MrrPage() {
             )}
           </div>
 
-          {/* 月別 × カテゴリ テーブル */}
+          {/* 月別 × カテゴリ テーブル（金額） */}
           <div className="bg-white rounded-2xl border border-slate-200">
             <button
               className="w-full flex items-center justify-between px-6 py-4 text-sm font-bold text-slate-700"
               onClick={() => setTableOpen(o => !o)}
             >
-              <span>月別詳細テーブル</span>
+              <span>月別詳細テーブル（万円）</span>
               {tableOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
             </button>
             {tableOpen && (
@@ -482,25 +552,88 @@ export default function MrrPage() {
                         <th key={c} className="px-4 py-2 text-right text-slate-500 font-semibold whitespace-nowrap">{c}</th>
                       ))}
                       <th className="px-4 py-2 text-right text-slate-700 font-bold whitespace-nowrap">合計</th>
+                      <th className="px-4 py-2 text-right text-slate-500 font-semibold whitespace-nowrap">前月比</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {[...chartData].reverse().map((row, i) => {
-                      const total = visibleCategories.reduce((s, c) => s + ((row[c] as number) || 0), 0)
-                      return (
-                        <tr key={row.month} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
-                          <td className="px-4 py-2 text-slate-600 font-medium">{row.month}</td>
-                          {visibleCategories.map(c => (
-                            <td key={c} className="px-4 py-2 text-right text-slate-600 tabular-nums">
-                              {((row[c] as number) || 0) > 0 ? (row[c] as number).toLocaleString() : '—'}
-                            </td>
-                          ))}
-                          <td className="px-4 py-2 text-right font-bold text-navy tabular-nums">
-                            {total.toLocaleString()}
+                    {tableRows.map(({ row, total, momPct }, i) => (
+                      <tr key={row.month} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                        <td className="px-4 py-2 text-slate-600 font-medium">{row.month}</td>
+                        {visibleCategories.map(c => (
+                          <td key={c} className="px-4 py-2 text-right text-slate-600 tabular-nums">
+                            {((row[c] as number) || 0) > 0 ? (row[c] as number).toLocaleString() : '—'}
                           </td>
-                        </tr>
-                      )
-                    })}
+                        ))}
+                        <td className="px-4 py-2 text-right font-bold text-navy tabular-nums">
+                          {total.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 text-right tabular-nums font-semibold">
+                          {momPct === null ? (
+                            <span className="text-slate-300">—</span>
+                          ) : (
+                            <span className={momPct > 0 ? 'text-green-600' : momPct < 0 ? 'text-red-500' : 'text-slate-400'}>
+                              {momPct > 0 ? '+' : ''}{momPct}%
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* カテゴリ別成長率テーブル */}
+          <div className="bg-white rounded-2xl border border-slate-200">
+            <button
+              className="w-full flex items-center justify-between px-6 py-4 text-sm font-bold text-slate-700"
+              onClick={() => setGrowthTableOpen(o => !o)}
+            >
+              <span>カテゴリ別成長率テーブル（前月比 %）</span>
+              {growthTableOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </button>
+            {growthTableOpen && (
+              <div className="overflow-x-auto border-t border-slate-100">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-slate-50">
+                      <th className="px-4 py-2 text-left text-slate-500 font-semibold whitespace-nowrap">月</th>
+                      {visibleCategories.map(c => (
+                        <th key={c} className="px-4 py-2 text-right text-slate-500 font-semibold whitespace-nowrap">{c}</th>
+                      ))}
+                      <th className="px-4 py-2 text-right text-slate-700 font-bold whitespace-nowrap">合計</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tableRows.map(({ row, momPct, catGrowths }, i) => (
+                      <tr key={row.month} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                        <td className="px-4 py-2 text-slate-600 font-medium">{row.month}</td>
+                        {visibleCategories.map(c => {
+                          const g = catGrowths[c]
+                          return (
+                            <td key={c} className="px-4 py-2 text-right tabular-nums font-medium">
+                              {g === null ? (
+                                <span className="text-slate-300">—</span>
+                              ) : (
+                                <span className={g > 0 ? 'text-green-600' : g < 0 ? 'text-red-500' : 'text-slate-400'}>
+                                  {g > 0 ? '+' : ''}{g}%
+                                </span>
+                              )}
+                            </td>
+                          )
+                        })}
+                        <td className="px-4 py-2 text-right tabular-nums font-bold">
+                          {momPct === null ? (
+                            <span className="text-slate-300">—</span>
+                          ) : (
+                            <span className={momPct > 0 ? 'text-green-600' : momPct < 0 ? 'text-red-500' : 'text-slate-400'}>
+                              {momPct > 0 ? '+' : ''}{momPct}%
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
