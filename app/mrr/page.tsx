@@ -138,6 +138,32 @@ function aggregate(rows: RawRow[], rate: number): { chartData: ChartRow[]; categ
 }
 
 // ────────────────────────────────────────────
+// 期（会計年度）ヘルパー
+// ────────────────────────────────────────────
+const FOUNDING_YEAR = 2017 // 創業年（8月始まり第1期）
+
+function getKi(yyyymm: string): number {
+  const parts = yyyymm.split('-')
+  const y = parseInt(parts[0], 10)
+  const m = parseInt(parts[1], 10)
+  const startYear = m >= 8 ? y : y - 1
+  return startYear - FOUNDING_YEAR + 1
+}
+
+function getCurrentKi(): number {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = now.getMonth() + 1
+  const startYear = m >= 8 ? y : y - 1
+  return startYear - FOUNDING_YEAR + 1
+}
+
+function kiLabel(ki: number): string {
+  const startYear = FOUNDING_YEAR + ki - 1
+  return `第${ki}期 (${startYear}/8〜${startYear + 1}/7)`
+}
+
+// ────────────────────────────────────────────
 // ページ
 // ────────────────────────────────────────────
 export default function MrrPage() {
@@ -149,8 +175,9 @@ export default function MrrPage() {
   const [rateInput, setRateInput]   = useState('150')
   const [isDragging, setIsDragging] = useState(false)
   const [fileName, setFileName]     = useState('')
-  const [tableOpen, setTableOpen]         = useState(false)
+  const [tableOpen, setTableOpen]             = useState(false)
   const [growthTableOpen, setGrowthTableOpen] = useState(false)
+  const [selectedKi, setSelectedKi]           = useState<number>(getCurrentKi())
 
   // ── localStorage 復元
   useEffect(() => {
@@ -227,8 +254,14 @@ export default function MrrPage() {
 
   const visibleCategories = categories.filter(c => !hidden.has(c))
 
+  // ── 期フィルター
+  const kiList = Array.from(new Set(chartData.map(row => getKi(row.month as string)))).sort((a, b) => a - b)
+  const filteredChartData = selectedKi === 0
+    ? chartData
+    : chartData.filter(row => getKi(row.month as string) === selectedKi)
+
   // ── 月次成長率
-  const monthlyTotals = chartData.map(row => ({
+  const monthlyTotals = filteredChartData.map(row => ({
     month: row.month,
     total: visibleCategories.reduce((s, c) => s + ((row[c] as number) || 0), 0),
   }))
@@ -240,7 +273,7 @@ export default function MrrPage() {
   }))
 
   // ── テーブル行（前月比付き）
-  const tableRows = [...chartData].reverse().map((row, i, arr) => {
+  const tableRows = [...filteredChartData].reverse().map((row, i, arr) => {
     const total = visibleCategories.reduce((s, c) => s + ((row[c] as number) || 0), 0)
     const prevRow = arr[i + 1]
     const prevTotal = prevRow
@@ -259,8 +292,8 @@ export default function MrrPage() {
   })
 
   // ── KPI
-  const latestMonth = chartData.length > 0 ? chartData[chartData.length - 1] : null
-  const prevMonth   = chartData.length > 1 ? chartData[chartData.length - 2] : null
+  const latestMonth = filteredChartData.length > 0 ? filteredChartData[filteredChartData.length - 1] : null
+  const prevMonth   = filteredChartData.length > 1 ? filteredChartData[filteredChartData.length - 2] : null
   const totalLatest = latestMonth ? visibleCategories.reduce((s, c) => s + ((latestMonth[c] as number) || 0), 0) : 0
   const totalPrev   = prevMonth   ? visibleCategories.reduce((s, c) => s + ((prevMonth[c]   as number) || 0), 0) : 0
   const momChange   = totalPrev > 0 ? Math.round((totalLatest - totalPrev) / totalPrev * 100) : 0
@@ -336,7 +369,42 @@ export default function MrrPage() {
         )}
       </div>
 
+      {/* 期セレクター */}
       {chartData.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-4">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">表示期間</p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setSelectedKi(0)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
+                selectedKi === 0
+                  ? 'bg-navy text-white border-navy'
+                  : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              全期間
+            </button>
+            {kiList.map(ki => (
+              <button
+                key={ki}
+                onClick={() => setSelectedKi(ki)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
+                  selectedKi === ki
+                    ? 'bg-navy text-white border-navy'
+                    : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                第{ki}期
+              </button>
+            ))}
+          </div>
+          {selectedKi !== 0 && (
+            <p className="text-xs text-slate-400 mt-2">{kiLabel(selectedKi)}</p>
+          )}
+        </div>
+      )}
+
+      {filteredChartData.length > 0 && (
         <>
           {/* カテゴリフィルター */}
           <div className="bg-white rounded-2xl border border-slate-200 p-4">
@@ -460,7 +528,7 @@ export default function MrrPage() {
             <h2 className="text-sm font-bold text-slate-700 mb-4">月別MRR推移（万円）</h2>
             {visibleCategories.length > 0 ? (
               <ResponsiveContainer width="100%" height={320}>
-                <AreaChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                <AreaChart data={filteredChartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef0f8" />
                   <XAxis
                     dataKey="month"
