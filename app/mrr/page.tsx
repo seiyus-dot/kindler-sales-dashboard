@@ -58,10 +58,8 @@ function getCategory(productId: string): string {
 // ────────────────────────────────────────────
 interface RawRow {
   product_id: string
-  amount: number       // 元の金額（元通貨）
-  currency: string     // 'jpy' | 'usd'
-  start_month: string  // "YYYY-MM"
-  end_month: string | null  // "YYYY-MM" または null（アクティブ中）
+  month_end: string
+  mrr_usd: number
 }
 
 interface ChartRow {
@@ -69,124 +67,51 @@ interface ChartRow {
   [category: string]: number | string
 }
 
-const STORAGE_KEY = 'kindler_mrr_subs_v2'
-
-function splitCsvLine(line: string): string[] {
-  const result: string[] = []
-  let cur = ''
-  let inQuote = false
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i]
-    if (ch === '"') {
-      inQuote = !inQuote
-    } else if (ch === ',' && !inQuote) {
-      result.push(cur.trim())
-      cur = ''
-    } else {
-      cur += ch
-    }
-  }
-  result.push(cur.trim())
-  return result
-}
-
-function toMonth(dateStr: string): string | null {
-  if (!dateStr || dateStr.trim() === '') return null
-  return dateStr.trim().substring(0, 7)  // "YYYY-MM"
-}
-
-function monthRange(from: string, to: string): string[] {
-  const months: string[] = []
-  let [y, m] = from.split('-').map(Number)
-  const [ty, tm] = to.split('-').map(Number)
-  while (y < ty || (y === ty && m <= tm)) {
-    months.push(`${y}-${String(m).padStart(2, '0')}`)
-    m++
-    if (m > 12) { m = 1; y++ }
-  }
-  return months
-}
-
-function currentMonth(): string {
-  const now = new Date()
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-}
+const STORAGE_KEY = 'kindler_mrr_data'
 
 function parseCsv(text: string): RawRow[] {
   const lines = text.split('\n').filter(l => l.trim())
   if (lines.length < 2) return []
-
-  const header = splitCsvLine(lines[0])
-  const idx = (name: string) => header.findIndex(h => h === name)
-
-  const idxProductId = idx('Product ID')
-  const idxAmount    = idx('Amount')
-  const idxCurrency  = idx('Currency')
-  const idxStart     = idx('Start Date (UTC)')
-  const idxEndedAt   = idx('Ended At (UTC)')
-  const idxInterval  = idx('Interval')
-
-  // 必須列が揃っていない場合は空を返す
-  if (idxProductId < 0 || idxAmount < 0 || idxStart < 0) return []
+  const header = lines[0].split(',').map(h => h.replace(/"/g, '').trim())
+  const idxProductId = header.findIndex(h => h === 'product_id')
+  const idxMonthEnd  = header.findIndex(h => h === 'month_end')
+  const idxMrr       = header.findIndex(h => h === 'total_mrr_in_usd')
+  if (idxProductId < 0 || idxMonthEnd < 0 || idxMrr < 0) return []
 
   const rows: RawRow[] = []
   for (let i = 1; i < lines.length; i++) {
-    const cols = splitCsvLine(lines[i])
+    const cols = lines[i].split(',').map(c => c.replace(/"/g, '').trim())
     const productId = cols[idxProductId] ?? ''
-    const startRaw  = cols[idxStart] ?? ''
-    if (!productId || !startRaw) continue
-
-    const amountRaw = cols[idxAmount] ?? ''
-    const amount = parseFloat(amountRaw)
-    if (isNaN(amount) || amount <= 0) continue
-
-    const currency  = (cols[idxCurrency] ?? 'jpy').toLowerCase()
-    const interval  = (idxInterval >= 0 ? cols[idxInterval] : 'month') || 'month'
-    const endedRaw  = idxEndedAt >= 0 ? (cols[idxEndedAt] ?? '') : ''
-
-    const start_month = toMonth(startRaw)
-    if (!start_month) continue
-
-    const end_month = toMonth(endedRaw)
-
-    // 年次契約はMRRに換算（年額 ÷ 12）
-    const monthlyAmount = interval === 'year' ? amount / 12 : amount
-
-    rows.push({ product_id: productId, amount: monthlyAmount, currency, start_month, end_month })
+    const monthEnd  = cols[idxMonthEnd] ?? ''
+    const mrrRaw    = cols[idxMrr] ?? ''
+    if (!productId || !monthEnd) continue
+    const mrr = mrrRaw === '' ? 0 : parseFloat(mrrRaw)
+    rows.push({ product_id: productId, month_end: monthEnd, mrr_usd: isNaN(mrr) ? 0 : mrr })
   }
   return rows
 }
 
+// Stripeは month_end が翌月1日（"2026-05-01"）になることがあるため
+// 1日引いてから月を取り出すことで正しい月にマッピングする
+function monthEndToKey(monthEnd: string): string {
+  const d = new Date(monthEnd)
+  d.setDate(d.getDate() - 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
 function aggregate(rows: RawRow[], rate: number): { chartData: ChartRow[]; categories: string[] } {
-  if (rows.length === 0) return { chartData: [], categories: [] }
-
-  // 月の範囲を特定
-  let minMonth = rows[0].start_month
-  let maxMonth = currentMonth()
-
-  for (const row of rows) {
-    if (row.start_month < minMonth) minMonth = row.start_month
-    if (row.end_month && row.end_month > maxMonth) maxMonth = row.end_month
-  }
-
-  const months = monthRange(minMonth, maxMonth)
-
-  // 月 × カテゴリ で集計
   const map = new Map<string, Map<string, number>>()
-  for (const month of months) {
-    const catMap = new Map<string, number>()
-    map.set(month, catMap)
-    for (const row of rows) {
-      const active = row.start_month <= month && (row.end_month === null || row.end_month >= month)
-      if (!active) continue
-      const cat = getCategory(row.product_id)
-      const amountJpy = row.currency === 'usd' ? row.amount * rate : row.amount
-      catMap.set(cat, (catMap.get(cat) ?? 0) + amountJpy)
-    }
+  for (const row of rows) {
+    const month = monthEndToKey(row.month_end)
+    const cat   = getCategory(row.product_id)
+    if (!map.has(month)) map.set(month, new Map())
+    const catMap = map.get(month)!
+    catMap.set(cat, (catMap.get(cat) ?? 0) + row.mrr_usd)
   }
 
+  const months = Array.from(map.keys()).sort()
   const categorySet = new Set<string>()
-  map.forEach(m => m.forEach((v, c) => { if (v > 0) categorySet.add(c) }))
+  map.forEach(m => m.forEach((_, c) => categorySet.add(c)))
   const categories = Array.from(categorySet).sort(
     (a, b) => CATEGORY_ORDER.indexOf(a) - CATEGORY_ORDER.indexOf(b)
   )
@@ -195,7 +120,7 @@ function aggregate(rows: RawRow[], rate: number): { chartData: ChartRow[]; categ
     const row: ChartRow = { month }
     const catMap = map.get(month)!
     for (const cat of categories) {
-      row[cat] = Math.round((catMap.get(cat) ?? 0) / 10000)
+      row[cat] = Math.round((catMap.get(cat) ?? 0) * rate / 10000)
     }
     return row
   })
@@ -225,7 +150,6 @@ export default function MrrPage() {
       const { rows, rate: savedRate, fileName: savedName } = JSON.parse(saved) as {
         rows: RawRow[]; rate: number; fileName: string
       }
-      if (!Array.isArray(rows) || !rows[0]?.start_month) return  // 旧フォーマット検出 → スキップ
       setRawRows(rows)
       setRate(savedRate)
       setRateInput(String(savedRate))
@@ -308,18 +232,15 @@ export default function MrrPage() {
         .sort((a, b) => b.金額 - a.金額)
     : []
 
-  // USD建て契約があるかどうか
-  const hasUsdRows = rawRows.some(r => r.currency === 'usd')
-
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
-      <PageHeader title="MRR推移" sub="Stripe サブスクリプション CSV をアップロードするとサービス別MRR推移を表示します" />
+      <PageHeader title="MRR推移" sub="Stripe「製品別月次MRR CSV」をアップロードするとサービス別MRR推移を表示します" />
 
       {/* 設定 & アップロード */}
       <div className="flex flex-col sm:flex-row gap-4">
-        {/* 為替レート（USD建て契約がある場合のみ目立たせる） */}
-        <div className={`bg-white rounded-2xl border p-4 flex items-center gap-3 flex-shrink-0 ${hasUsdRows ? 'border-amber-300' : 'border-slate-200'}`}>
-          <span className="text-sm font-medium text-slate-600 whitespace-nowrap">USD換算</span>
+        {/* 為替レート */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center gap-3 flex-shrink-0">
+          <span className="text-sm font-medium text-slate-600 whitespace-nowrap">USD → JPY</span>
           <input
             className="input w-20"
             value={rateInput}
@@ -327,7 +248,7 @@ export default function MrrPage() {
             onBlur={applyRate}
             onKeyDown={e => e.key === 'Enter' && applyRate()}
           />
-          <span className="text-sm text-slate-400">円/USD</span>
+          <span className="text-sm text-slate-400">円</span>
         </div>
 
         {/* ドロップゾーン */}
@@ -349,7 +270,7 @@ export default function MrrPage() {
           <div className="min-w-0">
             {fileName
               ? <p className="text-sm font-medium text-navy truncate">{fileName}</p>
-              : <p className="text-sm text-slate-500">subscriptions.csv をドロップ または クリックして選択</p>
+              : <p className="text-sm text-slate-500">CSV をドロップ または クリックして選択</p>
             }
             <p className="text-xs text-slate-400 mt-0.5">前回アップロードは自動で復元されます</p>
           </div>
