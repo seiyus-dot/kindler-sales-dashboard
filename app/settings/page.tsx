@@ -1,8 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Member, MasterOption, ColumnConfig } from '@/lib/supabase'
-import { DEMO_MEMBERS, DEMO_MASTER_OPTIONS, DEMO_COLUMN_CONFIG } from '@/lib/demoData'
+import { supabase, Member, MasterOption, ColumnConfig } from '@/lib/supabase'
 import PageHeader from '@/components/PageHeader'
 
 type Section = 'members' | 'source' | 'service' | 'industry' | 'columns'
@@ -21,73 +20,87 @@ export default function SettingsPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
 
-  useEffect(() => {
-    setMembers(DEMO_MEMBERS)
-    setOptions(DEMO_MASTER_OPTIONS)
-    setTobCols(DEMO_COLUMN_CONFIG.filter(c => c.table_type === 'tob'))
-    setTocCols(DEMO_COLUMN_CONFIG.filter(c => c.table_type === 'toc'))
+  useEffect(() => { fetchAll() }, [])
+
+  async function fetchAll() {
+    setLoading(true)
+    const [membersRes, optionsRes, colRes] = await Promise.all([
+      supabase.from('members').select('*').order('sort_order'),
+      supabase.from('master_options').select('*').order('sort_order'),
+      supabase.from('column_config').select('*').order('sort_order'),
+    ])
+    if (membersRes.data) setMembers(membersRes.data)
+    if (optionsRes.data) setOptions(optionsRes.data)
+    if (colRes.data) {
+      setTobCols(colRes.data.filter((c: ColumnConfig) => c.table_type === 'tob'))
+      setTocCols(colRes.data.filter((c: ColumnConfig) => c.table_type === 'toc'))
+    }
     setLoading(false)
-  }, [])
+  }
 
   const filteredOptions = options.filter(o => o.type === section)
   const activeCols = colTab === 'tob' ? tobCols : tocCols
 
-  function addMember() {
+  async function addMember() {
     if (!newValue.trim()) return
     setAdding(true)
     const maxOrder = Math.max(...members.map(m => m.sort_order), 0) + 1
-    setMembers(prev => [...prev, { id: `demo-${Date.now()}`, name: newValue.trim(), sort_order: maxOrder }])
+    await supabase.from('members').insert({ name: newValue.trim(), sort_order: maxOrder })
     setNewValue('')
     setAdding(false)
+    fetchAll()
   }
 
-  function deleteMember(id: string) {
+  async function deleteMember(id: string) {
     if (!confirm('削除しますか？案件データは残ります。')) return
-    setMembers(prev => prev.filter(m => m.id !== id))
+    await supabase.from('members').delete().eq('id', id)
+    fetchAll()
   }
 
-  function saveMemberName(id: string) {
-    setMembers(prev => prev.map(m => m.id === id ? { ...m, name: editValue } : m))
+  async function saveMemberName(id: string) {
+    await supabase.from('members').update({ name: editValue }).eq('id', id)
     setEditingId(null)
+    fetchAll()
   }
 
-  function addOption() {
+  async function addOption() {
     if (!newValue.trim()) return
     setAdding(true)
     const maxOrder = Math.max(...filteredOptions.map(o => o.sort_order), 0) + 1
-    setOptions(prev => [...prev, { id: `demo-${Date.now()}`, type: section, value: newValue.trim(), sort_order: maxOrder }])
+    await supabase.from('master_options').insert({ type: section, value: newValue.trim(), sort_order: maxOrder })
     setNewValue('')
     setAdding(false)
+    fetchAll()
   }
 
-  function deleteOption(id: string) {
+  async function deleteOption(id: string) {
     if (!confirm('削除しますか？')) return
-    setOptions(prev => prev.filter(o => o.id !== id))
+    await supabase.from('master_options').delete().eq('id', id)
+    fetchAll()
   }
 
-  function saveOptionValue(id: string) {
-    setOptions(prev => prev.map(o => o.id === id ? { ...o, value: editValue } : o))
+  async function saveOptionValue(id: string) {
+    await supabase.from('master_options').update({ value: editValue }).eq('id', id)
     setEditingId(null)
+    fetchAll()
   }
 
-  function toggleCol(id: string, visible: boolean) {
-    const update = (cols: ColumnConfig[]) => cols.map(c => c.id === id ? { ...c, visible: !visible } : c)
-    setTobCols(update)
-    setTocCols(update)
+  async function toggleCol(id: string, visible: boolean) {
+    await supabase.from('column_config').update({ visible: !visible }).eq('id', id)
+    fetchAll()
   }
 
-  function moveCol(id: string, direction: 'up' | 'down') {
-    const update = (cols: ColumnConfig[]) => {
-      const idx = cols.findIndex(c => c.id === id)
-      const swapIdx = direction === 'up' ? idx - 1 : idx + 1
-      if (swapIdx < 0 || swapIdx >= cols.length) return cols
-      const next = [...cols]
-      const tmp = next[idx].sort_order
-      next[idx] = { ...next[idx], sort_order: next[swapIdx].sort_order }
-      next[swapIdx] = { ...next[swapIdx], sort_order: tmp }
-      return next.sort((a, b) => a.sort_order - b.sort_order)
-    }
-    if (colTab === 'tob') setTobCols(update); else setTocCols(update)
+  async function moveCol(id: string, direction: 'up' | 'down') {
+    const cols = activeCols
+    const idx = cols.findIndex(c => c.id === id)
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+    if (swapIdx < 0 || swapIdx >= cols.length) return
+    const a = cols[idx], b = cols[swapIdx]
+    await Promise.all([
+      supabase.from('column_config').update({ sort_order: b.sort_order }).eq('id', a.id),
+      supabase.from('column_config').update({ sort_order: a.sort_order }).eq('id', b.id),
+    ])
+    fetchAll()
   }
 
   function startEdit(id: string, value: string) {

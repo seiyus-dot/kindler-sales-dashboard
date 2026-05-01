@@ -1,8 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { SourceMaster } from '@/lib/supabase'
-import { DEMO_SOURCE_MASTERS } from '@/lib/demoData'
+import { supabase, SourceMaster } from '@/lib/supabase'
 
 type Props = {
   onClose: () => void
@@ -17,34 +16,34 @@ export default function SourceMasterModal({ onClose }: Props) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    setMasters([...DEMO_SOURCE_MASTERS])
-    setLoading(false)
-  }, [])
+  useEffect(() => { fetchMasters() }, [])
 
-  function addRow() {
+  async function fetchMasters() {
+    const { data } = await supabase.from('source_master').select('*').order('source').order('registration_source')
+    setMasters(data ?? [])
+    setLoading(false)
+  }
+
+  async function addRow() {
     const srcValue = newSrc === '__new__' ? newSrcCustom.trim() : newSrc.trim()
     if (!newReg.trim() || !srcValue) { setError('両方入力してください'); return }
     setSaving(true)
     setError('')
-    const newEntry: SourceMaster = {
-      id: `demo-${Date.now()}`,
-      registration_source: newReg.trim(),
-      source: srcValue,
-      created_at: new Date().toISOString(),
-    }
-    setMasters(prev => [...prev, newEntry].sort((a, b) => a.source.localeCompare(b.source)))
+    const { error: err } = await supabase.from('source_master').insert({ registration_source: newReg.trim(), source: srcValue })
     setSaving(false)
+    if (err) { setError(err.message); return }
     setNewReg('')
     setNewSrc('')
     setNewSrcCustom('')
+    fetchMasters()
   }
 
   const existingSources = Array.from(new Set(masters.map(m => m.source))).sort()
 
-  function deleteRow(id: string) {
+  async function deleteRow(id: string) {
     if (!confirm('削除しますか？')) return
-    setMasters(prev => prev.filter(m => m.id !== id))
+    await supabase.from('source_master').delete().eq('id', id)
+    fetchMasters()
   }
 
   // 流入経路ごとにグループ化
