@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LayoutDashboard, BriefcaseBusiness, ClipboardList, Settings, Users, Menu, X, BookOpen, Tent, UserPlus, Zap, GanttChartSquare, FileText, List, MonitorPlay, ChevronDown, Contact, TrendingUp, Bell } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import NewsBell from '@/components/NewsBell'
 
 const NEWS_READ_KEY = 'kindler_news_read'
 
@@ -129,9 +130,12 @@ export default function Sidebar() {
           <div className="w-7 h-7 bg-navy rounded-lg flex items-center justify-center text-white font-black text-sm">K</div>
           <span className="font-bold text-slate-900 text-base">KINDLER</span>
         </div>
-        <button onClick={() => setOpen(true)} className="p-2 text-slate-500 hover:text-slate-900 transition-colors">
-          <Menu size={22} />
-        </button>
+        <div className="flex items-center gap-0.5">
+          <NewsBell />
+          <button onClick={() => setOpen(true)} className="p-2 text-slate-500 hover:text-slate-900 transition-colors">
+            <Menu size={22} />
+          </button>
+        </div>
       </div>
 
       {/* モバイル ドロワー */}

@@ -1,15 +1,16 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { supabase, WeeklyLog, DealToB, DealToC, AICampConsultation, Member } from '@/lib/supabase'
+import { supabase, WeeklyLog, DealToB, DealToC, AICampConsultation, Member, News } from '@/lib/supabase'
 import DealToBForm from '@/components/DealToBForm'
 import PageHeader from '@/components/PageHeader'
+import Link from 'next/link'
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, Legend, LabelList
 } from 'recharts'
 import {
-  TrendingUp, Briefcase, CreditCard, ArrowUpRight, ArrowDownRight, Target, AlertTriangle
+  TrendingUp, Briefcase, CreditCard, ArrowUpRight, ArrowDownRight, Target, AlertTriangle, ChevronDown, Bell
 } from 'lucide-react'
 
 type View = 'all' | 'tob'
@@ -80,6 +81,8 @@ export default function DashboardPage() {
   const [openMonth, setOpenMonth] = useState<string | null>(null)
   const [showPaidDetail, setShowPaidDetail] = useState(false)
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7))
+  const [latestNews, setLatestNews] = useState<News[]>([])
+  const [showNewsSection, setShowNewsSection] = useState(true)
 
   function shiftMonth(ym: string, delta: number): string {
     const [y, m] = ym.split('-').map(Number)
@@ -109,6 +112,8 @@ export default function DashboardPage() {
       setLoading(false)
     }
     fetchAll()
+    supabase.from('news').select('*').eq('archived', false).order('created_at', { ascending: false }).limit(3)
+      .then(({ data }) => { if (data) setLatestNews(data) })
   }, [])
 
   const latest = logs[logs.length - 1]
@@ -323,6 +328,43 @@ export default function DashboardPage() {
           </>
         }
       />
+
+      {/* お知らせセクション */}
+      {latestNews.length > 0 && (
+        <div className="bg-white rounded-xl border border-[#e0e6f0] shadow-sm overflow-hidden">
+          <button
+            onClick={() => setShowNewsSection(v => !v)}
+            className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition-colors"
+          >
+            <Bell size={14} className="text-slate-400" />
+            <span className="text-xs font-bold text-[#8a96b0] uppercase tracking-widest flex-1 text-left">お知らせ</span>
+            <ChevronDown size={14} className={`text-slate-400 transition-transform ${showNewsSection ? 'rotate-180' : ''}`} />
+          </button>
+          {showNewsSection && (
+            <ul className="border-t border-[#f0f2f8]">
+              {latestNews.map(n => (
+                <li key={n.id} className="border-b border-[#f0f2f8] last:border-0">
+                  <Link href="/news" className="flex items-center gap-3 px-5 py-3 hover:bg-slate-50 transition-colors">
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded flex-shrink-0 ${
+                      n.category === '機能追加' ? 'bg-blue-100 text-blue-700' :
+                      n.category === '仕様変更' ? 'bg-amber-100 text-amber-700' :
+                      n.category === 'バグ修正' ? 'bg-red-100 text-red-600' :
+                      'bg-slate-100 text-slate-600'
+                    }`}>{n.category}</span>
+                    <span className="text-sm text-slate-800 font-medium flex-1 truncate">{n.title}</span>
+                    <span className="text-[11px] text-slate-400 flex-shrink-0">{n.created_at.slice(0, 10)}</span>
+                  </Link>
+                </li>
+              ))}
+              <li>
+                <Link href="/news" className="block px-5 py-2.5 text-xs font-semibold text-navy hover:underline bg-slate-50">
+                  お知らせをすべて見る
+                </Link>
+              </li>
+            </ul>
+          )}
+        </div>
+      )}
 
       {/* 放置案件アラート（全社ビューでは非表示） */}
       {view !== 'all' && staleDeals.length > 0 && (
