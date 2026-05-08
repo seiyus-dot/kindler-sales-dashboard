@@ -61,6 +61,7 @@ export type DealToB = {
   minutes_text?: string
   drive_folder_id?: string
   company_id?: string
+  expected_close_month?: string
   created_at: string
   updated_at: string
   member?: Member
@@ -99,6 +100,7 @@ export type DealToC = {
   video_url?: string
   minutes_text?: string
   contact_id?: string
+  expected_close_month?: string
   created_at: string
   updated_at: string
   member?: Member

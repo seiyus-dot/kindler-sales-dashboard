@@ -62,6 +62,9 @@ export default function DealToCForm({ members, initial, onClose, onSaved, defaul
     payment_status: initial?.payment_status ?? '正常',
     payment_error_date: initial?.payment_error_date ?? '',
     contact_id: initial?.contact_id ?? '',
+    expected_close_month: initial?.expected_close_month
+      ? initial.expected_close_month.slice(0, 7)
+      : '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -101,6 +104,7 @@ export default function DealToCForm({ members, initial, onClose, onSaved, defaul
       payment_status: form.payment_status || null,
       payment_error_date: form.payment_error_date || null,
       contact_id: form.contact_id || null,
+      expected_close_month: form.expected_close_month ? form.expected_close_month + '-01' : null,
     }
     const { error: err } = initial
       ? await supabase.from('deals_toc').update(payload).eq('id', initial.id)
@@ -235,6 +239,12 @@ export default function DealToCForm({ members, initial, onClose, onSaved, defaul
               <Field label="受注確度（%）">
                 <input type="number" min="0" max="100" value={form.win_probability} onChange={e => set('win_probability', e.target.value)} className="input font-mono" placeholder="60" />
               </Field>
+
+              <Field label="売上見込み月">
+                <input type="month" value={form.expected_close_month} onChange={e => set('expected_close_month', e.target.value)} className="input" />
+              </Field>
+              <div />
+
               <Field label="次回期日">
                 <input type="date" value={form.next_action_date} onChange={e => set('next_action_date', e.target.value)} className="input" />
               </Field>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { supabase, WeeklyLog, DealToB, AICampConsultation, Member } from '@/lib/supabase'
+import { supabase, WeeklyLog, DealToB, DealToC, AICampConsultation, Member } from '@/lib/supabase'
 import DealToBForm from '@/components/DealToBForm'
 import PageHeader from '@/components/PageHeader'
 import {
@@ -45,6 +45,16 @@ function StatCard({
   )
 }
 
+function futureMonths(n: number): string[] {
+  const months: string[] = []
+  const now = new Date()
+  for (let i = 0; i < n; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1)
+    months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+  }
+  return months
+}
+
 function recentMonths(n: number): string[] {
   const months: string[] = []
   const now = new Date()
@@ -58,6 +68,7 @@ function recentMonths(n: number): string[] {
 export default function DashboardPage() {
   const [logs, setLogs] = useState<WeeklyLog[]>([])
   const [tobDeals, setTobDeals] = useState<DealToB[]>([])
+  const [tocDeals, setTocDeals] = useState<DealToC[]>([])
   const [aicampDeals, setAicampDeals] = useState<AICampConsultation[]>([])
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
@@ -66,6 +77,7 @@ export default function DashboardPage() {
   const [showTobForm, setShowTobForm] = useState(false)
   const [editingTob, setEditingTob] = useState<DealToB | null>(null)
   const [showAddMenu, setShowAddMenu] = useState(false)
+  const [openMonth, setOpenMonth] = useState<string | null>(null)
   const [showPaidDetail, setShowPaidDetail] = useState(false)
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7))
 
@@ -82,16 +94,18 @@ export default function DashboardPage() {
 
   useEffect(() => {
     async function fetchAll() {
-      const [logsRes, membersRes, tobRes, aicampRes] = await Promise.all([
+      const [logsRes, membersRes, tobRes, aicampRes, tocRes] = await Promise.all([
         supabase.from('weekly_logs').select('*').order('log_date'),
         supabase.from('members').select('*').order('sort_order'),
         supabase.from('deals_tob').select('*, member:members!member_id(name)'),
         supabase.from('aicamp_consultations').select('*').eq('status', '成約'),
+        supabase.from('deals_toc').select('*'),
       ])
       if (logsRes.data) setLogs(logsRes.data)
       if (membersRes.data) setMembers(membersRes.data)
       if (tobRes.data) setTobDeals(tobRes.data)
       if (aicampRes.data) setAicampDeals(aicampRes.data)
+      if (tocRes.data) setTocDeals(tocRes.data)
       setLoading(false)
     }
     fetchAll()
@@ -157,6 +171,30 @@ export default function DashboardPage() {
       return { name: label, 法人: tob, '個人（AI CAMP）': aicamp }
     })
   }, [tobDeals, aicampDeals, months6])
+
+  // 月別パイプライン見込み（売上見込み月が設定された進行中案件を月別に集計）
+  const pipelineMonths = useMemo(() => futureMonths(6), [])
+
+  const pipelineData = useMemo(() => {
+    const activeTob = tobDeals.filter(
+      d => !['受注', '失注'].includes(d.status ?? '') && d.expected_close_month
+    )
+    const activeToc = tocDeals.filter(
+      d => !['受注', '失注'].includes(d.status ?? '') && d.expected_close_month
+    )
+    return pipelineMonths.map(m => {
+      const tobRows = activeTob.filter(d => d.expected_close_month!.startsWith(m))
+      const tocRows = activeToc.filter(d => d.expected_close_month!.startsWith(m))
+      const weighted = [...tobRows, ...tocRows].reduce(
+        (s, d) => s + Math.round((d.expected_amount ?? 0) * (d.win_probability ?? 0) / 100), 0
+      )
+      const deals = [
+        ...tobRows.map(d => ({ label: d.company_name, amount: d.expected_amount ?? 0, prob: d.win_probability ?? 0 })),
+        ...tocRows.map(d => ({ label: d.name, amount: d.expected_amount ?? 0, prob: d.win_probability ?? 0 })),
+      ]
+      return { month: m, label: m.slice(5) + '月', count: deals.length, weighted, deals }
+    })
+  }, [tobDeals, tocDeals, pipelineMonths])
 
   // 担当別着金（deals + aicamp合算）
   const memberPaid = useMemo(() => {
@@ -456,6 +494,66 @@ export default function DashboardPage() {
             </PieChart>
           </ResponsiveContainer>
         </div>
+      </div>
+
+      {/* 月別パイプライン見込み */}
+      <div className="bg-white rounded-xl border border-[#e0e6f0] shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-[#e0e6f0]">
+          <h3 className="text-xs font-bold text-[#8a96b0] uppercase tracking-widest">月別 パイプライン見込み（加重、今後6ヶ月）</h3>
+          <p className="text-[10px] text-[#aab0c8] mt-0.5">見込み金額 × 受注確度 / 受注・失注除く / 行クリックで案件展開</p>
+        </div>
+        {pipelineData.every(d => d.count === 0) ? (
+          <p className="text-slate-400 text-sm text-center py-10">案件の「売上見込み月」を設定すると表示されます</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="bg-[#f8f9fc]">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-bold text-[#8a96b0] uppercase tracking-wider">月</th>
+                <th className="px-6 py-3 text-right text-xs font-bold text-[#8a96b0] uppercase tracking-wider">件数</th>
+                <th className="px-6 py-3 text-right text-xs font-bold text-[#8a96b0] uppercase tracking-wider">加重合計</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pipelineData.map(row => (
+                <>
+                  <tr
+                    key={row.month}
+                    onClick={() => setOpenMonth(openMonth === row.month ? null : row.month)}
+                    className="border-t border-[#f0f2f8] hover:bg-[#f8f9fc] cursor-pointer select-none"
+                  >
+                    <td className="px-6 py-3 font-semibold text-[#1a2540]">
+                      {row.label}
+                      {row.count > 0 && <span className="ml-2 text-[#aab0c8] text-xs">{openMonth === row.month ? '▲' : '▼'}</span>}
+                    </td>
+                    <td className="px-6 py-3 text-right text-[#64748b]">
+                      {row.count > 0 ? `${row.count}件` : <span className="text-gray-300">─</span>}
+                    </td>
+                    <td className="px-6 py-3 text-right font-mono font-bold text-[#1a2540]">
+                      {row.weighted > 0 ? `${row.weighted.toLocaleString()}万円` : <span className="text-gray-300 font-normal">─</span>}
+                    </td>
+                  </tr>
+                  {openMonth === row.month && row.deals.length > 0 && (
+                    <tr key={row.month + '-detail'}>
+                      <td colSpan={3} className="bg-[#f8f9fc] px-8 py-3">
+                        <table className="w-full text-xs">
+                          <tbody>
+                            {row.deals.map((d, i) => (
+                              <tr key={i} className="border-t border-[#eef0f8] first:border-0">
+                                <td className="py-1.5 text-[#374151]">{d.label}</td>
+                                <td className="py-1.5 text-right text-[#8a96b0] w-16">{d.prob}%</td>
+                                <td className="py-1.5 text-right font-mono text-[#374151] w-24">{d.amount.toLocaleString()}万円</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </td>
+                    </tr>
+                  )}
+                </>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       {/* Charts Row 2 */}

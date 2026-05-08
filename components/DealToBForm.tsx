@@ -68,6 +68,9 @@ export default function DealToBForm({ members, initial, onClose, onSaved, defaul
     video_url: initial?.video_url ?? '',
     minutes_text: initial?.minutes_text ?? '',
     company_id: initial?.company_id ?? prefill?.company_id ?? '',
+    expected_close_month: initial?.expected_close_month
+      ? initial.expected_close_month.slice(0, 7)
+      : '',
   })
   const [saving, setSaving] = useState(false)
   const [generatingMinutes, setGeneratingMinutes] = useState(false)
@@ -118,6 +121,7 @@ export default function DealToBForm({ members, initial, onClose, onSaved, defaul
       video_url: form.video_url || null,
       minutes_text: form.minutes_text || null,
       company_id: form.company_id || null,
+      expected_close_month: form.expected_close_month ? form.expected_close_month + '-01' : null,
     }
     const { error: err } = initial
       ? await supabase.from('deals_tob').update(payload).eq('id', initial.id)
@@ -296,6 +300,11 @@ export default function DealToBForm({ members, initial, onClose, onSaved, defaul
               <Field label="受注確度（%）">
                 <input type="number" min="0" max="100" value={form.win_probability} onChange={e => set('win_probability', e.target.value)} className="input font-mono" placeholder="50" />
               </Field>
+
+              <Field label="売上見込み月">
+                <input type="month" value={form.expected_close_month} onChange={e => set('expected_close_month', e.target.value)} className="input" />
+              </Field>
+              <div />
 
               <Field label="次回期日">
                 <input type="date" value={form.next_action_date} onChange={e => set('next_action_date', e.target.value)} className="input" />
