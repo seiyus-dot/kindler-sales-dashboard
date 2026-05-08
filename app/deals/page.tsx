@@ -51,6 +51,9 @@ export default function DealsPage() {
   const [filterMember, setFilterMember] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterPriority, setFilterPriority] = useState('')
+  const [filterService, setFilterService] = useState('')
+  const [filterCloseMonth, setFilterCloseMonth] = useState('')
+  const [filterUrgent, setFilterUrgent] = useState(false)
   const [activeTab, setActiveTab] = useState<'overview' | 'kanban' | 'deals'>('overview')
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7))
   const [latestMeetings, setLatestMeetings] = useState<Map<string, DealAction>>(new Map())
@@ -306,15 +309,21 @@ export default function DealsPage() {
     }
   }
 
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const in7Str = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10)
+
   const activeDeals = tobDeals.filter(deal => {
     const d = deal as any
     if (search && !d.company_name?.toLowerCase().includes(search.toLowerCase())) return false
     if (filterMember && d.member_id !== filterMember) return false
     if (filterStatus && d.status !== filterStatus) return false
     if (filterPriority && d.priority !== filterPriority) return false
+    if (filterService && d.service !== filterService) return false
+    if (filterCloseMonth && !d.expected_close_month?.startsWith(filterCloseMonth)) return false
+    if (filterUrgent && !(d.next_action_date && d.next_action_date >= todayStr && d.next_action_date <= in7Str)) return false
     return true
   })
-  const hasFilter = search || filterMember || filterStatus || filterPriority
+  const hasFilter = search || filterMember || filterStatus || filterPriority || filterService || filterCloseMonth || filterUrgent
 
   // 概要タブ用集計
   const wonDeals = useMemo(() => tobDeals.filter(d => d.status === '受注'), [tobDeals])
@@ -626,9 +635,35 @@ export default function DealsPage() {
               <option value="">優先度: 全て</option>
               {PRIORITIES.map(p => <option key={p}>{p}</option>)}
             </select>
+            <select
+              value={filterService}
+              onChange={e => setFilterService(e.target.value)}
+              className="border border-[#e0e6f0] rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy"
+            >
+              <option value="">サービス: 全て</option>
+              {services.map(s => <option key={s.id} value={s.value}>{s.value}</option>)}
+            </select>
+            <select
+              value={filterCloseMonth}
+              onChange={e => setFilterCloseMonth(e.target.value)}
+              className="border border-[#e0e6f0] rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy"
+            >
+              <option value="">見込み月: 全て</option>
+              {Array.from({ length: 6 }, (_, i) => {
+                const d = new Date(new Date().getFullYear(), new Date().getMonth() + i, 1)
+                const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+                return <option key={val} value={val}>{d.getMonth() + 1}月</option>
+              })}
+            </select>
+            <button
+              onClick={() => setFilterUrgent(v => !v)}
+              className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition ${filterUrgent ? 'bg-amber-50 border-amber-400 text-amber-700' : 'border-[#e0e6f0] text-gray-500 hover:border-amber-300'}`}
+            >
+              今週期日あり
+            </button>
             {hasFilter && (
               <button
-                onClick={() => { setSearch(''); setFilterMember(''); setFilterStatus(''); setFilterPriority('') }}
+                onClick={() => { setSearch(''); setFilterMember(''); setFilterStatus(''); setFilterPriority(''); setFilterService(''); setFilterCloseMonth(''); setFilterUrgent(false) }}
                 className="text-sm text-gray-400 hover:text-gray-600 px-2 py-1.5 transition"
               >
                 ✕ リセット
