@@ -3,7 +3,10 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, BriefcaseBusiness, ClipboardList, Settings, Users, Menu, X, BookOpen, Tent, UserPlus, Zap, GanttChartSquare, FileText, List, MonitorPlay, ChevronDown, Contact, TrendingUp } from 'lucide-react'
+import { LayoutDashboard, BriefcaseBusiness, ClipboardList, Settings, Users, Menu, X, BookOpen, Tent, UserPlus, Zap, GanttChartSquare, FileText, List, MonitorPlay, ChevronDown, Contact, TrendingUp, Bell } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+
+const NEWS_READ_KEY = 'kindler_news_read'
 
 const navItems = [
   { href: '/dashboard',      label: 'ダッシュボード',    icon: LayoutDashboard },
@@ -27,7 +30,7 @@ const orderFormSubItems = [
   { href: '/product-aicamp/apply', label: 'Product AI CAMP' },
 ]
 
-function NavLink({ href, label, icon: Icon, onClick }: { href: string; label: string; icon: React.ElementType; onClick?: () => void }) {
+function NavLink({ href, label, icon: Icon, onClick, badge }: { href: string; label: string; icon: React.ElementType; onClick?: () => void; badge?: number }) {
   const pathname = usePathname()
   const active = pathname.startsWith(href)
   return (
@@ -39,7 +42,12 @@ function NavLink({ href, label, icon: Icon, onClick }: { href: string; label: st
       }`}
     >
       <Icon size={16} className={active ? 'text-navy' : 'text-slate-400'} />
-      {label}
+      <span className="flex-1">{label}</span>
+      {badge != null && badge > 0 && (
+        <span className="bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center leading-none">
+          {badge}
+        </span>
+      )}
     </Link>
   )
 }
@@ -86,6 +94,7 @@ function OrderFormNavItem({ onClick }: { onClick?: () => void }) {
 
 export default function Sidebar() {
   const [open, setOpen] = useState(false)
+  const [unreadNews, setUnreadNews] = useState(0)
 
   useEffect(() => {
     if (open) {
@@ -95,6 +104,22 @@ export default function Sidebar() {
     }
     return () => { document.body.style.overflow = '' }
   }, [open])
+
+  useEffect(() => {
+    async function checkUnread() {
+      const { data } = await supabase.from('news').select('id').eq('archived', false)
+      if (!data) return
+      try {
+        const stored = localStorage.getItem(NEWS_READ_KEY)
+        const readIds: string[] = stored ? JSON.parse(stored) : []
+        const readSet = new Set(readIds)
+        setUnreadNews(data.filter(n => !readSet.has(n.id)).length)
+      } catch {
+        setUnreadNews(data.length)
+      }
+    }
+    checkUnread()
+  }, [])
 
   return (
     <>
@@ -130,6 +155,7 @@ export default function Sidebar() {
               {navItems.map(item => (
                 <NavLink key={item.href} {...item} onClick={() => setOpen(false)} />
               ))}
+              <NavLink href="/news" label="お知らせ" icon={Bell} onClick={() => setOpen(false)} badge={unreadNews} />
               <OrderFormNavItem onClick={() => setOpen(false)} />
             </nav>
           </aside>
@@ -151,6 +177,7 @@ export default function Sidebar() {
           {navItems.map(item => (
             <NavLink key={item.href} {...item} />
           ))}
+          <NavLink href="/news" label="お知らせ" icon={Bell} badge={unreadNews} />
           <OrderFormNavItem />
         </nav>
       </aside>

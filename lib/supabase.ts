@@ -120,6 +120,24 @@ export type DealAction = {
 }
 
 export const ACTION_TYPES = ['初回接触', '電話・メール', '商談', '提案', '見積提出', 'クロージング', 'フォロー', 'その他'] as const
+
+export type News = {
+  id: string
+  title: string
+  body: string
+  category: string
+  is_faq: boolean
+  archived: boolean
+  created_at: string
+}
+
+export type Feedback = {
+  id: string
+  category: string
+  body: string
+  member_name?: string
+  created_at: string
+}
 export const LOSS_REASONS = ['価格', '競合他社', 'タイミング', 'ニーズ不一致', '予算不足', '社内決裁', 'その他'] as const
 
 export type MasterOption = {
