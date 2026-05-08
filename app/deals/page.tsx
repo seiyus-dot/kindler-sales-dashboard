@@ -11,6 +11,18 @@ import PageHeader from '@/components/PageHeader'
 
 const TOB_STATUSES = ['アポ取得', '商談中', '提案済', '交渉中', '見積提出', 'リード', '受注', '失注', '保留']
 const PRIORITIES = ['高', '中', '低']
+const WIN_PROB_OPTIONS = [
+  { label: 'S読み（90%）', value: '90' },
+  { label: 'A読み（70%）', value: '70' },
+  { label: 'B読み（50%）', value: '50' },
+  { label: 'C読み（30%）', value: '30' },
+  { label: 'D読み（10%）', value: '10' },
+]
+function readingLabel(prob: number | null | undefined): string {
+  const map: Record<number, string> = { 90: 'S読み', 70: 'A読み', 50: 'B読み', 30: 'C読み', 10: 'D読み' }
+  if (prob == null) return '-'
+  return map[prob] != null ? `${map[prob]} (${prob}%)` : `${prob}%`
+}
 
 const TOB_COL_MIN_WIDTH: Record<string, string> = {
   member:           'min-w-[80px]',
@@ -259,7 +271,7 @@ export default function DealsPage() {
             <div className="w-14 bg-gray-100 h-1.5 rounded overflow-hidden flex-shrink-0">
               <div className={`h-full ${color}`} style={{ width: `${pct}%` }} />
             </div>
-            <span className="text-sm font-mono text-gray-600 tabular-nums">{pct}%</span>
+            <span className="text-sm text-gray-600">{readingLabel(pct)}</span>
           </div>
         )
       }
@@ -296,7 +308,12 @@ export default function DealsPage() {
       case 'status':          return cellSelect('status', TOB_STATUSES)
       case 'priority':        return cellSelect('priority', PRIORITIES)
       case 'expected_amount': return cellInput('expected_amount', 'number')
-      case 'win_probability': return cellInput('win_probability', 'number')
+      case 'win_probability': return (
+          <select value={draft['win_probability'] ?? ''} onChange={e => set('win_probability', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-sm w-full focus:outline-none">
+            <option value="">-</option>
+            {WIN_PROB_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        )
       case 'next_action_date': return cellInput('next_action_date', 'date')
       case 'source':          return cellSelect('source', sources.map(s => s.value))
       case 'service':         return cellSelect('service', services.map(s => s.value))

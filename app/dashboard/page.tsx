@@ -529,7 +529,7 @@ export default function DashboardPage() {
                       {row.count > 0 ? `${row.count}件` : <span className="text-gray-300">─</span>}
                     </td>
                     <td className="px-6 py-3 text-right font-mono font-bold text-[#1a2540]">
-                      {row.weighted > 0 ? `${row.weighted.toLocaleString()}万円` : <span className="text-gray-300 font-normal">─</span>}
+                      {row.count > 0 ? `${row.weighted.toLocaleString()}万円` : <span className="text-gray-300 font-normal">─</span>}
                     </td>
                   </tr>
                   {openMonth === row.month && row.deals.length > 0 && (

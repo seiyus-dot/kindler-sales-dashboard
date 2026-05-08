@@ -297,8 +297,15 @@ export default function DealToBForm({ members, initial, onClose, onSaved, defaul
               <Field label="見込み金額（万円）">
                 <input type="number" value={form.expected_amount} onChange={e => set('expected_amount', e.target.value)} className="input font-mono" placeholder="500" />
               </Field>
-              <Field label="受注確度（%）">
-                <input type="number" min="0" max="100" value={form.win_probability} onChange={e => set('win_probability', e.target.value)} className="input font-mono" placeholder="50" />
+              <Field label="受注確度">
+                <select value={form.win_probability} onChange={e => set('win_probability', e.target.value)} className="input">
+                  <option value="">-</option>
+                  <option value="90">S読み（90%）</option>
+                  <option value="70">A読み（70%）</option>
+                  <option value="50">B読み（50%）</option>
+                  <option value="30">C読み（30%）</option>
+                  <option value="10">D読み（10%）</option>
+                </select>
               </Field>
 
               <Field label="売上見込み月">
