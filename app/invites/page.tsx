@@ -138,7 +138,7 @@ export default function InvitesPage() {
   }
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-5xl">
       <div className="mb-6">
         <PageHeader
           title="招待管理"
