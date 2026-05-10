@@ -46,7 +46,12 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user && !isAuthCallback) {
-    const role = request.cookies.get('user_role')?.value ?? 'member'
+    const role = request.cookies.get('user_role')?.value
+
+    // ロールクッキー未設定 → セッションをクリアして再ログインへ
+    if (!role) {
+      return NextResponse.redirect(new URL('/api/auth/signout', request.url))
+    }
 
     if (role === 'member') {
       const rawPages = request.cookies.get('user_allowed_pages')?.value
