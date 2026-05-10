@@ -99,6 +99,13 @@ export default function Sidebar() {
   const [unreadNews, setUnreadNews] = useState(0)
   const router = useRouter()
 
+  const isAdmin = typeof document !== 'undefined'
+    && document.cookie.split(';').some(c => c.trim() === 'user_role=admin')
+
+  const visibleNavItems = navItems.filter(item =>
+    item.href !== '/invites' || isAdmin
+  )
+
   const handleSignOut = async () => {
     await supabase.auth.signOut()
     setOpen(false)
@@ -164,7 +171,7 @@ export default function Sidebar() {
               </button>
             </div>
             <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
-              {navItems.map(item => (
+              {visibleNavItems.map(item => (
                 <NavLink key={item.href} {...item} onClick={() => setOpen(false)} />
               ))}
               <NavLink href="/news" label="お知らせ" icon={Bell} onClick={() => setOpen(false)} badge={unreadNews} />
@@ -195,7 +202,7 @@ export default function Sidebar() {
           </div>
         </div>
         <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
-          {navItems.map(item => (
+          {visibleNavItems.map(item => (
             <NavLink key={item.href} {...item} />
           ))}
           <NavLink href="/news" label="お知らせ" icon={Bell} badge={unreadNews} />
