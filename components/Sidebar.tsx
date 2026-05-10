@@ -97,10 +97,12 @@ function OrderFormNavItem({ onClick }: { onClick?: () => void }) {
 export default function Sidebar() {
   const [open, setOpen] = useState(false)
   const [unreadNews, setUnreadNews] = useState(0)
+  const [isAdmin, setIsAdmin] = useState(false)
   const router = useRouter()
 
-  const isAdmin = typeof document !== 'undefined'
-    && document.cookie.split(';').some(c => c.trim() === 'user_role=admin')
+  useEffect(() => {
+    setIsAdmin(document.cookie.split(';').some(c => c.trim() === 'user_role=admin'))
+  }, [])
 
   const visibleNavItems = navItems.filter(item =>
     item.href !== '/invites' || isAdmin
