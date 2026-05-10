@@ -415,7 +415,7 @@ export default function DealsPage() {
       <div className="flex gap-1 border-b border-gray-200">
         {([
           { key: 'overview', label: '概要' },
-          { key: 'kanban',   label: 'カンバン' },
+          { key: 'kanban',   label: '進捗ボード' },
           { key: 'deals',    label: '案件一覧' },
         ] as const).map(tab => (
           <button
