@@ -541,10 +541,34 @@ export default function DealsPage() {
           '見積提出':  'bg-orange-100 text-orange-700',
         }
         return (
+          <div className="space-y-4">
+            {/* 担当者フィルター */}
+            <div className="flex flex-wrap gap-2 items-center">
+              <span className="text-xs font-semibold text-slate-400">担当者:</span>
+              <button
+                onClick={() => setFilterMember('')}
+                className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
+                  !filterMember ? 'bg-navy text-white border-navy' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                全員
+              </button>
+              {members.map(m => (
+                <button
+                  key={m.id}
+                  onClick={() => setFilterMember(filterMember === m.id ? '' : m.id)}
+                  className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
+                    filterMember === m.id ? 'bg-navy text-white border-navy' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  {m.name}
+                </button>
+              ))}
+            </div>
           <div className="overflow-x-auto pb-4">
             <div className="flex gap-3 min-w-max">
               {KANBAN_STAGES.map(stage => {
-                const cards = tobDeals.filter(d => d.status === stage)
+                const cards = activeDeals.filter(d => d.status === stage)
                 const total = cards.reduce((s, d) => s + (d.expected_amount ?? 0), 0)
                 return (
                   <div key={stage} className="w-64 flex-shrink-0">
@@ -613,6 +637,7 @@ export default function DealsPage() {
                 )
               })}
             </div>
+          </div>
           </div>
         )
       })()}
