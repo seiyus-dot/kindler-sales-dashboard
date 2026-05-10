@@ -8,7 +8,7 @@ type Props = {
 
 export default function PageHeader({ title, sub, right }: Props) {
   return (
-    <div className="bg-white border border-[#e0e6f0] rounded-xl shadow-sm px-4 py-3 lg:px-5 lg:py-4">
+    <div className="bg-white border-b border-[#e0e6f0] px-4 py-3 lg:px-5 lg:py-4">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[10px] font-bold tracking-[0.15em] text-[#b8902a] mb-0.5 uppercase">KINDLER</p>
