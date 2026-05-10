@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { UserPlus, Trash2, Shield, User, Pencil } from 'lucide-react'
+import { UserPlus, Trash2, Shield, User, Pencil, X } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
 import { supabase } from '@/lib/supabase'
 
@@ -22,10 +22,10 @@ const ALL_PAGES = [
   { href: '/aicamp', label: 'AI CAMP' },
   { href: '/product-aicamp', label: 'Product AI CAMP' },
   { href: '/utage', label: 'UTAGE' },
-  { href: '/advisor',         label: 'AI顧問管理' },
-  { href: '/order-form',     label: '発注フォーム' },
+  { href: '/advisor', label: 'AI顧問管理' },
+  { href: '/order-form', label: '発注フォーム' },
   { href: '/order-requests', label: '発注リスト' },
-  { href: '/mrr',            label: 'MRR推移' },
+  { href: '/mrr', label: 'MRR推移' },
 ]
 
 export default function InvitesPage() {
@@ -33,12 +33,15 @@ export default function InvitesPage() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editTarget, setEditTarget] = useState<AllowedEmail | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<AllowedEmail | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const [newEmail, setNewEmail] = useState('')
   const [newName, setNewName] = useState('')
   const [newRole, setNewRole] = useState<'admin' | 'member'>('member')
   const [newPages, setNewPages] = useState<string[]>(['/aicamp'])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   async function fetchInvites() {
     setLoading(true)
@@ -110,16 +113,21 @@ export default function InvitesPage() {
     fetchInvites()
   }
 
-  const handleDelete = async (email: string) => {
-    if (!confirm(`${email} の招待を削除しますか？`)) return
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
+    setDeleteError(null)
     const { error } = await supabase
       .from('allowed_emails')
       .delete()
-      .eq('email', email)
+      .eq('email', deleteTarget.email)
     if (error) {
-      alert('削除に失敗しました: ' + error.message)
+      setDeleteError('削除に失敗しました: ' + error.message)
+      setDeleting(false)
       return
     }
+    setDeleting(false)
+    setDeleteTarget(null)
     fetchInvites()
   }
 
@@ -142,92 +150,6 @@ export default function InvitesPage() {
           }
         />
       </div>
-
-      {showForm && (
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 mb-6 shadow-sm">
-          <h2 className="text-base font-semibold text-slate-900 mb-4">
-            {editTarget ? '権限を編集' : '新しい招待'}
-          </h2>
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">{error}</div>
-          )}
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">名前</label>
-              <input
-                type="text"
-                value={newName}
-                onChange={e => setNewName(e.target.value)}
-                placeholder="山田 太郎"
-                className="input w-full"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">メールアドレス（Googleアカウント）</label>
-              <input
-                type="email"
-                value={newEmail}
-                onChange={e => setNewEmail(e.target.value)}
-                placeholder="example@gmail.com"
-                className="input w-full"
-                disabled={!!editTarget}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">ロール</label>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setNewRole('admin')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-colors ${newRole === 'admin' ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-                >
-                  <Shield size={14} />
-                  Admin（全ページ）
-                </button>
-                <button
-                  onClick={() => setNewRole('member')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-colors ${newRole === 'member' ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-                >
-                  <User size={14} />
-                  Member（ページ選択）
-                </button>
-              </div>
-            </div>
-            {newRole === 'member' && (
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">アクセス可能なページ</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {ALL_PAGES.map(page => (
-                    <label key={page.href} className="flex items-center gap-2 p-3 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
-                      <input
-                        type="checkbox"
-                        checked={newPages.includes(page.href)}
-                        onChange={() => togglePage(page.href)}
-                        className="accent-indigo-600"
-                      />
-                      <span className="text-sm text-slate-700">{page.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div className="flex gap-3 pt-2">
-              <button
-                onClick={handleSave}
-                disabled={saving || !newEmail}
-                className="px-5 py-2 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-              >
-                {saving ? '保存中...' : '保存する'}
-              </button>
-              <button
-                onClick={closeForm}
-                className="px-5 py-2 text-slate-600 rounded-xl text-sm font-medium hover:bg-slate-100 transition-colors"
-              >
-                キャンセル
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
         {loading ? (
@@ -270,7 +192,7 @@ export default function InvitesPage() {
                         <Pencil size={16} />
                       </button>
                       <button
-                        onClick={() => handleDelete(invite.email)}
+                        onClick={() => { setDeleteError(null); setDeleteTarget(invite) }}
                         className="text-slate-400 hover:text-red-500 transition-colors p-2"
                       >
                         <Trash2 size={16} />
@@ -283,6 +205,129 @@ export default function InvitesPage() {
           </table>
         )}
       </div>
+
+      {/* 追加・編集モーダル */}
+      {showForm && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-semibold text-slate-900">
+                {editTarget ? '権限を編集' : '新しい招待'}
+              </h2>
+              <button onClick={closeForm} className="text-slate-400 hover:text-slate-600 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">{error}</div>
+            )}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">名前</label>
+                <input
+                  type="text"
+                  value={newName}
+                  onChange={e => setNewName(e.target.value)}
+                  placeholder="山田 太郎"
+                  className="input w-full"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">メールアドレス（Googleアカウント）</label>
+                <input
+                  type="email"
+                  value={newEmail}
+                  onChange={e => setNewEmail(e.target.value)}
+                  placeholder="example@gmail.com"
+                  className="input w-full"
+                  disabled={!!editTarget}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">ロール</label>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setNewRole('admin')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-colors ${newRole === 'admin' ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                  >
+                    <Shield size={14} />
+                    Admin（全ページ）
+                  </button>
+                  <button
+                    onClick={() => setNewRole('member')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-colors ${newRole === 'member' ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                  >
+                    <User size={14} />
+                    Member（ページ選択）
+                  </button>
+                </div>
+              </div>
+              {newRole === 'member' && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">アクセス可能なページ</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {ALL_PAGES.map(page => (
+                      <label key={page.href} className="flex items-center gap-2 p-3 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={newPages.includes(page.href)}
+                          onChange={() => togglePage(page.href)}
+                          className="accent-indigo-600"
+                        />
+                        <span className="text-sm text-slate-700">{page.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={handleSave}
+                  disabled={saving || !newEmail}
+                  className="px-5 py-2 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                >
+                  {saving ? '保存中...' : '保存する'}
+                </button>
+                <button
+                  onClick={closeForm}
+                  className="px-5 py-2 text-slate-600 rounded-xl text-sm font-medium hover:bg-slate-100 transition-colors"
+                >
+                  キャンセル
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 削除確認モーダル */}
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <h2 className="text-base font-semibold text-slate-900 mb-1">招待を削除しますか？</h2>
+            <p className="text-sm text-slate-500 mb-1">{deleteTarget.name || '—'}</p>
+            <p className="text-sm text-slate-400 mb-5">{deleteTarget.email}</p>
+            {deleteError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">{deleteError}</div>
+            )}
+            <div className="flex gap-3">
+              <button
+                onClick={handleDeleteConfirm}
+                disabled={deleting}
+                className="px-5 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-50 transition-colors"
+              >
+                {deleting ? '削除中...' : '削除する'}
+              </button>
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="px-5 py-2 text-slate-600 rounded-xl text-sm font-medium hover:bg-slate-100 transition-colors"
+              >
+                キャンセル
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
