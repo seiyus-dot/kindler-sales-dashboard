@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, BriefcaseBusiness, ClipboardList, Settings, Users, Menu, X, BookOpen, Tent, UserPlus, Zap, GanttChartSquare, FileText, List, MonitorPlay, ChevronDown, Contact, TrendingUp, Bell } from 'lucide-react'
+import { LayoutDashboard, BriefcaseBusiness, ClipboardList, Settings, Users, Menu, X, BookOpen, Tent, UserPlus, Zap, GanttChartSquare, FileText, List, MonitorPlay, ChevronDown, Contact, TrendingUp, Bell, LogOut } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
 import NewsBell from '@/components/NewsBell'
 
 const NEWS_READ_KEY = 'kindler_news_read'
@@ -96,6 +97,13 @@ function OrderFormNavItem({ onClick }: { onClick?: () => void }) {
 export default function Sidebar() {
   const [open, setOpen] = useState(false)
   const [unreadNews, setUnreadNews] = useState(0)
+  const router = useRouter()
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    setOpen(false)
+    router.push('/login')
+  }
 
   useEffect(() => {
     if (open) {
@@ -162,6 +170,15 @@ export default function Sidebar() {
               <NavLink href="/news" label="お知らせ" icon={Bell} onClick={() => setOpen(false)} badge={unreadNews} />
               <OrderFormNavItem onClick={() => setOpen(false)} />
             </nav>
+            <div className="p-4 border-t border-slate-100">
+              <button
+                onClick={handleSignOut}
+                className="flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-xs text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+              >
+                <LogOut size={14} />
+                ログアウト
+              </button>
+            </div>
           </aside>
         </div>
       )}
@@ -184,6 +201,15 @@ export default function Sidebar() {
           <NavLink href="/news" label="お知らせ" icon={Bell} badge={unreadNews} />
           <OrderFormNavItem />
         </nav>
+        <div className="p-4 border-t border-slate-100">
+          <button
+            onClick={handleSignOut}
+            className="flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-xs text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+          >
+            <LogOut size={14} />
+            ログアウト
+          </button>
+        </div>
       </aside>
     </>
   )
