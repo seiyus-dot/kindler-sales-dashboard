@@ -238,7 +238,7 @@ export default function InvitesPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50">
-                <th className="text-left px-5 py-3 text-xs font-medium text-slate-500">名前</th>
+                <th className="text-left px-5 py-3 text-xs font-medium text-slate-500 w-40">名前</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-slate-500">メールアドレス</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-slate-500">ロール</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-slate-500">アクセス可能ページ</th>
@@ -248,7 +248,7 @@ export default function InvitesPage() {
             <tbody>
               {invites.map((invite, i) => (
                 <tr key={invite.email} className={`border-b border-slate-100 last:border-0 ${i % 2 === 0 ? '' : 'bg-slate-50/30'}`}>
-                  <td className="px-5 py-4 text-sm text-slate-800">{invite.name || '—'}</td>
+                  <td className="px-5 py-4 text-sm text-slate-800 w-40">{invite.name || '—'}</td>
                   <td className="px-5 py-4 text-sm text-slate-800">{invite.email}</td>
                   <td className="px-5 py-4">
                     <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${invite.role === 'admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'}`}>
