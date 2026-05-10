@@ -53,6 +53,12 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL('/api/auth/signout', request.url))
     }
 
+    // admin専用ページ（memberは問答無用でブロック）
+    const adminOnlyPages = ['/invites']
+    if (role === 'member' && adminOnlyPages.some((p) => pathname.startsWith(p))) {
+      return NextResponse.redirect(new URL('/aicamp', request.url))
+    }
+
     if (role === 'member') {
       const rawPages = request.cookies.get('user_allowed_pages')?.value
       const allowedPages: string[] = rawPages ? JSON.parse(rawPages) : ['/aicamp']
