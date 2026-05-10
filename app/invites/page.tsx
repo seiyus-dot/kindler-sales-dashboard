@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 
 type AllowedEmail = {
   email: string
+  name: string
   role: 'admin' | 'member'
   allowed_pages: string[]
 }
@@ -33,6 +34,7 @@ export default function InvitesPage() {
   const [showForm, setShowForm] = useState(false)
   const [editTarget, setEditTarget] = useState<AllowedEmail | null>(null)
   const [newEmail, setNewEmail] = useState('')
+  const [newName, setNewName] = useState('')
   const [newRole, setNewRole] = useState<'admin' | 'member'>('member')
   const [newPages, setNewPages] = useState<string[]>(['/aicamp'])
   const [saving, setSaving] = useState(false)
@@ -42,7 +44,7 @@ export default function InvitesPage() {
     setLoading(true)
     const { data, error } = await supabase
       .from('allowed_emails')
-      .select('email, role, allowed_pages')
+      .select('email, name, role, allowed_pages')
       .order('email')
     if (error) {
       setError('データの読み込みに失敗しました')
@@ -60,6 +62,7 @@ export default function InvitesPage() {
   function openAdd() {
     setEditTarget(null)
     setNewEmail('')
+    setNewName('')
     setNewRole('member')
     setNewPages(['/aicamp'])
     setError(null)
@@ -69,6 +72,7 @@ export default function InvitesPage() {
   function openEdit(invite: AllowedEmail) {
     setEditTarget(invite)
     setNewEmail(invite.email)
+    setNewName(invite.name ?? '')
     setNewRole(invite.role)
     setNewPages(invite.allowed_pages ?? ['/aicamp'])
     setError(null)
@@ -86,12 +90,12 @@ export default function InvitesPage() {
     setSaving(true)
     setError(null)
     const pages = newRole === 'admin' ? ALL_PAGES.map(p => p.href) : newPages
-    const entry = { email: newEmail.toLowerCase().trim(), role: newRole, allowed_pages: pages }
+    const entry = { email: newEmail.toLowerCase().trim(), name: newName.trim(), role: newRole, allowed_pages: pages }
 
     if (editTarget) {
       const { error } = await supabase
         .from('allowed_emails')
-        .update({ role: entry.role, allowed_pages: entry.allowed_pages })
+        .update({ name: entry.name, role: entry.role, allowed_pages: entry.allowed_pages })
         .eq('email', editTarget.email)
       if (error) { setError('更新に失敗しました: ' + error.message); setSaving(false); return }
     } else {
@@ -148,6 +152,16 @@ export default function InvitesPage() {
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">{error}</div>
           )}
           <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">名前</label>
+              <input
+                type="text"
+                value={newName}
+                onChange={e => setNewName(e.target.value)}
+                placeholder="山田 太郎"
+                className="input w-full"
+              />
+            </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">メールアドレス（Googleアカウント）</label>
               <input
@@ -224,6 +238,7 @@ export default function InvitesPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50">
+                <th className="text-left px-5 py-3 text-xs font-medium text-slate-500">名前</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-slate-500">メールアドレス</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-slate-500">ロール</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-slate-500">アクセス可能ページ</th>
@@ -233,6 +248,7 @@ export default function InvitesPage() {
             <tbody>
               {invites.map((invite, i) => (
                 <tr key={invite.email} className={`border-b border-slate-100 last:border-0 ${i % 2 === 0 ? '' : 'bg-slate-50/30'}`}>
+                  <td className="px-5 py-4 text-sm text-slate-800">{invite.name || '—'}</td>
                   <td className="px-5 py-4 text-sm text-slate-800">{invite.email}</td>
                   <td className="px-5 py-4">
                     <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${invite.role === 'admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'}`}>
