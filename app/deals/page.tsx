@@ -8,6 +8,7 @@ import CSVImport from '@/components/CSVImport'
 import StripeCSVImport from '@/components/StripeCSVImport'
 import AIImport from '@/components/AIImport'
 import PageHeader from '@/components/PageHeader'
+import SalesReportModal from '@/components/SalesReportModal'
 
 const TOB_STATUSES = ['アポ取得', '商談中', '提案済', '交渉中', '見積提出', 'リード', '受注', '失注', '保留']
 const PRIORITIES = ['高', '中', '低']
@@ -72,6 +73,7 @@ export default function DealsPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [kpiModal, setKpiModal] = useState<'sales' | 'paid' | 'pipeline' | 'weighted' | null>(null)
+  const [showSalesReport, setShowSalesReport] = useState(false)
 
   function shiftMonth(ym: string, delta: number): string {
     const [y, m] = ym.split('-').map(Number)
@@ -712,7 +714,13 @@ export default function DealsPage() {
                 ✕ リセット
               </button>
             )}
-            <span className="ml-auto text-sm text-gray-400">{activeDeals.length}件</span>
+            <button
+              onClick={() => setShowSalesReport(true)}
+              className="ml-auto px-3 py-1.5 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
+            >
+              売上報告する
+            </button>
+            <span className="text-sm text-gray-400">{activeDeals.length}件</span>
             {selectedIds.size > 0 && (
               <button
                 onClick={bulkDelete}
@@ -794,6 +802,15 @@ export default function DealsPage() {
             </table>
           </div>
         </div>
+      )}
+
+      {/* ===== 売上報告モーダル ===== */}
+      {showSalesReport && (
+        <SalesReportModal
+          type="toB"
+          members={members}
+          onClose={() => setShowSalesReport(false)}
+        />
       )}
 
       {/* ===== KPI内訳モーダル ===== */}

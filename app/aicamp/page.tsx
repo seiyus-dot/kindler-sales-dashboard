@@ -60,6 +60,7 @@ import AICampConsultationForm from '@/components/AICampConsultationForm'
 import AIImport from '@/components/AIImport'
 import DedupeModal from '@/components/DedupeModal'
 import SourceMasterModal from '@/components/SourceMasterModal'
+import SalesReportModal from '@/components/SalesReportModal'
 
 const STATUS_COLORS: Record<string, string> = {
   '成約':     'bg-green-100 text-green-700',
@@ -142,6 +143,7 @@ export default function AICampPage() {
   const [inlineSaving, setInlineSaving] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [showSalesReport, setShowSalesReport] = useState(false)
   const [adWeekly, setAdWeekly] = useState<AICampAdWeekly[]>([])
   const [fbAds, setFbAds] = useState<{
     day: string
@@ -1575,6 +1577,12 @@ export default function AICampPage() {
             {(filterMember || filterStatus || rangeStart || rangeEnd) && (
               <button onClick={() => { setFilterMember(''); setFilterStatus(''); setRangeStart(''); setRangeEnd('') }} className="text-xs text-gray-400 hover:text-gray-600 px-1">✕ クリア</button>
             )}
+            <button
+              onClick={() => setShowSalesReport(true)}
+              className="px-3 py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
+            >
+              売上報告する
+            </button>
             {/* 列設定 */}
             <div className="relative">
               <button
@@ -1956,6 +1964,14 @@ export default function AICampPage() {
       })()}
 
       {showSourceMaster && <SourceMasterModal onClose={() => setShowSourceMaster(false)} />}
+
+      {showSalesReport && (
+        <SalesReportModal
+          type="toC"
+          members={members}
+          onClose={() => setShowSalesReport(false)}
+        />
+      )}
 
       {showForm && (
         <AICampConsultationForm
