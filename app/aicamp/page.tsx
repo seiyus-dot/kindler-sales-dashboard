@@ -161,7 +161,7 @@ export default function AICampPage() {
   const [adDraft, setAdDraft] = useState<Record<string, string>>({})
   const [adSaving, setAdSaving] = useState(false)
   const [showAddWeek, setShowAddWeek] = useState(false)
-  const [newWeek, setNewWeek] = useState({ week_label: '', ad_spend: '', list_count: '', consultation_count: '', seated_count: '' })
+  const [newWeek, setNewWeek] = useState({ week_label: '', ad_spend: '', list_count: '', consultation_count: '', seated_count: '', notes: '' })
   const [adServiceType, setAdServiceType] = useState<'AI CAMP' | 'プロダクト AI CAMP'>('プロダクト AI CAMP')
   const [activeTab, setActiveTab] = useState<'overview' | 'ads' | 'applications' | 'deals' | 'line_friends'>('overview')
   const [filterServiceType, setFilterServiceType] = useState('')
@@ -347,6 +347,7 @@ export default function AICampPage() {
       list_count: row.list_count.toString(),
       consultation_count: row.consultation_count?.toString() ?? '',
       seated_count: row.seated_count?.toString() ?? '',
+      notes: row.notes ?? '',
     })
   }
 
@@ -361,6 +362,7 @@ export default function AICampPage() {
       list_count: computed?.list_count ?? 0,
       consultation_count: adDraft.consultation_count ? parseInt(adDraft.consultation_count) : null,
       seated_count: adDraft.seated_count ? parseInt(adDraft.seated_count) : null,
+      notes: adDraft.notes || null,
     }).eq('id', adEditId)
     setAdSaving(false)
     setAdEditId(null)
@@ -378,12 +380,13 @@ export default function AICampPage() {
       list_count: computed?.list_count ?? 0,
       consultation_count: newWeek.consultation_count ? parseInt(newWeek.consultation_count) : null,
       seated_count: newWeek.seated_count ? parseInt(newWeek.seated_count) : null,
+      notes: newWeek.notes || null,
       sort_order: adWeekly.filter(r => (r.service_type ?? 'プロダクト AI CAMP') === adServiceType).length,
       service_type: adServiceType,
     })
     setAdSaving(false)
     setShowAddWeek(false)
-    setNewWeek({ week_label: '', ad_spend: '', list_count: '', consultation_count: '', seated_count: '' })
+    setNewWeek({ week_label: '', ad_spend: '', list_count: '', consultation_count: '', seated_count: '', notes: '' })
     fetchAll()
   }
 
@@ -794,7 +797,7 @@ export default function AICampPage() {
         const cpo = metaContracted.length > 0 ? Math.round(totalAdSpend / metaContracted.length) : null
         const roas = totalAdSpend > 0 ? Math.round(adFilteredMetaRevenue / totalAdSpend * 100) : null
 
-        const adCols = ['期間', '広告費[円]', 'リスト数[人]', '面談申込数[人]', '着座数[人]', '']
+        const adCols = ['期間', '広告費[円]', 'リスト数[人]', '面談申込数[人]', '着座数[人]', '備考', '']
 
         return (
           <div className="bg-white border border-gray-200 rounded overflow-hidden">
@@ -820,7 +823,7 @@ export default function AICampPage() {
                 </thead>
                 <tbody>
                   {adFilteredWeekly.length === 0 && !showAddWeek ? (
-                    <tr><td colSpan={6} className="text-center py-6 text-gray-400 text-xs">「週を追加」から入力してください</td></tr>
+                    <tr><td colSpan={7} className="text-center py-6 text-gray-400 text-xs">「週を追加」から入力してください</td></tr>
                   ) : adFilteredWeekly.map(row => {
                     const editing = adEditId === row.id
                     return (
@@ -832,6 +835,7 @@ export default function AICampPage() {
                             <td className="px-4 py-2 font-mono text-xs text-gray-500">{(() => { const c = computeFbForWeek(adDraft.week_label, adWeekly.find(r => r.id === adEditId)?.month ?? month); return c ? c.list_count : '-' })()}<span className="text-gray-400 ml-1 text-[10px]">自動</span></td>
                             <td className="px-4 py-2"><input type="number" value={adDraft.consultation_count} onChange={e => setAdDraft(d => ({ ...d, consultation_count: e.target.value }))} className="border border-blue-300 rounded px-2 py-1 text-xs font-mono w-20 focus:outline-none" /></td>
                             <td className="px-4 py-2"><input type="number" value={adDraft.seated_count} onChange={e => setAdDraft(d => ({ ...d, seated_count: e.target.value }))} className="border border-blue-300 rounded px-2 py-1 text-xs font-mono w-20 focus:outline-none" /></td>
+                            <td className="px-4 py-2"><input type="text" value={adDraft.notes} onChange={e => setAdDraft(d => ({ ...d, notes: e.target.value }))} className="border border-blue-300 rounded px-2 py-1 text-xs w-40 focus:outline-none" placeholder="備考" /></td>
                             <td className="px-4 py-2">
                               <div className="flex gap-2 justify-end">
                                 <button onClick={saveAdRow} disabled={adSaving} className="text-xs text-white bg-blue-600 px-2 py-1 rounded disabled:opacity-50">{adSaving ? '...' : '保存'}</button>
@@ -845,6 +849,7 @@ export default function AICampPage() {
                             {(() => { const c = computeFbForWeek(row.week_label, row.month); return (<><td className="px-4 py-3 font-mono text-gray-700">¥{(c?.ad_spend ?? row.ad_spend).toLocaleString()}</td><td className="px-4 py-3 font-mono text-gray-700">{c?.list_count ?? row.list_count}</td></>) })()}
                             <td className="px-4 py-3 font-mono text-gray-500">{row.consultation_count ?? '-'}</td>
                             <td className="px-4 py-3 font-mono text-gray-500">{row.seated_count ?? '-'}</td>
+                            <td className="px-4 py-3 text-gray-500 text-xs max-w-[160px] truncate" title={row.notes ?? ''}>{row.notes ?? ''}</td>
                             <td className="px-4 py-3">
                               <div className="flex gap-2 justify-end">
                                 <button onClick={() => startAdEdit(row)} className="text-xs text-blue-500 hover:underline">編集</button>
@@ -865,6 +870,7 @@ export default function AICampPage() {
                       <td className="px-4 py-2 font-mono text-xs text-gray-500">{(() => { const c = computeFbForWeek(newWeek.week_label.trim(), month); return c ? c.list_count : <span className="text-gray-300">-</span> })()}<span className="text-gray-400 ml-1 text-[10px]">自動</span></td>
                       <td className="px-4 py-2"><input type="number" value={newWeek.consultation_count} onChange={e => setNewWeek(w => ({ ...w, consultation_count: e.target.value }))} className="border border-green-300 rounded px-2 py-1 text-xs font-mono w-20 focus:outline-none" placeholder="-" /></td>
                       <td className="px-4 py-2"><input type="number" value={newWeek.seated_count} onChange={e => setNewWeek(w => ({ ...w, seated_count: e.target.value }))} className="border border-green-300 rounded px-2 py-1 text-xs font-mono w-20 focus:outline-none" placeholder="-" /></td>
+                      <td className="px-4 py-2"><input type="text" value={newWeek.notes} onChange={e => setNewWeek(w => ({ ...w, notes: e.target.value }))} className="border border-green-300 rounded px-2 py-1 text-xs w-40 focus:outline-none" placeholder="備考" /></td>
                       <td className="px-4 py-2">
                         <div className="flex gap-2 justify-end">
                           <button onClick={addWeekRow} disabled={adSaving} className="text-xs text-white bg-green-600 px-2 py-1 rounded disabled:opacity-50">{adSaving ? '...' : '追加'}</button>

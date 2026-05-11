@@ -210,6 +210,7 @@ export type AICampAdWeekly = {
   list_count: number
   consultation_count?: number
   seated_count?: number
+  notes?: string
   sort_order: number
   service_type?: string
   created_at: string
