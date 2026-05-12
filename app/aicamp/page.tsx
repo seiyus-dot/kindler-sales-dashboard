@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { supabase, AICampConsultation, AICampMonthlyGoal, AICampAdWeekly, Member, LineFriend, CONSULTATION_STATUSES, PAYMENT_METHODS, AI_EXPERIENCES } from '@/lib/supabase'
+import { supabase, AICampConsultation, AICampMonthlyGoal, AICampAdWeekly, Member, LineFriend, AICampDailyLog, UtageDelivery, CONSULTATION_STATUSES, PAYMENT_METHODS, AI_EXPERIENCES } from '@/lib/supabase'
 import PageHeader from '@/components/PageHeader'
 
 const MONTHLY_INCOMES = ['〜10万円', '11～20万円', '21～30万円', '31～40万円', '41～50万円', '51～60万円', '61～70万円', '71～80万円', '81～90万円', '91～100万円', '101万円以上']
@@ -163,7 +163,7 @@ export default function AICampPage() {
   const [showAddWeek, setShowAddWeek] = useState(false)
   const [newWeek, setNewWeek] = useState({ week_label: '', ad_spend: '', list_count: '', consultation_count: '', seated_count: '', notes: '' })
   const [adServiceType, setAdServiceType] = useState<'AI CAMP' | 'プロダクト AI CAMP'>('プロダクト AI CAMP')
-  const [activeTab, setActiveTab] = useState<'overview' | 'ads' | 'cases' | 'line_friends'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'ads' | 'cases' | 'line_friends' | 'daily' | 'utage'>('overview')
   const [caseView, setCaseView] = useState<'applications' | 'deals'>('applications')
   const [filterServiceType, setFilterServiceType] = useState('')
   const [rangeStart, setRangeStart] = useState('')
@@ -184,6 +184,14 @@ export default function AICampPage() {
   const [friendEditId, setFriendEditId] = useState<string | null>(null)
   const [friendEditSource, setFriendEditSource] = useState('')
   const [openCardKey, setOpenCardKey] = useState<string | null>(null)
+  const [dailyLogs, setDailyLogs] = useState<AICampDailyLog[]>([])
+  const [showDailyForm, setShowDailyForm] = useState(false)
+  const [dailyForm, setDailyForm] = useState({ log_date: '', application_count: '', cancel_count: '', contract_count: '', hold_count: '', loss_count: '', notes: '' })
+  const [dailySaving, setDailySaving] = useState(false)
+  const [utageDeliveries, setUtageDeliveries] = useState<UtageDelivery[]>([])
+  const [showUtageForm, setShowUtageForm] = useState(false)
+  const [utageForm, setUtageForm] = useState({ title: '', sent_at: '', sent_count: '', open_count: '', click_count: '', application_count: '', block_count: '', content: '', notes: '' })
+  const [utageSaving, setUtageSaving] = useState(false)
   const [visibleCols, setVisibleCols] = useState<Set<ColKey>>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('aicamp-visible-cols')
@@ -277,7 +285,7 @@ export default function AICampPage() {
 
   async function fetchAll() {
     setLoading(true)
-    const [consRes, membersRes, goalRes, adRes] = await Promise.all([
+    const [consRes, membersRes, goalRes, adRes, dailyRes, utageRes] = await Promise.all([
       supabase
         .from('aicamp_consultations')
         .select('*, member:members(name)')
@@ -286,6 +294,8 @@ export default function AICampPage() {
       supabase.from('members').select('*').order('sort_order'),
       supabase.from('aicamp_monthly_goals').select('*').eq('month', month).maybeSingle(),
       supabase.from('aicamp_ad_weekly').select('*').eq('month', month).order('sort_order').order('created_at'),
+      supabase.from('aicamp_daily_logs').select('*').order('log_date', { ascending: false }),
+      supabase.from('utage_deliveries').select('*').order('sent_at', { ascending: false }),
     ])
     const fbRes = await supabase
       .from('fb_ads')
@@ -300,6 +310,8 @@ export default function AICampPage() {
     setProductGoalInput(goalRes.data?.product_contract_goal?.toString() ?? '0')
     setAdWeekly(adRes.data ?? [])
     setFbAds(fbRes.data ?? [])
+    setDailyLogs(dailyRes.data ?? [])
+    setUtageDeliveries(utageRes.data ?? [])
     setLoading(false)
   }
 
@@ -341,6 +353,63 @@ export default function AICampPage() {
     if (error) { alert(`保存エラー: ${error.message}`); return }
     setEditingGoal(false)
     fetchAll()
+  }
+
+  async function saveDailyLog() {
+    if (!dailyForm.log_date) return
+    setDailySaving(true)
+    const payload = {
+      log_date: dailyForm.log_date,
+      application_count: parseInt(dailyForm.application_count) || 0,
+      cancel_count: parseInt(dailyForm.cancel_count) || 0,
+      contract_count: parseInt(dailyForm.contract_count) || 0,
+      hold_count: parseInt(dailyForm.hold_count) || 0,
+      loss_count: parseInt(dailyForm.loss_count) || 0,
+      notes: dailyForm.notes || null,
+    }
+    const { error } = await supabase.from('aicamp_daily_logs').upsert(payload, { onConflict: 'log_date' })
+    setDailySaving(false)
+    if (error) { alert(`保存エラー: ${error.message}`); return }
+    setShowDailyForm(false)
+    fetchAll()
+  }
+
+  async function deleteDailyLog(id: string) {
+    if (!confirm('このログを削除しますか？')) return
+    await supabase.from('aicamp_daily_logs').delete().eq('id', id)
+    fetchAll()
+  }
+
+  async function saveUtageDelivery() {
+    if (!utageForm.title || !utageForm.sent_at) return
+    setUtageSaving(true)
+    const payload = {
+      title: utageForm.title,
+      sent_at: utageForm.sent_at,
+      sent_count: parseInt(utageForm.sent_count) || 0,
+      open_count: parseInt(utageForm.open_count) || 0,
+      click_count: parseInt(utageForm.click_count) || 0,
+      application_count: utageForm.application_count ? parseInt(utageForm.application_count) : null,
+      block_count: utageForm.block_count ? parseInt(utageForm.block_count) : null,
+      content: utageForm.content || null,
+      notes: utageForm.notes || null,
+    }
+    const { error } = await supabase.from('utage_deliveries').insert(payload)
+    setUtageSaving(false)
+    if (error) { alert(`保存エラー: ${error.message}`); return }
+    setShowUtageForm(false)
+    fetchAll()
+  }
+
+  async function deleteUtageDelivery(id: string) {
+    if (!confirm('この配信データを削除しますか？')) return
+    await supabase.from('utage_deliveries').delete().eq('id', id)
+    fetchAll()
+  }
+
+  function fmtRate(count: number, base: number) {
+    if (!base) return '-'
+    return (count / base * 100).toFixed(1) + '%'
   }
 
   function startAdEdit(row: AICampAdWeekly) {
@@ -602,6 +671,8 @@ export default function AICampPage() {
           { key: 'ads',          label: '広告' },
           { key: 'cases',        label: '案件一覧' },
           { key: 'line_friends', label: 'LINE友達' },
+          { key: 'daily',        label: '日次ログ' },
+          { key: 'utage',        label: 'Utage配信' },
         ] as const).map(tab => (
           <button
             key={tab.key}
@@ -1988,6 +2059,228 @@ export default function AICampPage() {
           </div>
         )
       })()}
+
+      {/* 日次ログタブ */}
+      {activeTab === 'daily' && (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <p className="text-xs text-gray-500">1日1行で記録。同日に再入力すると上書きされます。</p>
+            <button
+              onClick={() => {
+                setDailyForm({ log_date: new Date().toISOString().slice(0, 10), application_count: '', cancel_count: '', contract_count: '', hold_count: '', loss_count: '', notes: '' })
+                setShowDailyForm(true)
+              }}
+              className="bg-navy text-white px-3 py-1.5 rounded text-xs font-medium hover:bg-[#152f5a] transition"
+            >
+              + 今日の数字を入力
+            </button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b border-gray-200 text-xs text-gray-500 text-right">
+                  <th className="px-3 py-2 text-left font-medium">日付</th>
+                  <th className="px-3 py-2 font-medium">申込数</th>
+                  <th className="px-3 py-2 font-medium">キャンセル数</th>
+                  <th className="px-3 py-2 font-medium">成約</th>
+                  <th className="px-3 py-2 font-medium">保留</th>
+                  <th className="px-3 py-2 font-medium">失注</th>
+                  <th className="px-3 py-2 text-left font-medium">メモ</th>
+                  <th className="px-3 py-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {dailyLogs.length === 0 && (
+                  <tr><td colSpan={8} className="px-3 py-8 text-center text-gray-400 text-sm">まだ記録がありません</td></tr>
+                )}
+                {dailyLogs.map(log => (
+                  <tr key={log.id} className="border-b border-gray-100 hover:bg-gray-50">
+                    <td className="px-3 py-2 text-gray-700 font-mono text-xs">{log.log_date}</td>
+                    <td className="px-3 py-2 text-right text-gray-800 font-medium">{log.application_count}</td>
+                    <td className="px-3 py-2 text-right text-gray-800">{log.cancel_count}</td>
+                    <td className="px-3 py-2 text-right font-medium text-green-700">{log.contract_count}</td>
+                    <td className="px-3 py-2 text-right text-amber-600">{log.hold_count}</td>
+                    <td className="px-3 py-2 text-right text-red-500">{log.loss_count}</td>
+                    <td className="px-3 py-2 text-gray-500 text-xs max-w-[200px] truncate">{log.notes ?? '-'}</td>
+                    <td className="px-3 py-2">
+                      <button onClick={() => deleteDailyLog(log.id)} className="text-xs text-red-400 hover:text-red-600 transition">削除</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {showDailyForm && (
+            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+                  <h2 className="text-base font-bold text-gray-800">日次ログ記録</h2>
+                  <button onClick={() => setShowDailyForm(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+                </div>
+                <div className="px-6 py-4 grid grid-cols-2 gap-4">
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">日付 <span className="text-red-500">*</span></label>
+                    <input type="date" value={dailyForm.log_date} onChange={e => setDailyForm(f => ({ ...f, log_date: e.target.value }))} className="input w-full" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">申込数</label>
+                    <input type="number" min="0" value={dailyForm.application_count} onChange={e => setDailyForm(f => ({ ...f, application_count: e.target.value }))} className="input w-full" placeholder="0" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">キャンセル数</label>
+                    <input type="number" min="0" value={dailyForm.cancel_count} onChange={e => setDailyForm(f => ({ ...f, cancel_count: e.target.value }))} className="input w-full" placeholder="0" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">成約</label>
+                    <input type="number" min="0" value={dailyForm.contract_count} onChange={e => setDailyForm(f => ({ ...f, contract_count: e.target.value }))} className="input w-full" placeholder="0" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">保留</label>
+                    <input type="number" min="0" value={dailyForm.hold_count} onChange={e => setDailyForm(f => ({ ...f, hold_count: e.target.value }))} className="input w-full" placeholder="0" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">失注</label>
+                    <input type="number" min="0" value={dailyForm.loss_count} onChange={e => setDailyForm(f => ({ ...f, loss_count: e.target.value }))} className="input w-full" placeholder="0" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">メモ</label>
+                    <textarea value={dailyForm.notes} onChange={e => setDailyForm(f => ({ ...f, notes: e.target.value }))} className="input w-full" rows={2} placeholder="任意メモ" />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 px-6 py-4 border-t border-gray-100">
+                  <button onClick={() => setShowDailyForm(false)} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition">キャンセル</button>
+                  <button onClick={saveDailyLog} disabled={dailySaving || !dailyForm.log_date} className="px-4 py-2 text-sm bg-navy text-white rounded hover:bg-[#152f5a] disabled:opacity-50 transition">
+                    {dailySaving ? '保存中...' : '記録する'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Utage配信タブ */}
+      {activeTab === 'utage' && (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <p className="text-xs text-gray-500">一斉配信ごとに数値を記録します。率は自動計算されます。</p>
+            <button
+              onClick={() => {
+                setUtageForm({ title: '', sent_at: new Date().toISOString().slice(0, 16), sent_count: '', open_count: '', click_count: '', application_count: '', block_count: '', content: '', notes: '' })
+                setShowUtageForm(true)
+              }}
+              className="bg-navy text-white px-3 py-1.5 rounded text-xs font-medium hover:bg-[#152f5a] transition"
+            >
+              + 配信を記録
+            </button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b border-gray-200 text-xs text-gray-500 text-right">
+                  <th className="px-3 py-2 text-left font-medium">管理名称</th>
+                  <th className="px-3 py-2 font-medium">送信日時</th>
+                  <th className="px-3 py-2 font-medium">送信数</th>
+                  <th className="px-3 py-2 font-medium">開封数</th>
+                  <th className="px-3 py-2 font-medium">開封率</th>
+                  <th className="px-3 py-2 font-medium">クリック数</th>
+                  <th className="px-3 py-2 font-medium">クリック率</th>
+                  <th className="px-3 py-2 font-medium">申込数</th>
+                  <th className="px-3 py-2 font-medium">申込率</th>
+                  <th className="px-3 py-2 font-medium">ブロック数</th>
+                  <th className="px-3 py-2 font-medium">ブロック率</th>
+                  <th className="px-3 py-2 text-left font-medium">配信内容</th>
+                  <th className="px-3 py-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {utageDeliveries.length === 0 && (
+                  <tr><td colSpan={12} className="px-3 py-8 text-center text-gray-400 text-sm">まだ記録がありません</td></tr>
+                )}
+                {utageDeliveries.map(d => (
+                  <tr key={d.id} className="border-b border-gray-100 hover:bg-gray-50">
+                    <td className="px-3 py-2 text-gray-800 font-medium max-w-[160px] truncate">{d.title}</td>
+                    <td className="px-3 py-2 text-right text-gray-500 font-mono text-xs whitespace-nowrap">{d.sent_at.replace('T', ' ').slice(0, 16)}</td>
+                    <td className="px-3 py-2 text-right text-gray-700">{d.sent_count.toLocaleString()}</td>
+                    <td className="px-3 py-2 text-right text-gray-700">{d.open_count.toLocaleString()}</td>
+                    <td className="px-3 py-2 text-right font-medium text-blue-600">{fmtRate(d.open_count, d.sent_count)}</td>
+                    <td className="px-3 py-2 text-right text-gray-700">{d.click_count.toLocaleString()}</td>
+                    <td className="px-3 py-2 text-right font-medium text-blue-600">{fmtRate(d.click_count, d.sent_count)}</td>
+                    <td className="px-3 py-2 text-right text-gray-700">{d.application_count != null ? d.application_count : '-'}</td>
+                    <td className="px-3 py-2 text-right font-medium text-green-600">{d.application_count != null ? fmtRate(d.application_count, d.sent_count) : '-'}</td>
+                    <td className="px-3 py-2 text-right text-gray-700">{d.block_count != null ? d.block_count : '-'}</td>
+                    <td className="px-3 py-2 text-right font-medium text-red-500">{d.block_count != null ? fmtRate(d.block_count, d.sent_count) : '-'}</td>
+                    <td className="px-3 py-2 text-gray-500 text-xs max-w-[200px]">
+                      {d.content ? (
+                        <span title={d.content} className="block truncate cursor-help">{d.content}</span>
+                      ) : '-'}
+                    </td>
+                    <td className="px-3 py-2">
+                      <button onClick={() => deleteUtageDelivery(d.id)} className="text-xs text-red-400 hover:text-red-600 transition">削除</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {showUtageForm && (
+            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-lg shadow-xl w-full max-w-lg">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+                  <h2 className="text-base font-bold text-gray-800">Utage配信を記録</h2>
+                  <button onClick={() => setShowUtageForm(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+                </div>
+                <div className="px-6 py-4 grid grid-cols-2 gap-4">
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">管理名称 <span className="text-red-500">*</span></label>
+                    <input type="text" value={utageForm.title} onChange={e => setUtageForm(f => ({ ...f, title: e.target.value }))} className="input w-full" placeholder="例：5月第1回 一斉配信" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">送信日時 <span className="text-red-500">*</span></label>
+                    <input type="datetime-local" value={utageForm.sent_at} onChange={e => setUtageForm(f => ({ ...f, sent_at: e.target.value }))} className="input w-full" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">送信数</label>
+                    <input type="number" min="0" value={utageForm.sent_count} onChange={e => setUtageForm(f => ({ ...f, sent_count: e.target.value }))} className="input w-full" placeholder="0" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">開封数</label>
+                    <input type="number" min="0" value={utageForm.open_count} onChange={e => setUtageForm(f => ({ ...f, open_count: e.target.value }))} className="input w-full" placeholder="0" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">クリック数</label>
+                    <input type="number" min="0" value={utageForm.click_count} onChange={e => setUtageForm(f => ({ ...f, click_count: e.target.value }))} className="input w-full" placeholder="0" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">申込数</label>
+                    <input type="number" min="0" value={utageForm.application_count} onChange={e => setUtageForm(f => ({ ...f, application_count: e.target.value }))} className="input w-full" placeholder="任意" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">ブロック数</label>
+                    <input type="number" min="0" value={utageForm.block_count} onChange={e => setUtageForm(f => ({ ...f, block_count: e.target.value }))} className="input w-full" placeholder="任意" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">配信内容</label>
+                    <textarea value={utageForm.content} onChange={e => setUtageForm(f => ({ ...f, content: e.target.value }))} className="input w-full" rows={4} placeholder="配信したメッセージの内容を貼り付け（任意）" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">メモ</label>
+                    <input type="text" value={utageForm.notes} onChange={e => setUtageForm(f => ({ ...f, notes: e.target.value }))} className="input w-full" placeholder="任意メモ" />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 px-6 py-4 border-t border-gray-100">
+                  <button onClick={() => setShowUtageForm(false)} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition">キャンセル</button>
+                  <button onClick={saveUtageDelivery} disabled={utageSaving || !utageForm.title || !utageForm.sent_at} className="px-4 py-2 text-sm bg-navy text-white rounded hover:bg-[#152f5a] disabled:opacity-50 transition">
+                    {utageSaving ? '保存中...' : '記録する'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {showSourceMaster && <SourceMasterModal onClose={() => setShowSourceMaster(false)} />}
 

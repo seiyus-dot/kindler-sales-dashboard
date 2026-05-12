@@ -366,6 +366,32 @@ export type Contact = {
   updated_at: string
 }
 
+export type AICampDailyLog = {
+  id: string
+  log_date: string           // YYYY-MM-DD
+  application_count: number  // 申込数
+  cancel_count: number       // キャンセル数
+  contract_count: number     // 成約
+  hold_count: number         // 保留
+  loss_count: number         // 失注
+  notes?: string
+  created_at: string
+}
+
+export type UtageDelivery = {
+  id: string
+  title: string              // 管理名称
+  sent_at: string            // ISO 8601
+  sent_count: number         // 送信数
+  open_count: number         // 開封数
+  click_count: number        // クリック数
+  application_count?: number // 申込数
+  block_count?: number       // ブロック数
+  content?: string           // 配信内容
+  notes?: string
+  created_at: string
+}
+
 export type Company = {
   id: string
   name: string
@@ -373,4 +399,17 @@ export type Company = {
   notes?: string
   created_at: string
   updated_at: string
+}
+
+export type MeetingNote = {
+  id: string
+  deal_id: string
+  deal_type: 'tob' | 'toc'
+  title: string
+  content: string
+  note_date?: string | null
+  member_id?: string | null
+  created_at: string
+  updated_at: string
+  member?: Member
 }
