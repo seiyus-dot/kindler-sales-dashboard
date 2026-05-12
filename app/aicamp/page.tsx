@@ -163,7 +163,8 @@ export default function AICampPage() {
   const [showAddWeek, setShowAddWeek] = useState(false)
   const [newWeek, setNewWeek] = useState({ week_label: '', ad_spend: '', list_count: '', consultation_count: '', seated_count: '', notes: '' })
   const [adServiceType, setAdServiceType] = useState<'AI CAMP' | 'プロダクト AI CAMP'>('プロダクト AI CAMP')
-  const [activeTab, setActiveTab] = useState<'overview' | 'ads' | 'applications' | 'deals' | 'line_friends'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'ads' | 'cases' | 'line_friends'>('overview')
+  const [caseView, setCaseView] = useState<'applications' | 'deals'>('applications')
   const [filterServiceType, setFilterServiceType] = useState('')
   const [rangeStart, setRangeStart] = useState('')
   const [rangeEnd, setRangeEnd] = useState('')
@@ -179,6 +180,9 @@ export default function AICampPage() {
   const [lineFriendsDeleting, setLineFriendsDeleting] = useState(false)
   const [appSelectedIds, setAppSelectedIds] = useState<Set<string>>(new Set())
   const [appDeleting, setAppDeleting] = useState(false)
+  const [lineMatching, setLineMatching] = useState(false)
+  const [friendEditId, setFriendEditId] = useState<string | null>(null)
+  const [friendEditSource, setFriendEditSource] = useState('')
   const [openCardKey, setOpenCardKey] = useState<string | null>(null)
   const [visibleCols, setVisibleCols] = useState<Set<ColKey>>(() => {
     if (typeof window !== 'undefined') {
@@ -480,6 +484,43 @@ export default function AICampPage() {
     fetchAll()
   }
 
+  async function matchLineFriends() {
+    setLineMatching(true)
+    let friends = lineFriends
+    if (friends.length === 0) {
+      const { data } = await supabase.from('line_friends').select('*').order('registered_at', { ascending: false })
+      friends = data ?? []
+      setLineFriends(friends)
+    }
+    const friendMap = new Map<string, string>()
+    for (const f of friends) {
+      if (f.line_display_name && f.registration_source) {
+        friendMap.set(f.line_display_name.trim(), f.registration_source)
+      }
+    }
+    const targets = consultations.filter(c =>
+      c.line_name && !c.registration_source && friendMap.has((c.line_name ?? '').trim())
+    )
+    for (const c of targets) {
+      const src = friendMap.get((c.line_name ?? '').trim())!
+      await supabase.from('aicamp_consultations').update({ registration_source: src }).eq('id', c.id)
+    }
+    setLineMatching(false)
+    if (targets.length > 0) {
+      await fetchAll()
+      alert(`${targets.length}件の登録経路を自動設定しました`)
+    } else {
+      alert('マッチする登録経路が見つかりませんでした')
+    }
+  }
+
+  async function saveFriendSource(id: string, source: string) {
+    await supabase.from('line_friends').update({ registration_source: source || null }).eq('id', id)
+    setLineFriends(prev => prev.map(f => f.id === id ? { ...f, registration_source: source || undefined } : f))
+    setFriendEditId(null)
+    setFriendEditSource('')
+  }
+
   const contractGoal = goal?.contract_goal ?? 0
   const productContractGoal = goal?.product_contract_goal ?? 0
   const filtered = consultations.filter(c => {
@@ -557,11 +598,10 @@ export default function AICampPage() {
       {/* タブ */}
       <div className="flex gap-1 border-b border-gray-200 -mx-4 lg:-mx-6 px-4 lg:px-6 overflow-x-auto scrollbar-hide">
         {([
-          { key: 'overview',      label: '概要' },
-          { key: 'ads',           label: '広告' },
-          { key: 'applications',  label: '申し込み一覧' },
-          { key: 'deals',         label: '商談一覧' },
-          { key: 'line_friends',  label: 'LINE友達' },
+          { key: 'overview',     label: '概要' },
+          { key: 'ads',          label: '広告' },
+          { key: 'cases',        label: '案件一覧' },
+          { key: 'line_friends', label: 'LINE友達' },
         ] as const).map(tab => (
           <button
             key={tab.key}
@@ -1324,7 +1364,7 @@ export default function AICampPage() {
       )}
       </>)}
 
-      {activeTab === 'applications' && (() => {
+      {activeTab === 'cases' && (() => {
         const applications = consultations.filter(c => {
           if (filterServiceType && (c.service_type ?? 'AI CAMP') !== filterServiceType) return false
           const d = (c.applied_at ?? c.consultation_date)?.slice(0, 10) ?? ''
@@ -1349,192 +1389,468 @@ export default function AICampPage() {
           <div className="bg-white border border-gray-200 rounded">
             {/* ヘッダー */}
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 px-5 py-3 border-b border-gray-100">
-              <div className="flex items-center gap-3">
-                <h2 className="text-sm font-bold text-gray-700">申し込み一覧 ({applications.length}件)</h2>
-                {appSelectedIds.size > 0 && (
-                  <button
-                    onClick={deleteApplications}
-                    disabled={appDeleting}
-                    className="text-xs text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 px-3 py-1 rounded transition"
-                  >
-                    {appDeleting ? '削除中...' : `${appSelectedIds.size}件を削除`}
-                  </button>
-                )}
+              <div className="flex items-center gap-3 flex-wrap">
+                {/* ビュー切り替え */}
                 <div className="flex gap-0.5 bg-gray-100 p-0.5 rounded text-xs">
-                  {(['list', 'calendar'] as const).map(v => (
-                    <button
-                      key={v}
-                      onClick={() => setAppView(v)}
-                      className={`px-3 py-1 rounded font-medium transition ${appView === v ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}
-                    >
-                      {v === 'list' ? 'リスト' : 'カレンダー'}
+                  {(['applications', 'deals'] as const).map(v => (
+                    <button key={v} onClick={() => setCaseView(v)}
+                      className={`px-3 py-1 rounded font-medium transition ${caseView === v ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}>
+                      {v === 'applications' ? '申込ビュー' : '商談ビュー'}
                     </button>
                   ))}
                 </div>
+                <h2 className="text-sm font-bold text-gray-700">
+                  {caseView === 'applications' ? `申し込み一覧 (${applications.length}件)` : `商談一覧 (${filtered.length}件)`}
+                </h2>
+                {caseView === 'applications' && appSelectedIds.size > 0 && (
+                  <button onClick={deleteApplications} disabled={appDeleting}
+                    className="text-xs text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 px-3 py-1 rounded transition">
+                    {appDeleting ? '削除中...' : `${appSelectedIds.size}件を削除`}
+                  </button>
+                )}
+                {caseView === 'deals' && selectedIds.size > 0 && (
+                  <button onClick={bulkDelete} disabled={bulkDeleting}
+                    className="text-xs text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 px-3 py-1 rounded transition">
+                    {bulkDeleting ? '削除中...' : `${selectedIds.size}件を削除`}
+                  </button>
+                )}
+                {caseView === 'applications' && (
+                  <div className="flex gap-0.5 bg-gray-100 p-0.5 rounded text-xs">
+                    {(['list', 'calendar'] as const).map(v => (
+                      <button key={v} onClick={() => setAppView(v)}
+                        className={`px-3 py-1 rounded font-medium transition ${appView === v ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}>
+                        {v === 'list' ? 'リスト' : 'カレンダー'}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="flex gap-2 items-center flex-wrap">
-                <select
-                  value={filterServiceType}
-                  onChange={e => setFilterServiceType(e.target.value)}
-                  className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none"
-                >
-                  <option value="">サービス: 全て</option>
-                  {SERVICE_TYPES.map(s => <option key={s}>{s}</option>)}
-                </select>
-                {appView === 'list' && (<>
-                  <input type="date" value={rangeStart} onChange={e => setRangeStart(e.target.value)} className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none" />
-                  <span className="text-xs text-gray-400">〜</span>
-                  <input type="date" value={rangeEnd} onChange={e => setRangeEnd(e.target.value)} className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none" />
-                </>)}
-                {(filterServiceType || rangeStart || rangeEnd) && (
-                  <button onClick={() => { setFilterServiceType(''); setRangeStart(''); setRangeEnd('') }} className="text-xs text-gray-400 hover:text-gray-600 px-1">✕ クリア</button>
+                {caseView === 'applications' && (
+                  <>
+                    <select value={filterServiceType} onChange={e => setFilterServiceType(e.target.value)}
+                      className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none">
+                      <option value="">サービス: 全て</option>
+                      {SERVICE_TYPES.map(s => <option key={s}>{s}</option>)}
+                    </select>
+                    {appView === 'list' && (<>
+                      <input type="date" value={rangeStart} onChange={e => setRangeStart(e.target.value)} className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none" />
+                      <span className="text-xs text-gray-400">〜</span>
+                      <input type="date" value={rangeEnd} onChange={e => setRangeEnd(e.target.value)} className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none" />
+                    </>)}
+                  </>
+                )}
+                {caseView === 'deals' && (
+                  <>
+                    <select value={filterMember} onChange={e => setFilterMember(e.target.value)}
+                      className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none">
+                      <option value="">担当者: 全員</option>
+                      {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                    </select>
+                    <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
+                      className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none">
+                      <option value="">ステータス: 全て</option>
+                      {['予定', '成約', '失注', '保留', 'ドタキャン', 'キャンセル'].map(s => <option key={s}>{s}</option>)}
+                    </select>
+                    <input type="date" value={rangeStart} onChange={e => setRangeStart(e.target.value)} className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none" />
+                    <span className="text-xs text-gray-400">〜</span>
+                    <input type="date" value={rangeEnd} onChange={e => setRangeEnd(e.target.value)} className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none" />
+                  </>
+                )}
+                {(filterMember || filterStatus || filterServiceType || rangeStart || rangeEnd) && (
+                  <button onClick={() => { setFilterMember(''); setFilterStatus(''); setFilterServiceType(''); setRangeStart(''); setRangeEnd('') }}
+                    className="text-xs text-gray-400 hover:text-gray-600 px-1">✕ クリア</button>
                 )}
                 <DedupeModal records={consultations} onMergeComplete={fetchAll} />
+                <button onClick={matchLineFriends} disabled={lineMatching}
+                  className="px-3 py-1.5 text-xs border border-gray-200 rounded hover:bg-gray-50 transition text-gray-600 disabled:opacity-50 whitespace-nowrap">
+                  {lineMatching ? 'マッチング中...' : 'LINEマッチング'}
+                </button>
                 <AIImport members={members} onImported={fetchAll} />
+                {caseView === 'deals' && (
+                  <>
+                    <button onClick={() => setShowSalesReport(true)}
+                      className="px-3 py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition">
+                      売上報告する
+                    </button>
+                    <div className="relative">
+                      <button onClick={() => setShowColSettings(v => !v)}
+                        className="flex items-center gap-1 px-3 py-1.5 text-xs border border-gray-200 rounded hover:bg-gray-50 transition text-gray-600">
+                        列設定
+                      </button>
+                      {showColSettings && (
+                        <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded shadow-xl z-50 p-3 w-48">
+                          <p className="text-xs font-bold text-gray-500 mb-2">表示する列</p>
+                          <div className="space-y-1.5 max-h-72 overflow-y-auto">
+                            {AICAMP_COLUMNS.map(col => (
+                              <label key={col.key} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 px-1 py-0.5 rounded">
+                                <input type="checkbox" checked={visibleCols.has(col.key)} onChange={() => toggleCol(col.key)} className="rounded" />
+                                <span className="text-xs text-gray-700">{col.label}</span>
+                              </label>
+                            ))}
+                          </div>
+                          <button onClick={() => setShowColSettings(false)} className="mt-2 w-full text-xs text-gray-400 hover:text-gray-600 py-1">閉じる</button>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
-            {/* カレンダービュー */}
-            {appView === 'calendar' && (
-              <div className="p-4">
-                <div className="grid grid-cols-7 gap-px bg-gray-200 rounded overflow-hidden text-xs">
-                  {['日', '月', '火', '水', '木', '金', '土'].map(d => (
-                    <div key={d} className={`bg-gray-50 text-center py-1.5 font-semibold ${d === '日' ? 'text-red-400' : d === '土' ? 'text-blue-400' : 'text-gray-500'}`}>{d}</div>
-                  ))}
-                  {Array.from({ length: firstDow }).map((_, i) => (
-                    <div key={`empty-${i}`} className="bg-white min-h-[80px]" />
-                  ))}
-                  {Array.from({ length: daysInMonth }).map((_, i) => {
-                    const day = i + 1
-                    const dateStr = `${calY}-${String(calMo).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-                    const entries = byAppliedDate[dateStr] ?? []
-                    const dow = (firstDow + i) % 7
-                    const isToday = dateStr === new Date().toISOString().slice(0, 10)
-                    return (
-                      <div key={day} className="bg-white min-h-[80px] p-1">
-                        <div className={`text-right mb-1 font-semibold w-6 h-6 flex items-center justify-center rounded-full ml-auto text-xs
-                          ${isToday ? 'bg-blue-600 text-white' : dow === 0 ? 'text-red-400' : dow === 6 ? 'text-blue-400' : 'text-gray-600'}`}>
-                          {day}
+            {/* 申込ビュー */}
+            {caseView === 'applications' && (<>
+              {/* カレンダービュー */}
+              {appView === 'calendar' && (
+                <div className="p-4">
+                  <div className="grid grid-cols-7 gap-px bg-gray-200 rounded overflow-hidden text-xs">
+                    {['日', '月', '火', '水', '木', '金', '土'].map(d => (
+                      <div key={d} className={`bg-gray-50 text-center py-1.5 font-semibold ${d === '日' ? 'text-red-400' : d === '土' ? 'text-blue-400' : 'text-gray-500'}`}>{d}</div>
+                    ))}
+                    {Array.from({ length: firstDow }).map((_, i) => (
+                      <div key={`empty-${i}`} className="bg-white min-h-[80px]" />
+                    ))}
+                    {Array.from({ length: daysInMonth }).map((_, i) => {
+                      const day = i + 1
+                      const dateStr = `${calY}-${String(calMo).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+                      const entries = byAppliedDate[dateStr] ?? []
+                      const dow = (firstDow + i) % 7
+                      const isToday = dateStr === new Date().toISOString().slice(0, 10)
+                      return (
+                        <div key={day} className="bg-white min-h-[80px] p-1">
+                          <div className={`text-right mb-1 font-semibold w-6 h-6 flex items-center justify-center rounded-full ml-auto text-xs
+                            ${isToday ? 'bg-blue-600 text-white' : dow === 0 ? 'text-red-400' : dow === 6 ? 'text-blue-400' : 'text-gray-600'}`}>
+                            {day}
+                          </div>
+                          <div className="space-y-0.5">
+                            {entries.map(c => (
+                              <div key={c.id} className="bg-blue-50 border border-blue-100 rounded px-1 py-0.5 cursor-pointer hover:bg-blue-100 transition"
+                                onClick={() => { setEditTarget(c); setShowForm(true) }}>
+                                <p className="font-medium text-gray-800 truncate" style={{ fontSize: '10px' }}>{c.name ?? '-'}</p>
+                                {c.consultation_date && (
+                                  <p className="text-blue-500 truncate" style={{ fontSize: '9px' }}>
+                                    実施 {new Date(c.consultation_date).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                  </p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                        <div className="space-y-0.5">
-                          {entries.map(c => (
-                            <div
-                              key={c.id}
-                              className="bg-blue-50 border border-blue-100 rounded px-1 py-0.5 cursor-pointer hover:bg-blue-100 transition"
-                              onClick={() => { setEditTarget(c); setShowForm(true) }}
-                            >
-                              <p className="font-medium text-gray-800 truncate" style={{ fontSize: '10px' }}>{c.name ?? '-'}</p>
-                              {c.consultation_date && (
-                                <p className="text-blue-500 truncate" style={{ fontSize: '9px' }}>
-                                  実施 {new Date(c.consultation_date).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                </p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )
-                  })}
+                      )
+                    })}
+                  </div>
+                  {Object.keys(byAppliedDate).length === 0 && (
+                    <p className="text-center text-gray-400 text-xs py-6">申し込み日時データがありません（CSVを再インポートすると表示されます）</p>
+                  )}
                 </div>
-                {Object.keys(byAppliedDate).length === 0 && (
-                  <p className="text-center text-gray-400 text-xs py-6">申し込み日時データがありません（CSVを再インポートすると表示されます）</p>
-                )}
-              </div>
-            )}
+              )}
 
-            {/* リストビュー */}
-            {appView === 'list' && (
+              {/* リストビュー */}
+              {appView === 'list' && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-100">
+                        <th className="px-3 py-3 w-8">
+                          <input type="checkbox"
+                            checked={applications.length > 0 && applications.every(c => appSelectedIds.has(c.id))}
+                            onChange={e => setAppSelectedIds(e.target.checked ? new Set(applications.map(c => c.id)) : new Set())}
+                            className="rounded border-gray-300" />
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">申し込み日時</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">実施日時</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">サービス</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">担当者</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">氏名</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">年齢</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">職業</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">月収</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap min-w-[160px]">叶えたいこと</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">Zoom</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">ステータス</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {applications.length === 0 ? (
+                        <tr><td colSpan={13} className="text-center py-10 text-gray-400">申し込みがありません</td></tr>
+                      ) : applications.map(c => (
+                        <tr key={c.id} className={`border-b border-gray-50 hover:bg-gray-50 ${appSelectedIds.has(c.id) ? 'bg-blue-50' : ''}`}>
+                          <td className="px-3 py-3 w-8" onClick={e => e.stopPropagation()}>
+                            <input type="checkbox" checked={appSelectedIds.has(c.id)}
+                              onChange={e => setAppSelectedIds(prev => { const next = new Set(prev); e.target.checked ? next.add(c.id) : next.delete(c.id); return next })}
+                              className="rounded border-gray-300" />
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-400">
+                            {c.applied_at ? new Date(c.applied_at).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-600">
+                            {c.consultation_date ? new Date(c.consultation_date).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
+                          </td>
+                          <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{c.service_type ?? 'AI CAMP'}</td>
+                          <td className="px-4 py-3 text-xs text-gray-700 whitespace-nowrap">{(c.member as any)?.name ?? '-'}</td>
+                          <td className="px-4 py-3 text-xs font-medium text-gray-800 whitespace-nowrap">{c.name ?? '-'}</td>
+                          <td className="px-4 py-3 text-xs text-gray-500 font-mono whitespace-nowrap">{c.age ?? '-'}</td>
+                          <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{c.occupation ?? '-'}</td>
+                          <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{c.monthly_income ?? '-'}</td>
+                          <td className="px-4 py-3 text-xs text-gray-400 max-w-[200px]">
+                            <span className="line-clamp-2">{c.motivation ?? '-'}</span>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            {c.minutes_url
+                              ? <a href={c.minutes_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline">Zoom</a>
+                              : <span className="text-xs text-gray-300">-</span>}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[c.status ?? '予定'] ?? 'bg-gray-100 text-gray-500'}`}>
+                              {c.status ?? '予定'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                            <div className="flex gap-2 items-center">
+                              <select defaultValue={c.status ?? '予定'}
+                                onChange={async e => { await supabase.from('aicamp_consultations').update({ status: e.target.value }).eq('id', c.id); fetchAll() }}
+                                className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none"
+                                onClick={e => e.stopPropagation()}>
+                                {CONSULTATION_STATUSES.map(s => <option key={s}>{s}</option>)}
+                              </select>
+                              <button onClick={() => { setEditTarget(c); setShowForm(true) }} className="text-xs text-blue-500 hover:underline whitespace-nowrap">詳細編集</button>
+                              {c.contact_id
+                                ? <Link href={`/customers/contact/${c.contact_id}`} className="text-xs text-green-600 hover:underline whitespace-nowrap">顧客詳細</Link>
+                                : <button onClick={() => registerContact(c)} className="text-xs text-blue-400 hover:underline whitespace-nowrap">顧客登録</button>}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>)}
+
+            {/* 商談ビュー */}
+            {caseView === 'deals' && (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-100">
-                      <th className="px-3 py-3 w-8">
-                        <input
-                          type="checkbox"
-                          checked={applications.length > 0 && applications.every(c => appSelectedIds.has(c.id))}
-                          onChange={e => setAppSelectedIds(e.target.checked ? new Set(applications.map(c => c.id)) : new Set())}
-                          className="rounded border-gray-300"
-                        />
+                      <th className="px-4 py-3 w-8">
+                        <input type="checkbox"
+                          checked={filtered.length > 0 && selectedIds.size === filtered.length}
+                          onChange={toggleSelectAll} className="rounded" />
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">申し込み日時</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">実施日時</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">サービス</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">担当者</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">氏名</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">年齢</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">職業</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">月収</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap min-w-[160px]">叶えたいこと</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">Zoom</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">ステータス</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">操作</th>
+                      {AICAMP_COLUMNS.filter(col => visibleCols.has(col.key)).map(col => (
+                        <th key={col.key} className={`px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap ${AICAMP_COL_MIN_WIDTH[col.key] ?? ''}`}>
+                          {col.label}
+                        </th>
+                      ))}
+                      <th className="px-4 py-3"></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {applications.length === 0 ? (
-                      <tr><td colSpan={13} className="text-center py-10 text-gray-400">申し込みがありません</td></tr>
-                    ) : applications.map(c => (
-                      <tr key={c.id} className={`border-b border-gray-50 hover:bg-gray-50 ${appSelectedIds.has(c.id) ? 'bg-blue-50' : ''}`}>
-                        <td className="px-3 py-3 w-8" onClick={e => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={appSelectedIds.has(c.id)}
-                            onChange={e => setAppSelectedIds(prev => { const next = new Set(prev); e.target.checked ? next.add(c.id) : next.delete(c.id); return next })}
-                            className="rounded border-gray-300"
-                          />
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-400">
-                          {c.applied_at ? new Date(c.applied_at).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-600">
-                          {c.consultation_date ? new Date(c.consultation_date).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
-                        </td>
-                        <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{c.service_type ?? 'AI CAMP'}</td>
-                        <td className="px-4 py-3 text-xs text-gray-700 whitespace-nowrap">{(c.member as any)?.name ?? '-'}</td>
-                        <td className="px-4 py-3 text-xs font-medium text-gray-800 whitespace-nowrap">{c.name ?? '-'}</td>
-                        <td className="px-4 py-3 text-xs text-gray-500 font-mono whitespace-nowrap">{c.age ?? '-'}</td>
-                        <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{c.occupation ?? '-'}</td>
-                        <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{c.monthly_income ?? '-'}</td>
-                        <td className="px-4 py-3 text-xs text-gray-400 max-w-[200px]">
-                          <span className="line-clamp-2">{c.motivation ?? '-'}</span>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          {c.minutes_url
-                            ? <a href={c.minutes_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline">Zoom</a>
-                            : <span className="text-xs text-gray-300">-</span>}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[c.status ?? '予定'] ?? 'bg-gray-100 text-gray-500'}`}>
-                            {c.status ?? '予定'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
-                          <div className="flex gap-2 items-center">
-                            <select
-                              defaultValue={c.status ?? '予定'}
-                              onChange={async e => {
-                                await supabase.from('aicamp_consultations').update({ status: e.target.value }).eq('id', c.id)
-                                fetchAll()
-                              }}
-                              className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none"
-                              onClick={e => e.stopPropagation()}
-                            >
-                              {CONSULTATION_STATUSES.map(s => <option key={s}>{s}</option>)}
-                            </select>
-                            <button
-                              onClick={() => { setEditTarget(c); setShowForm(true) }}
-                              className="text-xs text-blue-500 hover:underline whitespace-nowrap"
-                            >
-                              詳細編集
-                            </button>
-                            {c.contact_id
-                              ? <Link href={`/customers/contact/${c.contact_id}`} className="text-xs text-green-600 hover:underline whitespace-nowrap">顧客詳細</Link>
-                              : <button onClick={() => registerContact(c)} className="text-xs text-blue-400 hover:underline whitespace-nowrap">顧客登録</button>
-                            }
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                    {filtered.length === 0 ? (
+                      <tr><td colSpan={visibleCols.size + 2} className="text-center py-10 text-gray-400">商談がありません</td></tr>
+                    ) : filtered.map(c => {
+                      const isEditing = inlineEditId === c.id
+                      return (
+                        <tr key={c.id} className={`border-b border-gray-50 ${selectedIds.has(c.id) ? 'bg-red-50' : 'hover:bg-gray-50 cursor-pointer'}`}
+                          onClick={() => { setEditTarget(c); setShowForm(true) }}>
+                          <td className="px-4 py-3 w-8" onClick={e => e.stopPropagation()}>
+                            <input type="checkbox" checked={selectedIds.has(c.id)} onChange={() => toggleSelect(c.id)} className="rounded" />
+                          </td>
+                          {visibleCols.has('consultation_date') && (
+                            <td className="px-4 py-3 whitespace-nowrap" onClick={e => isEditing && e.stopPropagation()}>
+                              {isEditing ? (
+                                <input type="datetime-local" value={inlineDraft.consultation_date} onChange={e => setDraft('consultation_date', e.target.value)}
+                                  className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 w-40" />
+                              ) : (
+                                <span className="text-gray-600 text-xs">
+                                  {c.consultation_date ? new Date(c.consultation_date).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
+                                </span>
+                              )}
+                            </td>
+                          )}
+                          {visibleCols.has('service_type') && (
+                            <td className="px-4 py-3 whitespace-nowrap" onClick={e => isEditing && e.stopPropagation()}>
+                              {isEditing ? (
+                                <select value={inlineDraft.service_type} onChange={e => setDraft('service_type', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none w-36">
+                                  {SERVICE_TYPES.map(s => <option key={s}>{s}</option>)}
+                                </select>
+                              ) : <span className="text-xs text-gray-600">{c.service_type ?? 'AI CAMP'}</span>}
+                            </td>
+                          )}
+                          {visibleCols.has('member_id') && (
+                            <td className="px-4 py-3 whitespace-nowrap" onClick={e => isEditing && e.stopPropagation()}>
+                              {isEditing ? (
+                                <select value={inlineDraft.member_id} onChange={e => setDraft('member_id', e.target.value)}
+                                  className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400">
+                                  <option value="">未割当</option>
+                                  {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                                </select>
+                              ) : <span className="text-gray-700">{(c.member as any)?.name ?? '-'}</span>}
+                            </td>
+                          )}
+                          {visibleCols.has('name') && (
+                            <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
+                              {isEditing ? (
+                                <input value={inlineDraft.name} onChange={e => setDraft('name', e.target.value)}
+                                  className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 w-28" placeholder="氏名" />
+                              ) : <span className="font-medium text-gray-800">{c.name ?? '-'}</span>}
+                            </td>
+                          )}
+                          {visibleCols.has('line_name') && (
+                            <td className="px-4 py-3 min-w-[140px]" onClick={e => isEditing && e.stopPropagation()}>
+                              {isEditing ? <input value={inlineDraft.line_name} onChange={e => setDraft('line_name', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-36 focus:outline-none" />
+                                : <span className="text-xs text-gray-500">{c.line_name ?? '-'}</span>}
+                            </td>
+                          )}
+                          {visibleCols.has('age') && (
+                            <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
+                              {isEditing ? <input type="number" value={inlineDraft.age} onChange={e => setDraft('age', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs font-mono w-16 focus:outline-none" />
+                                : <span className="text-xs text-gray-500 font-mono">{c.age ?? '-'}</span>}
+                            </td>
+                          )}
+                          {visibleCols.has('source') && (
+                            <td className="px-4 py-3 min-w-[180px]" onClick={e => isEditing && e.stopPropagation()}>
+                              {isEditing ? (
+                                <input value={inlineDraft.source} onChange={e => setDraft('source', e.target.value)}
+                                  className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 w-44" placeholder="流入経路" />
+                              ) : <span className="text-xs text-gray-500">{c.source ?? '-'}</span>}
+                            </td>
+                          )}
+                          {visibleCols.has('registration_source') && (
+                            <td className="px-4 py-3 max-w-[160px]" onClick={e => isEditing && e.stopPropagation()}>
+                              {isEditing ? <input value={inlineDraft.registration_source} onChange={e => setDraft('registration_source', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-36 focus:outline-none" />
+                                : <span className="text-xs text-gray-500 line-clamp-1">{c.registration_source ?? '-'}</span>}
+                            </td>
+                          )}
+                          {visibleCols.has('status') && (
+                            <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
+                              {isEditing ? (
+                                <select value={inlineDraft.status} onChange={e => setDraft('status', e.target.value)}
+                                  className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400">
+                                  {CONSULTATION_STATUSES.map(s => <option key={s}>{s}</option>)}
+                                </select>
+                              ) : (
+                                <span className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[c.status ?? '予定'] ?? 'bg-gray-100 text-gray-500'}`}>
+                                  {c.status ?? '予定'}
+                                </span>
+                              )}
+                            </td>
+                          )}
+                          {visibleCols.has('payment_amount') && (
+                            <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
+                              {isEditing ? (
+                                <input type="number" value={inlineDraft.payment_amount} onChange={e => setDraft('payment_amount', e.target.value)}
+                                  className="border border-blue-300 rounded px-2 py-1 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-blue-400 w-28" placeholder="円" />
+                              ) : (
+                                <span className="font-mono text-gray-700">
+                                  {c.payment_amount
+                                    ? (c.payment_method === 'stripe(分割)' && c.unit_amount && c.payment_count
+                                        ? `¥${c.unit_amount.toLocaleString()} × ${c.payment_count}回`
+                                        : `¥${c.payment_amount.toLocaleString()}`)
+                                    : '-'}
+                                </span>
+                              )}
+                            </td>
+                          )}
+                          {visibleCols.has('payment_date') && (
+                            <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
+                              {isEditing ? <input type="date" value={inlineDraft.payment_date} onChange={e => setDraft('payment_date', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none" />
+                                : <span className="text-xs text-gray-500">{c.payment_date ?? '-'}</span>}
+                            </td>
+                          )}
+                          {visibleCols.has('payment_method') && (
+                            <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
+                              {isEditing ? (
+                                <select value={inlineDraft.payment_method} onChange={e => setDraft('payment_method', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none">
+                                  <option value="">-</option>
+                                  {PAYMENT_METHODS.map(p => <option key={p}>{p}</option>)}
+                                </select>
+                              ) : <span className="text-xs text-gray-500">{c.payment_method ?? '-'}</span>}
+                            </td>
+                          )}
+                          {visibleCols.has('reply_deadline') && (
+                            <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
+                              {isEditing ? (
+                                <input type="date" value={inlineDraft.reply_deadline} onChange={e => setDraft('reply_deadline', e.target.value)}
+                                  className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                              ) : <span className="text-xs text-gray-500">{c.reply_deadline ?? '-'}</span>}
+                            </td>
+                          )}
+                          {visibleCols.has('occupation') && (
+                            <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
+                              {isEditing ? <input value={inlineDraft.occupation} onChange={e => setDraft('occupation', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-24 focus:outline-none" />
+                                : <span className="text-xs text-gray-500">{c.occupation ?? '-'}</span>}
+                            </td>
+                          )}
+                          {visibleCols.has('monthly_income') && (
+                            <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
+                              {isEditing ? (
+                                <select value={inlineDraft.monthly_income} onChange={e => setDraft('monthly_income', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none">
+                                  <option value="">-</option>
+                                  {MONTHLY_INCOMES.map(i => <option key={i}>{i}</option>)}
+                                </select>
+                              ) : <span className="text-xs text-gray-500">{c.monthly_income ?? '-'}</span>}
+                            </td>
+                          )}
+                          {visibleCols.has('ai_experience') && (
+                            <td className="px-4 py-3 max-w-[180px]" onClick={e => isEditing && e.stopPropagation()}>
+                              {isEditing ? (
+                                <select value={inlineDraft.ai_experience} onChange={e => setDraft('ai_experience', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none w-40">
+                                  <option value="">-</option>
+                                  {AI_EXPERIENCES.map(e => <option key={e}>{e}</option>)}
+                                </select>
+                              ) : <span className="text-xs text-gray-400 line-clamp-2">{c.ai_experience ?? '-'}</span>}
+                            </td>
+                          )}
+                          {visibleCols.has('customer_attribute') && (
+                            <td className="px-4 py-3 max-w-[160px]" onClick={e => isEditing && e.stopPropagation()}>
+                              {isEditing ? <input value={inlineDraft.customer_attribute} onChange={e => setDraft('customer_attribute', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-36 focus:outline-none" />
+                                : <span className="text-xs text-gray-400 line-clamp-2">{c.customer_attribute ?? '-'}</span>}
+                            </td>
+                          )}
+                          {visibleCols.has('motivation') && (
+                            <td className="px-4 py-3 max-w-[200px]" onClick={e => isEditing && e.stopPropagation()}>
+                              {isEditing ? <textarea value={inlineDraft.motivation} onChange={e => setDraft('motivation', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-48 h-16 resize-none focus:outline-none" />
+                                : <span className="text-xs text-gray-400 line-clamp-2">{c.motivation ?? '-'}</span>}
+                            </td>
+                          )}
+                          {visibleCols.has('reason') && (
+                            <td className="px-4 py-3 max-w-[160px]" onClick={e => isEditing && e.stopPropagation()}>
+                              {isEditing ? <textarea value={inlineDraft.reason} onChange={e => setDraft('reason', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-40 h-16 resize-none focus:outline-none" />
+                                : <span className="text-xs text-gray-400 line-clamp-2">{c.reason ?? '-'}</span>}
+                            </td>
+                          )}
+                          {visibleCols.has('minutes_url') && (
+                            <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
+                              {isEditing ? <input value={inlineDraft.minutes_url} onChange={e => setDraft('minutes_url', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-36 focus:outline-none" placeholder="https://..." />
+                                : c.minutes_url
+                                  ? <a href={c.minutes_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline" onClick={e => e.stopPropagation()}>開く</a>
+                                  : <span className="text-xs text-gray-300">-</span>}
+                            </td>
+                          )}
+                          <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                            <div className="flex gap-2 justify-end whitespace-nowrap">
+                              {isEditing ? (
+                                <>
+                                  <button onClick={() => saveInlineEdit(c.id)} disabled={inlineSaving}
+                                    className="text-xs text-white bg-blue-600 px-2 py-1 rounded hover:bg-blue-700 disabled:opacity-50 transition">
+                                    {inlineSaving ? '...' : '保存'}
+                                  </button>
+                                  <button onClick={cancelInlineEdit} className="text-xs text-gray-400 hover:text-gray-600">取消</button>
+                                </>
+                              ) : (
+                                <>
+                                  <button onClick={() => { setEditTarget(c); setShowForm(true) }} className="text-xs text-blue-500 hover:underline">詳細編集</button>
+                                  <button onClick={() => deleteConsultation(c.id)} className="text-xs text-red-400 hover:underline">削除</button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1542,323 +1858,6 @@ export default function AICampPage() {
           </div>
         )
       })()}
-
-      {activeTab === 'deals' && (
-      <div className="bg-white border border-gray-200 rounded">
-        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
-          <div className="flex items-center gap-3">
-            <h2 className="text-sm font-bold text-gray-700">商談一覧 ({filtered.length}件)</h2>
-            {selectedIds.size > 0 && (
-              <button
-                onClick={bulkDelete}
-                disabled={bulkDeleting}
-                className="text-xs text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 px-3 py-1 rounded transition"
-              >
-                {bulkDeleting ? '削除中...' : `${selectedIds.size}件を削除`}
-              </button>
-            )}
-          </div>
-          <div className="flex gap-2 items-center flex-wrap">
-            <select value={filterMember} onChange={e => setFilterMember(e.target.value)} className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none">
-              <option value="">担当者: 全員</option>
-              {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-            </select>
-            <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none">
-              <option value="">ステータス: 全て</option>
-              {['予定', '成約', '失注', '保留', 'ドタキャン', 'キャンセル'].map(s => <option key={s}>{s}</option>)}
-            </select>
-            <input
-              type="date"
-              value={rangeStart}
-              onChange={e => setRangeStart(e.target.value)}
-              className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none"
-            />
-            <span className="text-xs text-gray-400">〜</span>
-            <input
-              type="date"
-              value={rangeEnd}
-              onChange={e => setRangeEnd(e.target.value)}
-              className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none"
-            />
-            {(filterMember || filterStatus || rangeStart || rangeEnd) && (
-              <button onClick={() => { setFilterMember(''); setFilterStatus(''); setRangeStart(''); setRangeEnd('') }} className="text-xs text-gray-400 hover:text-gray-600 px-1">✕ クリア</button>
-            )}
-            <button
-              onClick={() => setShowSalesReport(true)}
-              className="px-3 py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
-            >
-              売上報告する
-            </button>
-            {/* 列設定 */}
-            <div className="relative">
-              <button
-                onClick={() => setShowColSettings(v => !v)}
-                className="flex items-center gap-1 px-3 py-1.5 text-xs border border-gray-200 rounded hover:bg-gray-50 transition text-gray-600"
-              >
-                列設定
-              </button>
-              {showColSettings && (
-                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded shadow-xl z-50 p-3 w-48">
-                  <p className="text-xs font-bold text-gray-500 mb-2">表示する列</p>
-                  <div className="space-y-1.5 max-h-72 overflow-y-auto">
-                    {AICAMP_COLUMNS.map(col => (
-                      <label key={col.key} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 px-1 py-0.5 rounded">
-                        <input
-                          type="checkbox"
-                          checked={visibleCols.has(col.key)}
-                          onChange={() => toggleCol(col.key)}
-                          className="rounded"
-                        />
-                        <span className="text-xs text-gray-700">{col.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                  <button
-                    onClick={() => setShowColSettings(false)}
-                    className="mt-2 w-full text-xs text-gray-400 hover:text-gray-600 py-1"
-                  >
-                    閉じる
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="px-4 py-3 w-8">
-                  <input
-                    type="checkbox"
-                    checked={filtered.length > 0 && selectedIds.size === filtered.length}
-                    onChange={toggleSelectAll}
-                    className="rounded"
-                  />
-                </th>
-                {AICAMP_COLUMNS.filter(col => visibleCols.has(col.key)).map(col => (
-                  <th key={col.key} className={`px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap ${AICAMP_COL_MIN_WIDTH[col.key] ?? ''}`}>
-                    {col.label}
-                  </th>
-                ))}
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
-                <tr><td colSpan={visibleCols.size + 2} className="text-center py-10 text-gray-400">商談がありません</td></tr>
-              ) : filtered.map(c => {
-                const isEditing = inlineEditId === c.id
-                return (
-                  <tr key={c.id} className={`border-b border-gray-50 ${selectedIds.has(c.id) ? 'bg-red-50' : 'hover:bg-gray-50 cursor-pointer'}`}
-                    onClick={() => { setEditTarget(c); setShowForm(true) }}
-                  >
-                    <td className="px-4 py-3 w-8" onClick={e => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(c.id)}
-                        onChange={() => toggleSelect(c.id)}
-                        className="rounded"
-                      />
-                    </td>
-                    {visibleCols.has('consultation_date') && (
-                      <td className="px-4 py-3 whitespace-nowrap" onClick={e => isEditing && e.stopPropagation()}>
-                        {isEditing ? (
-                          <input type="datetime-local" value={inlineDraft.consultation_date} onChange={e => setDraft('consultation_date', e.target.value)}
-                            className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 w-40" />
-                        ) : (
-                          <span className="text-gray-600 text-xs">
-                            {c.consultation_date ? new Date(c.consultation_date).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
-                          </span>
-                        )}
-                      </td>
-                    )}
-                    {visibleCols.has('service_type') && (
-                      <td className="px-4 py-3 whitespace-nowrap" onClick={e => isEditing && e.stopPropagation()}>
-                        {isEditing ? (
-                          <select value={inlineDraft.service_type} onChange={e => setDraft('service_type', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none w-36">
-                            {SERVICE_TYPES.map(s => <option key={s}>{s}</option>)}
-                          </select>
-                        ) : <span className="text-xs text-gray-600">{c.service_type ?? 'AI CAMP'}</span>}
-                      </td>
-                    )}
-                    {visibleCols.has('member_id') && (
-                      <td className="px-4 py-3 whitespace-nowrap" onClick={e => isEditing && e.stopPropagation()}>
-                        {isEditing ? (
-                          <select value={inlineDraft.member_id} onChange={e => setDraft('member_id', e.target.value)}
-                            className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400">
-                            <option value="">未割当</option>
-                            {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                          </select>
-                        ) : <span className="text-gray-700">{(c.member as any)?.name ?? '-'}</span>}
-                      </td>
-                    )}
-                    {visibleCols.has('name') && (
-                      <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
-                        {isEditing ? (
-                          <input value={inlineDraft.name} onChange={e => setDraft('name', e.target.value)}
-                            className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 w-28" placeholder="氏名" />
-                        ) : <span className="font-medium text-gray-800">{c.name ?? '-'}</span>}
-                      </td>
-                    )}
-                    {visibleCols.has('line_name') && (
-                      <td className="px-4 py-3 min-w-[140px]" onClick={e => isEditing && e.stopPropagation()}>
-                        {isEditing ? <input value={inlineDraft.line_name} onChange={e => setDraft('line_name', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-36 focus:outline-none" />
-                          : <span className="text-xs text-gray-500">{c.line_name ?? '-'}</span>}
-                      </td>
-                    )}
-                    {visibleCols.has('age') && (
-                      <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
-                        {isEditing ? <input type="number" value={inlineDraft.age} onChange={e => setDraft('age', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs font-mono w-16 focus:outline-none" />
-                          : <span className="text-xs text-gray-500 font-mono">{c.age ?? '-'}</span>}
-                      </td>
-                    )}
-                    {visibleCols.has('source') && (
-                      <td className="px-4 py-3 min-w-[180px]" onClick={e => isEditing && e.stopPropagation()}>
-                        {isEditing ? (
-                          <input value={inlineDraft.source} onChange={e => setDraft('source', e.target.value)}
-                            className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 w-44" placeholder="流入経路" />
-                        ) : <span className="text-xs text-gray-500">{c.source ?? '-'}</span>}
-                      </td>
-                    )}
-                    {visibleCols.has('registration_source') && (
-                      <td className="px-4 py-3 max-w-[160px]" onClick={e => isEditing && e.stopPropagation()}>
-                        {isEditing ? <input value={inlineDraft.registration_source} onChange={e => setDraft('registration_source', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-36 focus:outline-none" />
-                          : <span className="text-xs text-gray-500 line-clamp-1">{c.registration_source ?? '-'}</span>}
-                      </td>
-                    )}
-                    {visibleCols.has('status') && (
-                      <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
-                        {isEditing ? (
-                          <select value={inlineDraft.status} onChange={e => setDraft('status', e.target.value)}
-                            className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400">
-                            {CONSULTATION_STATUSES.map(s => <option key={s}>{s}</option>)}
-                          </select>
-                        ) : (
-                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[c.status ?? '予定'] ?? 'bg-gray-100 text-gray-500'}`}>
-                            {c.status ?? '予定'}
-                          </span>
-                        )}
-                      </td>
-                    )}
-                    {visibleCols.has('payment_amount') && (
-                      <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
-                        {isEditing ? (
-                          <input type="number" value={inlineDraft.payment_amount} onChange={e => setDraft('payment_amount', e.target.value)}
-                            className="border border-blue-300 rounded px-2 py-1 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-blue-400 w-28" placeholder="円" />
-                        ) : (
-                          <span className="font-mono text-gray-700">
-                            {c.payment_amount
-                              ? (c.payment_method === 'stripe(分割)' && c.unit_amount && c.payment_count
-                                  ? `¥${c.unit_amount.toLocaleString()} × ${c.payment_count}回`
-                                  : `¥${c.payment_amount.toLocaleString()}`)
-                              : '-'}
-                          </span>
-                        )}
-                      </td>
-                    )}
-                    {visibleCols.has('payment_date') && (
-                      <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
-                        {isEditing ? <input type="date" value={inlineDraft.payment_date} onChange={e => setDraft('payment_date', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none" />
-                          : <span className="text-xs text-gray-500">{c.payment_date ?? '-'}</span>}
-                      </td>
-                    )}
-                    {visibleCols.has('payment_method') && (
-                      <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
-                        {isEditing ? (
-                          <select value={inlineDraft.payment_method} onChange={e => setDraft('payment_method', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none">
-                            <option value="">-</option>
-                            {PAYMENT_METHODS.map(p => <option key={p}>{p}</option>)}
-                          </select>
-                        ) : <span className="text-xs text-gray-500">{c.payment_method ?? '-'}</span>}
-                      </td>
-                    )}
-                    {visibleCols.has('reply_deadline') && (
-                      <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
-                        {isEditing ? (
-                          <input type="date" value={inlineDraft.reply_deadline} onChange={e => setDraft('reply_deadline', e.target.value)}
-                            className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400" />
-                        ) : <span className="text-xs text-gray-500">{c.reply_deadline ?? '-'}</span>}
-                      </td>
-                    )}
-                    {visibleCols.has('occupation') && (
-                      <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
-                        {isEditing ? <input value={inlineDraft.occupation} onChange={e => setDraft('occupation', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-24 focus:outline-none" />
-                          : <span className="text-xs text-gray-500">{c.occupation ?? '-'}</span>}
-                      </td>
-                    )}
-                    {visibleCols.has('monthly_income') && (
-                      <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
-                        {isEditing ? (
-                          <select value={inlineDraft.monthly_income} onChange={e => setDraft('monthly_income', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none">
-                            <option value="">-</option>
-                            {MONTHLY_INCOMES.map(i => <option key={i}>{i}</option>)}
-                          </select>
-                        ) : <span className="text-xs text-gray-500">{c.monthly_income ?? '-'}</span>}
-                      </td>
-                    )}
-                    {visibleCols.has('ai_experience') && (
-                      <td className="px-4 py-3 max-w-[180px]" onClick={e => isEditing && e.stopPropagation()}>
-                        {isEditing ? (
-                          <select value={inlineDraft.ai_experience} onChange={e => setDraft('ai_experience', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none w-40">
-                            <option value="">-</option>
-                            {AI_EXPERIENCES.map(e => <option key={e}>{e}</option>)}
-                          </select>
-                        ) : <span className="text-xs text-gray-400 line-clamp-2">{c.ai_experience ?? '-'}</span>}
-                      </td>
-                    )}
-                    {visibleCols.has('customer_attribute') && (
-                      <td className="px-4 py-3 max-w-[160px]" onClick={e => isEditing && e.stopPropagation()}>
-                        {isEditing ? <input value={inlineDraft.customer_attribute} onChange={e => setDraft('customer_attribute', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-36 focus:outline-none" />
-                          : <span className="text-xs text-gray-400 line-clamp-2">{c.customer_attribute ?? '-'}</span>}
-                      </td>
-                    )}
-                    {visibleCols.has('motivation') && (
-                      <td className="px-4 py-3 max-w-[200px]" onClick={e => isEditing && e.stopPropagation()}>
-                        {isEditing ? <textarea value={inlineDraft.motivation} onChange={e => setDraft('motivation', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-48 h-16 resize-none focus:outline-none" />
-                          : <span className="text-xs text-gray-400 line-clamp-2">{c.motivation ?? '-'}</span>}
-                      </td>
-                    )}
-                    {visibleCols.has('reason') && (
-                      <td className="px-4 py-3 max-w-[160px]" onClick={e => isEditing && e.stopPropagation()}>
-                        {isEditing ? <textarea value={inlineDraft.reason} onChange={e => setDraft('reason', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-40 h-16 resize-none focus:outline-none" />
-                          : <span className="text-xs text-gray-400 line-clamp-2">{c.reason ?? '-'}</span>}
-                      </td>
-                    )}
-                    {visibleCols.has('minutes_url') && (
-                      <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
-                        {isEditing ? <input value={inlineDraft.minutes_url} onChange={e => setDraft('minutes_url', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs w-36 focus:outline-none" placeholder="https://..." />
-                          : c.minutes_url
-                            ? <a href={c.minutes_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline" onClick={e => e.stopPropagation()}>開く</a>
-                            : <span className="text-xs text-gray-300">-</span>}
-                      </td>
-                    )}
-                    <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                      <div className="flex gap-2 justify-end whitespace-nowrap">
-                        {isEditing ? (
-                          <>
-                            <button onClick={() => saveInlineEdit(c.id)} disabled={inlineSaving}
-                              className="text-xs text-white bg-blue-600 px-2 py-1 rounded hover:bg-blue-700 disabled:opacity-50 transition">
-                              {inlineSaving ? '...' : '保存'}
-                            </button>
-                            <button onClick={cancelInlineEdit} className="text-xs text-gray-400 hover:text-gray-600">取消</button>
-                          </>
-                        ) : (
-                          <>
-                            <button onClick={() => { setEditTarget(c); setShowForm(true) }} className="text-xs text-blue-500 hover:underline">詳細編集</button>
-                            <button onClick={() => deleteConsultation(c.id)} className="text-xs text-red-400 hover:underline">削除</button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      )}
 
       {activeTab === 'line_friends' && (() => {
         const statuses = Array.from(new Set(lineFriends.map(f => f.status).filter(Boolean))) as string[]
@@ -1954,7 +1953,28 @@ export default function AICampPage() {
                                 <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${statusClass}`}>{f.status}</span>
                               ) : '-'}
                             </td>
-                            <td className="px-4 py-2 text-gray-500">{f.registration_source ?? '-'}</td>
+                            <td className="px-4 py-2 text-gray-500" onClick={e => e.stopPropagation()}>
+                              {friendEditId === f.id ? (
+                                <input
+                                  autoFocus
+                                  value={friendEditSource}
+                                  onChange={e => setFriendEditSource(e.target.value)}
+                                  onBlur={() => saveFriendSource(f.id, friendEditSource)}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') saveFriendSource(f.id, friendEditSource)
+                                    if (e.key === 'Escape') { setFriendEditId(null); setFriendEditSource('') }
+                                  }}
+                                  className="border border-blue-300 rounded px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 w-36"
+                                />
+                              ) : (
+                                <span
+                                  className="cursor-pointer hover:bg-gray-100 px-1 py-0.5 rounded transition"
+                                  onClick={() => { setFriendEditId(f.id); setFriendEditSource(f.registration_source ?? '') }}
+                                >
+                                  {f.registration_source ?? <span className="text-gray-300">クリックして編集</span>}
+                                </span>
+                              )}
+                            </td>
                             <td className="px-4 py-2 text-gray-500">{f.blocked_at ? f.blocked_at.replace('T', ' ').slice(0, 16) : '-'}</td>
                             <td className="px-4 py-2 text-gray-500">{f.registered_at ? f.registered_at.replace('T', ' ').slice(0, 16) : '-'}</td>
                           </tr>
