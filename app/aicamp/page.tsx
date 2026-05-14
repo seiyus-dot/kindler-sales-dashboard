@@ -186,10 +186,12 @@ export default function AICampPage() {
   const [openCardKey, setOpenCardKey] = useState<string | null>(null)
   const [dailyLogs, setDailyLogs] = useState<AICampDailyLog[]>([])
   const [showDailyForm, setShowDailyForm] = useState(false)
+  const [dailyEditId, setDailyEditId] = useState<string | null>(null)
   const [dailyForm, setDailyForm] = useState({ log_date: '', application_count: '', cancel_count: '', contract_count: '', hold_count: '', loss_count: '', notes: '' })
   const [dailySaving, setDailySaving] = useState(false)
   const [utageDeliveries, setUtageDeliveries] = useState<UtageDelivery[]>([])
   const [showUtageForm, setShowUtageForm] = useState(false)
+  const [utageEditId, setUtageEditId] = useState<string | null>(null)
   const [utageForm, setUtageForm] = useState({ title: '', sent_at: '', sent_count: '', open_count: '', click_count: '', application_count: '', block_count: '', content: '', notes: '' })
   const [utageSaving, setUtageSaving] = useState(false)
   const [visibleCols, setVisibleCols] = useState<Set<ColKey>>(() => {
@@ -367,10 +369,13 @@ export default function AICampPage() {
       loss_count: parseInt(dailyForm.loss_count) || 0,
       notes: dailyForm.notes || null,
     }
-    const { error } = await supabase.from('aicamp_daily_logs').upsert(payload, { onConflict: 'log_date' })
+    const { error } = dailyEditId
+      ? await supabase.from('aicamp_daily_logs').update(payload).eq('id', dailyEditId)
+      : await supabase.from('aicamp_daily_logs').upsert(payload, { onConflict: 'log_date' })
     setDailySaving(false)
     if (error) { alert(`保存エラー: ${error.message}`); return }
     setShowDailyForm(false)
+    setDailyEditId(null)
     fetchAll()
   }
 
@@ -394,10 +399,13 @@ export default function AICampPage() {
       content: utageForm.content || null,
       notes: utageForm.notes || null,
     }
-    const { error } = await supabase.from('utage_deliveries').insert(payload)
+    const { error } = utageEditId
+      ? await supabase.from('utage_deliveries').update(payload).eq('id', utageEditId)
+      : await supabase.from('utage_deliveries').insert(payload)
     setUtageSaving(false)
     if (error) { alert(`保存エラー: ${error.message}`); return }
     setShowUtageForm(false)
+    setUtageEditId(null)
     fetchAll()
   }
 
@@ -2102,7 +2110,20 @@ export default function AICampPage() {
                     <td className="px-3 py-2 text-right text-amber-600">{log.hold_count}</td>
                     <td className="px-3 py-2 text-right text-red-500">{log.loss_count}</td>
                     <td className="px-3 py-2 text-gray-500 text-xs max-w-[200px] truncate">{log.notes ?? '-'}</td>
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-2 flex gap-2">
+                      <button onClick={() => {
+                        setDailyEditId(log.id)
+                        setDailyForm({
+                          log_date: log.log_date,
+                          application_count: log.application_count.toString(),
+                          cancel_count: log.cancel_count.toString(),
+                          contract_count: log.contract_count.toString(),
+                          hold_count: log.hold_count.toString(),
+                          loss_count: log.loss_count.toString(),
+                          notes: log.notes ?? '',
+                        })
+                        setShowDailyForm(true)
+                      }} className="text-xs text-blue-500 hover:text-blue-700 transition">編集</button>
                       <button onClick={() => deleteDailyLog(log.id)} className="text-xs text-red-400 hover:text-red-600 transition">削除</button>
                     </td>
                   </tr>
@@ -2115,8 +2136,8 @@ export default function AICampPage() {
             <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
               <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-                  <h2 className="text-base font-bold text-gray-800">日次ログ記録</h2>
-                  <button onClick={() => setShowDailyForm(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+                  <h2 className="text-base font-bold text-gray-800">{dailyEditId ? '日次ログ編集' : '日次ログ記録'}</h2>
+                  <button onClick={() => { setShowDailyForm(false); setDailyEditId(null) }} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
                 </div>
                 <div className="px-6 py-4 grid grid-cols-2 gap-4">
                   <div className="col-span-2">
@@ -2149,9 +2170,9 @@ export default function AICampPage() {
                   </div>
                 </div>
                 <div className="flex justify-end gap-2 px-6 py-4 border-t border-gray-100">
-                  <button onClick={() => setShowDailyForm(false)} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition">キャンセル</button>
+                  <button onClick={() => { setShowDailyForm(false); setDailyEditId(null) }} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition">キャンセル</button>
                   <button onClick={saveDailyLog} disabled={dailySaving || !dailyForm.log_date} className="px-4 py-2 text-sm bg-navy text-white rounded hover:bg-[#152f5a] disabled:opacity-50 transition">
-                    {dailySaving ? '保存中...' : '記録する'}
+                    {dailySaving ? '保存中...' : '保存する'}
                   </button>
                 </div>
               </div>
@@ -2216,7 +2237,22 @@ export default function AICampPage() {
                         <span title={d.content} className="block truncate cursor-help">{d.content}</span>
                       ) : '-'}
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-2 flex gap-2">
+                      <button onClick={() => {
+                        setUtageEditId(d.id)
+                        setUtageForm({
+                          title: d.title,
+                          sent_at: d.sent_at.slice(0, 16),
+                          sent_count: d.sent_count.toString(),
+                          open_count: d.open_count.toString(),
+                          click_count: d.click_count.toString(),
+                          application_count: d.application_count?.toString() ?? '',
+                          block_count: d.block_count?.toString() ?? '',
+                          content: d.content ?? '',
+                          notes: d.notes ?? '',
+                        })
+                        setShowUtageForm(true)
+                      }} className="text-xs text-blue-500 hover:text-blue-700 transition">編集</button>
                       <button onClick={() => deleteUtageDelivery(d.id)} className="text-xs text-red-400 hover:text-red-600 transition">削除</button>
                     </td>
                   </tr>
@@ -2229,8 +2265,8 @@ export default function AICampPage() {
             <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
               <div className="bg-white rounded-lg shadow-xl w-full max-w-lg">
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-                  <h2 className="text-base font-bold text-gray-800">Utage配信を記録</h2>
-                  <button onClick={() => setShowUtageForm(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+                  <h2 className="text-base font-bold text-gray-800">{utageEditId ? 'Utage配信を編集' : 'Utage配信を記録'}</h2>
+                  <button onClick={() => { setShowUtageForm(false); setUtageEditId(null) }} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
                 </div>
                 <div className="px-6 py-4 grid grid-cols-2 gap-4">
                   <div className="col-span-2">
@@ -2271,9 +2307,9 @@ export default function AICampPage() {
                   </div>
                 </div>
                 <div className="flex justify-end gap-2 px-6 py-4 border-t border-gray-100">
-                  <button onClick={() => setShowUtageForm(false)} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition">キャンセル</button>
+                  <button onClick={() => { setShowUtageForm(false); setUtageEditId(null) }} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition">キャンセル</button>
                   <button onClick={saveUtageDelivery} disabled={utageSaving || !utageForm.title || !utageForm.sent_at} className="px-4 py-2 text-sm bg-navy text-white rounded hover:bg-[#152f5a] disabled:opacity-50 transition">
-                    {utageSaving ? '保存中...' : '記録する'}
+                    {utageSaving ? '保存中...' : '保存する'}
                   </button>
                 </div>
               </div>
