@@ -287,9 +287,9 @@ export default function DealsPage() {
       case 'contact_name':  return <span className="text-gray-500">{d.contact_name ?? '-'}</span>
       case 'industry':      return <span className="text-gray-500">{d.industry ?? '-'}</span>
       case 'latest_meeting_at': {
-        const m = latestMeetings.get(d.id)
-        if (!m?.action_date) return <span className="text-gray-300">—</span>
-        return <span className="text-gray-600 text-sm">{m.action_date}</span>
+        const date = latestMeetings.get(d.id)?.action_date ?? d.last_contact_date
+        if (!date) return <span className="text-gray-300">—</span>
+        return <span className="text-gray-600 text-sm">{date}</span>
       }
       case 'video_url': {
         if (!d.video_url) return <span className="text-gray-300">—</span>

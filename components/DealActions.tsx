@@ -69,11 +69,15 @@ export default function DealActions({
       notes: form.notes || null,
       member_id: form.member_id || null,
     })
-    setSaving(false)
     if (error) {
+      setSaving(false)
       setSaveError(error.message)
       return
     }
+    // アクション日付で最終接触日を更新（より新しい日付のみ上書き）
+    const table = dealType === 'tob' ? 'deals_tob' : 'deals_toc'
+    await supabase.from(table).update({ last_contact_date: form.action_date }).eq('id', dealId).or(`last_contact_date.is.null,last_contact_date.lte.${form.action_date}`)
+    setSaving(false)
     setShowForm(false)
     setForm({ action_type: '', action_date: new Date().toISOString().slice(0, 10), notes: '', member_id: defaultMemberId ?? '' })
     fetchActions()
