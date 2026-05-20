@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, Fragment } from 'react'
 import { supabase, WeeklyLog, DealToB, DealToC, AICampConsultation, Member, News } from '@/lib/supabase'
 import DealToBForm from '@/components/DealToBForm'
 import PageHeader from '@/components/PageHeader'
@@ -557,9 +557,8 @@ export default function DashboardPage() {
             </thead>
             <tbody>
               {pipelineData.map(row => (
-                <>
+                <Fragment key={row.month}>
                   <tr
-                    key={row.month}
                     onClick={() => setOpenMonth(openMonth === row.month ? null : row.month)}
                     className="border-t border-[#f0f2f8] hover:bg-[#f8f9fc] cursor-pointer select-none"
                   >
@@ -591,7 +590,7 @@ export default function DashboardPage() {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>
