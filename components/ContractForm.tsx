@@ -1,19 +1,23 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Minus } from 'lucide-react'
+import { Plus, Minus, UserPlus } from 'lucide-react'
 import {
   supabase,
   Member,
+  Client,
   ContractType,
   CONTRACT_TRAINING_UNIT,
   CONTRACT_ADVISOR_UNIT,
   CONTRACT_TRAINING_COURSES,
 } from '@/lib/supabase'
+import ClientForm from './ClientForm'
 
 type Props = {
   members: Member[]
+  clients: Client[]
   onSubmitted: () => void
+  onClientsChanged: () => void
 }
 
 type TrainingRow = { name: string; quantity: string }
@@ -24,8 +28,9 @@ function fmt(n: number) {
   return '¥' + n.toLocaleString('ja-JP')
 }
 
-export default function ContractForm({ members, onSubmitted }: Props) {
-  const [clientName, setClientName] = useState('')
+export default function ContractForm({ members, clients, onSubmitted, onClientsChanged }: Props) {
+  const [clientId, setClientId] = useState('')
+  const [showNewClient, setShowNewClient] = useState(false)
   const [memberId, setMemberId] = useState('')
   const [contractType, setContractType] = useState<ContractType | ''>('')
   const [trainingRows, setTrainingRows] = useState<TrainingRow[]>([
@@ -100,7 +105,8 @@ export default function ContractForm({ members, onSubmitted }: Props) {
 
   async function handleSubmit() {
     setError('')
-    if (!clientName.trim()) { setError('クライアント企業名を入力してください'); return }
+    const selectedClient = clients.find(c => c.id === clientId)
+    if (!selectedClient) { setError('クライアントを選択してください'); return }
     if (!contractType) { setError('契約種別を選択してください'); return }
     if (!calc) { setError('契約内容を入力してください'); return }
     const startDate = contractType === 'training' ? trainingStartDate : advisorStartDate
@@ -110,7 +116,8 @@ export default function ContractForm({ members, onSubmitted }: Props) {
     const { data: inserted, error: insErr } = await supabase
       .from('contracts')
       .insert({
-        client_name: clientName.trim(),
+        client_id: selectedClient.id,
+        client_name: selectedClient.company_name,
         member_id: memberId || null,
         contract_type: contractType,
         advisor_months: contractType === 'advisor' ? parseInt(advisorMonths) : null,
@@ -151,7 +158,7 @@ export default function ContractForm({ members, onSubmitted }: Props) {
   }
 
   function resetForm() {
-    setClientName('')
+    setClientId('')
     setMemberId('')
     setContractType('')
     setTrainingRows([{ name: CONTRACT_TRAINING_COURSES[0], quantity: '' }])
@@ -160,6 +167,8 @@ export default function ContractForm({ members, onSubmitted }: Props) {
     setAdvisorStartDate('')
     setError('')
   }
+
+  const selectedClient = clients.find(c => c.id === clientId)
 
   return (
     <div className="max-w-3xl mx-auto space-y-3">
@@ -174,16 +183,36 @@ export default function ContractForm({ members, onSubmitted }: Props) {
         <div className="grid sm:grid-cols-2 gap-4 mb-4">
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              クライアント企業名 <span className="text-red-500">*</span>
+              クライアント <span className="text-red-500">*</span>
             </label>
-            <input
-              className="input"
-              type="text"
-              placeholder="例：株式会社〇〇"
-              value={clientName}
-              onChange={e => setClientName(e.target.value)}
-            />
-            <p className="text-[11px] text-slate-400 mt-1">正式な法人名称（前株・後株に注意）</p>
+            <div className="flex gap-2">
+              <select
+                className="input flex-1"
+                value={clientId}
+                onChange={e => setClientId(e.target.value)}
+              >
+                <option value="">マスタから選択してください</option>
+                {clients.map(c => (
+                  <option key={c.id} value={c.id}>{c.company_name}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => setShowNewClient(true)}
+                className="inline-flex items-center gap-1 px-3 rounded-md border border-blue-500 text-blue-600 text-xs font-semibold hover:bg-blue-50 whitespace-nowrap"
+                title="新規クライアント登録"
+              >
+                <UserPlus size={12} />
+                新規
+              </button>
+            </div>
+            {selectedClient ? (
+              <p className="text-[11px] text-slate-500 mt-1">
+                担当: {selectedClient.contact_name ?? '未設定'}　|　{selectedClient.contact_email ?? 'メール未設定'}
+              </p>
+            ) : (
+              <p className="text-[11px] text-slate-400 mt-1">マスタに無い場合は「新規」から追加してください</p>
+            )}
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">担当営業</label>
@@ -368,6 +397,17 @@ export default function ContractForm({ members, onSubmitted }: Props) {
       >
         {saving ? '送信中…' : '申請してCSへ送信する'}
       </button>
+
+      {showNewClient && (
+        <ClientForm
+          onClose={() => setShowNewClient(false)}
+          onSaved={client => {
+            setShowNewClient(false)
+            onClientsChanged()
+            setClientId(client.id)
+          }}
+        />
+      )}
     </div>
   )
 }

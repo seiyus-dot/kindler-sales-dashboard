@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase, Contract, ContractStatus, Member, CONTRACT_STATUSES } from '@/lib/supabase'
+import { supabase, Contract, ContractStatus, Member, Client, CONTRACT_STATUSES } from '@/lib/supabase'
 import PageHeader from '@/components/PageHeader'
 import ContractForm from '@/components/ContractForm'
 import ContractDetailModal from '@/components/ContractDetailModal'
@@ -53,22 +53,30 @@ export default function ContractsPage() {
   const [tab, setTab] = useState<Tab>('form')
   const [contracts, setContracts] = useState<Contract[]>([])
   const [members, setMembers] = useState<Member[]>([])
+  const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [activeContract, setActiveContract] = useState<Contract | null>(null)
   const [toast, setToast] = useState<string | null>(null)
 
   async function fetchAll() {
     setLoading(true)
-    const [{ data: contractData }, { data: memberData }] = await Promise.all([
+    const [{ data: contractData }, { data: memberData }, { data: clientData }] = await Promise.all([
       supabase
         .from('contracts')
-        .select('*, members(name), contract_items(*)')
+        .select('*, members(name), clients(*), contract_items(*)')
         .order('submitted_at', { ascending: false }),
       supabase.from('members').select('*').order('sort_order'),
+      supabase.from('clients').select('*').order('company_name'),
     ])
     setContracts((contractData ?? []) as Contract[])
     setMembers((memberData ?? []) as Member[])
+    setClients((clientData ?? []) as Client[])
     setLoading(false)
+  }
+
+  async function fetchClients() {
+    const { data } = await supabase.from('clients').select('*').order('company_name')
+    setClients((data ?? []) as Client[])
   }
 
   useEffect(() => {
@@ -111,6 +119,8 @@ export default function ContractsPage() {
         {tab === 'form' && (
           <ContractForm
             members={members}
+            clients={clients}
+            onClientsChanged={fetchClients}
             onSubmitted={() => {
               setToast('申請が完了しました。CSダッシュボードに送信されました。')
               fetchAll()

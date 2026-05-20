@@ -418,6 +418,25 @@ export type MeetingNote = {
 // Contract Automation Gateway
 // =============================================
 
+export type Client = {
+  id: string
+  company_name: string
+  company_name_kana: string | null
+  rep_name: string | null
+  rep_title: string | null
+  contact_name: string | null
+  contact_title: string | null
+  contact_email: string | null
+  contact_phone: string | null
+  postal_code: string | null
+  address: string | null
+  mf_partner_id: string | null
+  cloudsign_send_email: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
 export type ContractType = 'training' | 'advisor'
 
 export type ContractStatus =
@@ -454,6 +473,7 @@ export type ContractItem = {
 export type Contract = {
   id: string
   client_name: string
+  client_id: string | null
   member_id: string | null
   contract_type: ContractType
   advisor_months: number | null
@@ -462,8 +482,15 @@ export type Contract = {
   tax_amount: number
   total_tax_inc: number
   status: ContractStatus
+  mf_quote_id: string | null
+  mf_quote_pdf_url: string | null
+  mf_invoice_id: string | null
+  mf_invoice_pdf_url: string | null
+  cloudsign_doc_id: string | null
+  cloudsign_sent_at: string | null
   submitted_at: string
   created_at: string
   members?: { name: string } | null
+  clients?: Client | null
   contract_items?: ContractItem[]
 }
