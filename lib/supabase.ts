@@ -413,3 +413,57 @@ export type MeetingNote = {
   updated_at: string
   member?: Member
 }
+
+// =============================================
+// Contract Automation Gateway
+// =============================================
+
+export type ContractType = 'training' | 'advisor'
+
+export type ContractStatus =
+  | '新規受付（未対応）'
+  | '契約書作成中'
+  | '送付済'
+  | '締結完了'
+
+export const CONTRACT_STATUSES: ContractStatus[] = [
+  '新規受付（未対応）',
+  '契約書作成中',
+  '送付済',
+  '締結完了',
+]
+
+export const CONTRACT_TRAINING_UNIT = 300000
+export const CONTRACT_ADVISOR_UNIT = 200000
+
+export const CONTRACT_TRAINING_COURSES = [
+  '【定額制】基礎コース',
+  '【定額制】応用コース',
+] as const
+
+export type ContractItem = {
+  id: string
+  contract_id: string
+  sort_order: number
+  name: string
+  quantity: number
+  unit_price: number
+  subtotal_tax_excl: number
+}
+
+export type Contract = {
+  id: string
+  client_name: string
+  member_id: string | null
+  contract_type: ContractType
+  advisor_months: number | null
+  start_date: string
+  total_tax_excl: number
+  tax_amount: number
+  total_tax_inc: number
+  status: ContractStatus
+  submitted_at: string
+  created_at: string
+  members?: { name: string } | null
+  contract_items?: ContractItem[]
+}
