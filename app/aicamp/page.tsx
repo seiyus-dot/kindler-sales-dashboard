@@ -1446,22 +1446,22 @@ export default function AICampPage() {
       {activeTab === 'cases' && (() => {
         const applications = consultations.filter(c => {
           if (filterServiceType && (c.service_type ?? 'AI CAMP') !== filterServiceType) return false
-          const d = (c.applied_at ?? c.consultation_date)?.slice(0, 10) ?? ''
+          const d = (c.consultation_date ?? c.applied_at)?.slice(0, 10) ?? ''
           if (rangeStart && d && d < rangeStart) return false
           if (rangeEnd && d && d > rangeEnd) return false
           return true
         })
 
-        // カレンダー計算
+        // カレンダー計算（実施日ベースで振り分け）
         const [calY, calMo] = month.split('-').map(Number)
         const daysInMonth = new Date(calY, calMo, 0).getDate()
         const firstDow = new Date(calY, calMo - 1, 1).getDay()
-        const byAppliedDate: Record<string, typeof applications> = {}
+        const byConsultationDate: Record<string, typeof applications> = {}
         applications.forEach(c => {
-          const d = c.applied_at?.slice(0, 10)
+          const d = c.consultation_date?.slice(0, 10)
           if (!d) return
-          if (!byAppliedDate[d]) byAppliedDate[d] = []
-          byAppliedDate[d].push(c)
+          if (!byConsultationDate[d]) byConsultationDate[d] = []
+          byConsultationDate[d].push(c)
         })
 
         return (
@@ -1592,7 +1592,7 @@ export default function AICampPage() {
                     {Array.from({ length: daysInMonth }).map((_, i) => {
                       const day = i + 1
                       const dateStr = `${calY}-${String(calMo).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-                      const entries = byAppliedDate[dateStr] ?? []
+                      const entries = byConsultationDate[dateStr] ?? []
                       const dow = (firstDow + i) % 7
                       const isToday = dateStr === new Date().toISOString().slice(0, 10)
                       return (
@@ -1606,9 +1606,9 @@ export default function AICampPage() {
                               <div key={c.id} className="bg-blue-50 border border-blue-100 rounded px-1 py-0.5 cursor-pointer hover:bg-blue-100 transition"
                                 onClick={() => { setEditTarget(c); setShowForm(true) }}>
                                 <p className="font-medium text-gray-800 truncate" style={{ fontSize: '10px' }}>{c.name ?? '-'}</p>
-                                {c.consultation_date && (
+                                {c.applied_at && (
                                   <p className="text-blue-500 truncate" style={{ fontSize: '9px' }}>
-                                    実施 {new Date(c.consultation_date).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                    申込 {new Date(c.applied_at).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                   </p>
                                 )}
                               </div>
@@ -1618,8 +1618,8 @@ export default function AICampPage() {
                       )
                     })}
                   </div>
-                  {Object.keys(byAppliedDate).length === 0 && (
-                    <p className="text-center text-gray-400 text-xs py-6">申し込み日時データがありません（CSVを再インポートすると表示されます）</p>
+                  {Object.keys(byConsultationDate).length === 0 && (
+                    <p className="text-center text-gray-400 text-xs py-6">この月に実施予定の申し込みはありません</p>
                   )}
                 </div>
               )}

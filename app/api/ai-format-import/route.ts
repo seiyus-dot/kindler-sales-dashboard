@@ -428,7 +428,13 @@ export async function PUT(req: NextRequest) {
       // 既存レコードを取得して null のフィールドだけ更新
       let query = supabase.from(targetTable).select('*').eq(dupKey, String(cleanRow[dupKey] ?? ''))
       if (targetTable === 'aicamp_consultations' && cleanRow.consultation_date) {
-        query = query.eq('consultation_date', String(cleanRow.consultation_date))
+        // consultation_date は timestamptz。取込側は日付のみ（00:00）だが既存行は時刻付き
+        // （例 17:00:00）で保存されている場合があるため、当日 0:00〜翌日 0:00 の範囲で照合する。
+        // 完全一致（eq）だと時刻ズレでマッチせず、マージのつもりが二重INSERTになる。
+        const day = String(cleanRow.consultation_date).slice(0, 10)
+        const next = new Date(`${day}T00:00:00Z`)
+        next.setUTCDate(next.getUTCDate() + 1)
+        query = query.gte('consultation_date', day).lt('consultation_date', next.toISOString().slice(0, 10))
       }
       const { data: existingRows } = await query.limit(1)
       const existing = existingRows?.[0] as Record<string, unknown> | undefined
