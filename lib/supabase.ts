@@ -171,8 +171,11 @@ export type AICampConsultation = {
   source?: string
   registration_source?: string
   status?: string
+  line_added?: boolean
   payment_amount?: number
   payment_date?: string
+  contract_amount?: number
+  contract_date?: string
   payment_method?: string
   payment_count?: number
   unit_amount?: number
@@ -232,7 +235,7 @@ export type MemberMonthlyGoal = {
   created_at: string
 }
 
-export const CONSULTATION_STATUSES = ['予定', '成約', '失注', '保留', 'ドタキャン', 'キャンセル'] as const
+export const CONSULTATION_STATUSES = ['予定', '成約', '失注', '保留', 'ドタキャン', 'キャンセル', 'クーリングオフ'] as const
 export const PAYMENT_METHODS = ['stripe(一括)', '銀行振込', 'stripe(分割)', 'その他'] as const
 export const AI_EXPERIENCES = [
   'ほぼ未経験（名前だけ知っている）',

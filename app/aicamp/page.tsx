@@ -1,9 +1,12 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { useTabParam } from '@/lib/useTabParam'
 import Link from 'next/link'
 import { supabase, AICampConsultation, AICampMonthlyGoal, AICampAdWeekly, Member, LineFriend, AICampDailyLog, UtageDelivery, CONSULTATION_STATUSES, PAYMENT_METHODS, AI_EXPERIENCES } from '@/lib/supabase'
 import PageHeader from '@/components/PageHeader'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
+import { ChevronRight, ChevronDown, Check } from 'lucide-react'
 
 const MONTHLY_INCOMES = ['〜10万円', '11～20万円', '21～30万円', '31～40万円', '41～50万円', '51～60万円', '61～70万円', '71～80万円', '81～90万円', '91～100万円', '101万円以上']
 const SERVICE_TYPES = ['AI CAMP', 'プロダクト AI CAMP']
@@ -14,10 +17,13 @@ const AICAMP_COL_MIN_WIDTH: Record<string, string> = {
   member_id:            'min-w-[80px]',
   name:                 'min-w-[120px]',
   line_name:            'min-w-[120px]',
+  line_added:           'min-w-[110px]',
   age:                  'min-w-[60px]',
   source:               'min-w-[180px]',
   registration_source:  'min-w-[180px]',
   status:               'min-w-[100px]',
+  contract_amount:      'min-w-[100px]',
+  contract_date:        'min-w-[100px]',
   payment_amount:       'min-w-[90px]',
   payment_date:         'min-w-[100px]',
   payment_method:       'min-w-[100px]',
@@ -32,16 +38,21 @@ const AICAMP_COL_MIN_WIDTH: Record<string, string> = {
 }
 const AICAMP_COL_NOWRAP = new Set(['customer_attribute', 'motivation', 'reason'])
 
+const TREND_COLORS = ['#1a3a6e', '#2563eb', '#06b6d4', '#10b981', '#f59e0b', '#9ca3af']
+
 const AICAMP_COLUMNS = [
   { key: 'consultation_date', label: '実施日時', defaultVisible: true },
   { key: 'service_type',      label: 'サービス', defaultVisible: true },
   { key: 'member_id',         label: '営業担当', defaultVisible: true },
   { key: 'name',              label: '氏名',     defaultVisible: true },
   { key: 'line_name',         label: 'LINE名',   defaultVisible: true },
+  { key: 'line_added',        label: 'LINE追加確認', defaultVisible: true },
   { key: 'age',               label: '年齢',     defaultVisible: false },
   { key: 'source',            label: '流入経路', defaultVisible: true },
   { key: 'registration_source', label: '登録経路', defaultVisible: true },
   { key: 'status',            label: 'ステータス', defaultVisible: true },
+  { key: 'contract_amount',   label: '売上計上額', defaultVisible: true },
+  { key: 'contract_date',     label: '成約日',   defaultVisible: false },
   { key: 'payment_amount',    label: '着金額',    defaultVisible: true },
   { key: 'payment_date',      label: '着金日',   defaultVisible: false },
   { key: 'payment_method',    label: '支払方法', defaultVisible: false },
@@ -68,6 +79,7 @@ const STATUS_COLORS: Record<string, string> = {
   '保留':     'bg-amber-100 text-amber-700',
   'ドタキャン': 'bg-red-50 text-red-400',
   'キャンセル': 'bg-gray-100 text-gray-500',
+  'クーリングオフ': 'bg-orange-100 text-orange-700',
   '予定':     'bg-blue-100 text-blue-600',
 }
 
@@ -124,6 +136,14 @@ function BreakdownPanel({ title, headers, rows }: {
 }
 
 export default function AICampPage() {
+  return (
+    <Suspense fallback={null}>
+      <AICampPageContent />
+    </Suspense>
+  )
+}
+
+function AICampPageContent() {
   const today = new Date()
   const [month, setMonth] = useState(toMonthStr(today))
   const [consultations, setConsultations] = useState<AICampConsultation[]>([])
@@ -163,7 +183,12 @@ export default function AICampPage() {
   const [showAddWeek, setShowAddWeek] = useState(false)
   const [newWeek, setNewWeek] = useState({ week_label: '', ad_spend: '', list_count: '', consultation_count: '', seated_count: '', notes: '' })
   const [adServiceType, setAdServiceType] = useState<'AI CAMP' | 'プロダクト AI CAMP'>('プロダクト AI CAMP')
-  const [activeTab, setActiveTab] = useState<'overview' | 'ads' | 'cases' | 'line_friends' | 'daily' | 'utage'>('overview')
+  const [activeTab, setActiveTab] = useTabParam(['overview', 'ads', 'source_analytics', 'cases', 'line_friends', 'daily', 'utage'] as const, 'overview')
+  const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set())
+  const [trendMetric, setTrendMetric] = useState<'consultations' | 'contracted'>('consultations')
+  const [trendRows, setTrendRows] = useState<Pick<AICampConsultation, 'source' | 'status' | 'consultation_date' | 'payment_amount'>[]>([])
+  const [trendLoading, setTrendLoading] = useState(false)
+  const [trendLoaded, setTrendLoaded] = useState(false)
   const [caseView, setCaseView] = useState<'applications' | 'deals'>('applications')
   const [filterServiceType, setFilterServiceType] = useState('')
   const [rangeStart, setRangeStart] = useState('')
@@ -215,6 +240,24 @@ export default function AICampPage() {
 
   useEffect(() => { fetchAll() }, [month])
   useEffect(() => { if (activeTab === 'line_friends') fetchLineFriends() }, [activeTab])
+  useEffect(() => {
+    if (activeTab !== 'source_analytics' || trendLoaded) return
+    fetchTrend()
+  }, [activeTab, trendLoaded])
+
+  async function fetchTrend() {
+    setTrendLoading(true)
+    const now = new Date()
+    const start = new Date(now.getFullYear(), now.getMonth() - 5, 1)
+    const startStr = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-01`
+    const { data } = await supabase
+      .from('aicamp_consultations')
+      .select('source, status, consultation_date, payment_amount')
+      .gte('consultation_date', startStr)
+    setTrendRows(data ?? [])
+    setTrendLoaded(true)
+    setTrendLoading(false)
+  }
 
   async function fetchLineFriends() {
     setLineFriendsLoading(true)
@@ -291,7 +334,7 @@ export default function AICampPage() {
       supabase
         .from('aicamp_consultations')
         .select('*, member:members(name)')
-        .or(`and(consultation_date.gte.${month}-01,consultation_date.lt.${nextMonth(month)}),and(payment_date.gte.${month}-01,payment_date.lt.${nextMonth(month)})`)
+        .or(`and(consultation_date.gte.${month}-01,consultation_date.lt.${nextMonth(month)}),and(payment_date.gte.${month}-01,payment_date.lt.${nextMonth(month)}),and(contract_date.gte.${month}-01,contract_date.lt.${nextMonth(month)})`)
         .order('consultation_date', { ascending: false }),
       supabase.from('members').select('*').order('sort_order'),
       supabase.from('aicamp_monthly_goals').select('*').eq('month', month).maybeSingle(),
@@ -490,6 +533,8 @@ export default function AICampPage() {
       source: inlineDraft.source || null,
       registration_source: inlineDraft.registration_source || null,
       status: inlineDraft.status,
+      contract_amount: inlineDraft.contract_amount ? parseInt(inlineDraft.contract_amount) : null,
+      contract_date: inlineDraft.contract_date || null,
       payment_amount: inlineDraft.payment_amount ? parseInt(inlineDraft.payment_amount) : null,
       payment_date: inlineDraft.payment_date || null,
       payment_method: inlineDraft.payment_method || null,
@@ -519,6 +564,19 @@ export default function AICampPage() {
     if (!confirm('削除しますか？')) return
     await supabase.from('aicamp_consultations').delete().eq('id', id)
     fetchAll()
+  }
+
+  // LINE追加確認フラグをその場でトグル（確認済み ⇄ 未確認）
+  async function toggleLineAdded(c: AICampConsultation) {
+    const next = !c.line_added
+    // 楽観的更新（テーブル再取得なしで即反映）
+    setConsultations(prev => prev.map(x => x.id === c.id ? { ...x, line_added: next } : x))
+    const { error } = await supabase.from('aicamp_consultations').update({ line_added: next }).eq('id', c.id)
+    if (error) {
+      // 失敗したら元に戻す
+      setConsultations(prev => prev.map(x => x.id === c.id ? { ...x, line_added: !next } : x))
+      alert(`保存エラー: ${error.message}`)
+    }
   }
 
   async function registerContact(c: AICampConsultation) {
@@ -616,13 +674,27 @@ export default function AICampPage() {
   const productContracted = contracted.filter(c => c.service_type === 'プロダクト AI CAMP')
 
   const held = consultations.filter(c => c.status === '保留')
-  const conducted = consultations.filter(c => ['成約', '失注', '保留'].includes(c.status ?? ''))
+  // クーリングオフ＝成約後の解約。面談は実施され成約まで至ったため実商談には含めるが、成約・売上・キャンセル率には含めず別枠で把握する
+  const coolingOff = consultations.filter(c => c.status === 'クーリングオフ')
+  const conducted = consultations.filter(c => ['成約', '失注', '保留', 'クーリングオフ'].includes(c.status ?? ''))
   const cancelled = consultations.filter(c => ['ドタキャン', 'キャンセル'].includes(c.status ?? ''))
   const totalScheduled = conducted.length + cancelled.length
   const cancelRate = totalScheduled > 0 ? Math.round(cancelled.length / totalScheduled * 100) : 0
   const contractRate = conducted.length > 0 ? Math.round(contracted.length / conducted.length * 100) : 0
-  const totalRevenue = contracted.reduce((s, c) => s + (c.payment_amount ?? 0), 0)
-  const metaRevenue = metaContracted.reduce((s, c) => s + (c.payment_amount ?? 0), 0)
+
+  // 金額の2軸ヘルパー（円）
+  //   売上計上ベース（主）= 成約 × 売上計上日が当月 × 契約満額（旧データは着金額/着金日にフォールバック）
+  //   着金ベース（補助）  = 着金日が当月 × 着金額
+  const inSelMonth = (d?: string | null) => !!d && d.slice(0, 7) === month
+  const contractKey = (c: AICampConsultation) => c.contract_date ?? c.payment_date ?? (c.consultation_date ?? '').slice(0, 10)
+  const contractAmt = (c: AICampConsultation) => c.contract_amount ?? c.payment_amount ?? 0
+
+  // 売上計上ベース（主）
+  const totalRevenue = contracted.filter(c => inSelMonth(contractKey(c))).reduce((s, c) => s + contractAmt(c), 0)
+  const metaRevenue = metaContracted.filter(c => inSelMonth(contractKey(c))).reduce((s, c) => s + contractAmt(c), 0)
+  // 着金ベース（補助）
+  const paidRevenue = consultations.filter(c => inSelMonth(c.payment_date)).reduce((s, c) => s + (c.payment_amount ?? 0), 0)
+  const metaPaidRevenue = consultations.filter(c => inSelMonth(c.payment_date) && c.source?.toLowerCase().includes('meta')).reduce((s, c) => s + (c.payment_amount ?? 0), 0)
 
   // 広告タブ用：全サービス合計
   const adFilteredWeekly = adWeekly
@@ -630,6 +702,7 @@ export default function AICampPage() {
   const adFilteredMetaRevenue = metaRevenue
   const adFilteredConsultations = consultations
   const nonMetaRevenue = totalRevenue - metaRevenue
+  const nonMetaPaidRevenue = paidRevenue - metaPaidRevenue
   const progressPct = contractGoal > 0 ? Math.min(Math.round(aicampContracted.length / contractGoal * 100), 100) : 0
   const productProgressPct = productContractGoal > 0 ? Math.min(Math.round(productContracted.length / productContractGoal * 100), 100) : 0
 
@@ -637,7 +710,7 @@ export default function AICampPage() {
   const memberStats = members.map(m => {
     const mc = consultations.filter(c => c.member_id === m.id)
     const mContracted = mc.filter(c => c.status === '成約')
-    const mConducted = mc.filter(c => ['成約', '失注', '保留'].includes(c.status ?? ''))
+    const mConducted = mc.filter(c => ['成約', '失注', '保留', 'クーリングオフ'].includes(c.status ?? ''))
     const mCancelled = mc.filter(c => ['ドタキャン', 'キャンセル'].includes(c.status ?? ''))
     const mTotal = mConducted.length + mCancelled.length
     return {
@@ -646,13 +719,177 @@ export default function AICampPage() {
       held: mc.filter(c => c.status === '保留').length,
       conducted: mConducted.length,
       cancelled: mCancelled.length,
+      coolingOff: mc.filter(c => c.status === 'クーリングオフ').length,
       cancelRate: mTotal > 0 ? Math.round(mCancelled.length / mTotal * 100) : 0,
       contractRate: mConducted.length > 0 ? Math.round(mContracted.length / mConducted.length * 100) : 0,
-      revenue: mContracted.reduce((s, c) => s + (c.payment_amount ?? 0), 0),
+      // 売上計上ベース（主）。着金実績は paidRevenue を併用
+      revenue: mContracted.filter(c => inSelMonth(contractKey(c))).reduce((s, c) => s + contractAmt(c), 0),
+      paidRevenue: mc.filter(c => inSelMonth(c.payment_date)).reduce((s, c) => s + (c.payment_amount ?? 0), 0),
     }
   }).filter(s => s.conducted + s.cancelled + s.contracted > 0 || consultations.some(c => c.member_id === s.member.id))
 
   const monthLabel = `${month.split('-')[0]}年${parseInt(month.split('-')[1])}月`
+
+  // 流入経路分析タブ用集計（当月の consultations + fbAds から source 別俯瞰）
+  const sourceAnalytics = useMemo(() => {
+    const normalize = (s?: string | null) => (s ?? '').trim() || '(未設定)'
+
+    // source 別の集計
+    type RegRow = { registration_source: string; consultations: number; contracted: number; cvr: number; adSpend: number; cpa: number | null }
+    type SourceRow = {
+      key: string
+      displayName: string
+      consultations: number
+      contracted: number
+      cvr: number
+      revenue: number
+      adSpend: number
+      cpa: number | null
+      roas: number | null
+      regBreakdown: RegRow[]
+    }
+
+    const sourceMap = new Map<string, {
+      displayName: string
+      consultations: AICampConsultation[]
+      contracted: AICampConsultation[]
+      regBreakdown: Map<string, { consultations: number; contracted: number }>
+    }>()
+
+    consultations.forEach(c => {
+      const key = normalize(c.source)
+      let bucket = sourceMap.get(key)
+      if (!bucket) {
+        bucket = {
+          displayName: key,
+          consultations: [],
+          contracted: [],
+          regBreakdown: new Map(),
+        }
+        sourceMap.set(key, bucket)
+      }
+      bucket.consultations.push(c)
+      if (c.status === '成約') bucket.contracted.push(c)
+
+      const regKey = normalize(c.registration_source)
+      const reg = bucket.regBreakdown.get(regKey) ?? { consultations: 0, contracted: 0 }
+      reg.consultations++
+      if (c.status === '成約') reg.contracted++
+      bucket.regBreakdown.set(regKey, reg)
+    })
+
+    // 広告セット名 → 広告費 のマップ（fb_ads から）
+    const adSetSpend = new Map<string, number>()
+    fbAds.forEach(r => {
+      const key = (r.ad_set_name ?? '').trim()
+      if (!key) return
+      adSetSpend.set(key, (adSetSpend.get(key) ?? 0) + (r.amount_spent ?? 0))
+    })
+
+    const rows: SourceRow[] = Array.from(sourceMap.entries()).map(([key, m]) => {
+      const consultationCount = m.consultations.length
+      const contractedCount = m.contracted.length
+      // 売上計上ベース（成約満額。旧データは着金額にフォールバック）
+      const revenue = m.contracted.reduce((s, c) => s + (c.contract_amount ?? c.payment_amount ?? 0), 0)
+
+      let sourceAdSpend = 0
+      const regBreakdown: RegRow[] = Array.from(m.regBreakdown.entries()).map(([reg, s]) => {
+        const regSpend = adSetSpend.get(reg) ?? 0
+        sourceAdSpend += regSpend
+        return {
+          registration_source: reg,
+          consultations: s.consultations,
+          contracted: s.contracted,
+          cvr: s.consultations > 0 ? Math.round(s.contracted / s.consultations * 100) : 0,
+          adSpend: regSpend,
+          cpa: s.contracted > 0 && regSpend > 0 ? Math.round(regSpend / s.contracted) : null,
+        }
+      }).sort((a, b) => b.consultations - a.consultations)
+
+      return {
+        key,
+        displayName: m.displayName,
+        consultations: consultationCount,
+        contracted: contractedCount,
+        cvr: consultationCount > 0 ? Math.round(contractedCount / consultationCount * 100) : 0,
+        revenue,
+        adSpend: sourceAdSpend,
+        cpa: contractedCount > 0 && sourceAdSpend > 0 ? Math.round(sourceAdSpend / contractedCount) : null,
+        roas: sourceAdSpend > 0 ? Math.round(revenue / sourceAdSpend * 100) / 100 : null,
+        regBreakdown,
+      }
+    }).sort((a, b) => b.consultations - a.consultations)
+
+    const totalConsultations = consultations.length
+    const totalContractedAll = consultations.filter(c => c.status === '成約').length
+    const totalRevenueAll = consultations.filter(c => c.status === '成約').reduce((s, c) => s + (c.contract_amount ?? c.payment_amount ?? 0), 0)
+    const totalAdSpend = Array.from(adSetSpend.values()).reduce((s, v) => s + v, 0)
+    const adRoas = totalAdSpend > 0 ? Math.round(totalRevenueAll / totalAdSpend * 100) / 100 : null
+
+    return {
+      rows,
+      totalConsultations,
+      totalContracted: totalContractedAll,
+      totalCvr: totalConsultations > 0 ? Math.round(totalContractedAll / totalConsultations * 100) : 0,
+      totalRevenue: totalRevenueAll,
+      totalAdSpend,
+      adRoas,
+    }
+  }, [consultations, fbAds])
+
+  // 月次トレンド：直近6ヶ月 × source 別の積み上げチャート用データ
+  const trendChart = useMemo(() => {
+    const normalize = (s?: string | null) => (s ?? '').trim() || '(未設定)'
+    const now = new Date()
+    const months: string[] = []
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+    }
+
+    // 上位5 source（直近6ヶ月の対象指標で件数の多い順）に絞り、それ以外は「その他」に丸める
+    const sourceCounts = new Map<string, number>()
+    trendRows.forEach(r => {
+      if (trendMetric === 'contracted' && r.status !== '成約') return
+      sourceCounts.set(normalize(r.source), (sourceCounts.get(normalize(r.source)) ?? 0) + 1)
+    })
+    const topSources = Array.from(sourceCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([s]) => s)
+    const topSet = new Set(topSources)
+
+    const matrix: Record<string, Record<string, number>> = {}
+    months.forEach(m => { matrix[m] = {} })
+
+    trendRows.forEach(r => {
+      if (trendMetric === 'contracted' && r.status !== '成約') return
+      const d = (r.consultation_date ?? '').slice(0, 7)
+      if (!matrix[d]) return
+      const src = normalize(r.source)
+      const bucket = topSet.has(src) ? src : 'その他'
+      matrix[d][bucket] = (matrix[d][bucket] ?? 0) + 1
+    })
+
+    const seriesKeys = [...topSources]
+    if (Array.from(sourceCounts.keys()).some(k => !topSet.has(k))) seriesKeys.push('その他')
+
+    const data = months.map(m => {
+      const row: Record<string, string | number> = { month: m.slice(5) + '月' }
+      seriesKeys.forEach(k => { row[k] = matrix[m][k] ?? 0 })
+      return row
+    })
+
+    return { data, seriesKeys }
+  }, [trendRows, trendMetric])
+
+  function toggleSource(key: string) {
+    setExpandedSources(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key); else next.add(key)
+      return next
+    })
+  }
 
   if (loading) return <div className="flex items-center justify-center h-64 text-gray-400">読み込み中...</div>
 
@@ -675,12 +912,13 @@ export default function AICampPage() {
       {/* タブ */}
       <div className="flex gap-1 border-b border-gray-200 -mx-4 lg:-mx-6 px-4 lg:px-6 overflow-x-auto scrollbar-hide">
         {([
-          { key: 'overview',     label: '概要' },
-          { key: 'ads',          label: '広告' },
-          { key: 'cases',        label: '案件一覧' },
-          { key: 'line_friends', label: 'LINE友達' },
-          { key: 'daily',        label: '日次ログ' },
-          { key: 'utage',        label: 'Utage配信' },
+          { key: 'overview',         label: '概要' },
+          { key: 'ads',              label: '広告' },
+          { key: 'source_analytics', label: '流入経路分析' },
+          { key: 'cases',            label: '案件一覧' },
+          { key: 'line_friends',     label: 'LINE友達' },
+          { key: 'daily',            label: '日次ログ' },
+          { key: 'utage',            label: 'Utage配信' },
         ] as const).map(tab => (
           <button
             key={tab.key}
@@ -703,40 +941,42 @@ export default function AICampPage() {
           className={`bg-white border rounded p-4 lg:p-5 min-w-[180px] flex-shrink-0 lg:flex-shrink lg:min-w-0 snap-start cursor-pointer transition ${openCardKey === 'rev_total' ? 'border-blue-300 ring-1 ring-blue-200' : 'border-gray-200 hover:border-blue-200'}`}
           onClick={() => setOpenCardKey(openCardKey === 'rev_total' ? null : 'rev_total')}
         >
-          <p className="text-xs font-bold text-gray-400 mb-1">全体売上</p>
+          <p className="text-xs font-bold text-gray-400 mb-1">全体売上（計上）</p>
           <p className="text-xl lg:text-3xl font-black font-mono text-gray-900 break-all">
             ¥{totalRevenue.toLocaleString()}
           </p>
-          <p className="text-xs text-gray-400 mt-1">成約 {contracted.length}件</p>
+          <p className="text-xs text-gray-400 mt-1">成約 {contracted.length}件 ・ 着金 <span className="font-mono text-gray-500">¥{paidRevenue.toLocaleString()}</span></p>
         </div>
         <div
           className={`bg-white border rounded p-4 lg:p-5 min-w-[180px] flex-shrink-0 lg:flex-shrink lg:min-w-0 snap-start cursor-pointer transition ${openCardKey === 'rev_meta' ? 'border-blue-300 ring-1 ring-blue-200' : 'border-gray-200 hover:border-blue-200'}`}
           onClick={() => setOpenCardKey(openCardKey === 'rev_meta' ? null : 'rev_meta')}
         >
-          <p className="text-xs font-bold text-gray-400 mb-1">広告リスト売上</p>
+          <p className="text-xs font-bold text-gray-400 mb-1">広告リスト売上（計上）</p>
           <p className="text-xl lg:text-3xl font-black font-mono text-blue-600 break-all">
             ¥{metaRevenue.toLocaleString()}
           </p>
-          <p className="text-xs text-gray-400 mt-1">Meta広告経由 {metaContracted.length}件</p>
+          <p className="text-xs text-gray-400 mt-1">Meta広告経由 {metaContracted.length}件 ・ 着金 <span className="font-mono text-gray-500">¥{metaPaidRevenue.toLocaleString()}</span></p>
         </div>
         <div
           className={`bg-white border rounded p-4 lg:p-5 min-w-[180px] flex-shrink-0 lg:flex-shrink lg:min-w-0 snap-start cursor-pointer transition ${openCardKey === 'rev_other' ? 'border-blue-300 ring-1 ring-blue-200' : 'border-gray-200 hover:border-blue-200'}`}
           onClick={() => setOpenCardKey(openCardKey === 'rev_other' ? null : 'rev_other')}
         >
-          <p className="text-xs font-bold text-gray-400 mb-1">その他売上</p>
+          <p className="text-xs font-bold text-gray-400 mb-1">その他売上（計上）</p>
           <p className="text-xl lg:text-3xl font-black font-mono text-gray-600 break-all">
             ¥{nonMetaRevenue.toLocaleString()}
           </p>
-          <p className="text-xs text-gray-400 mt-1">広告以外 {contracted.length - metaContracted.length}件</p>
+          <p className="text-xs text-gray-400 mt-1">広告以外 {contracted.length - metaContracted.length}件 ・ 着金 <span className="font-mono text-gray-500">¥{nonMetaPaidRevenue.toLocaleString()}</span></p>
         </div>
       </div>
       {openCardKey === 'rev_total' && (
         <BreakdownPanel
           title="全体売上 — 成約者一覧"
-          headers={['担当者', '氏名', '着金額', '着金日']}
-          rows={[...contracted].sort((a, b) => (b.payment_amount ?? 0) - (a.payment_amount ?? 0)).map(c => [
+          headers={['担当者', '氏名', '売上計上額', '成約日', '着金額', '着金日']}
+          rows={[...contracted].sort((a, b) => contractAmt(b) - contractAmt(a)).map(c => [
             members.find(m => m.id === c.member_id)?.name ?? '-',
             c.name ?? '-',
+            `¥${contractAmt(c).toLocaleString()}`,
+            c.contract_date ?? '-',
             `¥${(c.payment_amount ?? 0).toLocaleString()}`,
             c.payment_date ?? '-',
           ])}
@@ -745,10 +985,12 @@ export default function AICampPage() {
       {openCardKey === 'rev_meta' && (
         <BreakdownPanel
           title="広告リスト売上 — Meta広告経由 成約者一覧"
-          headers={['担当者', '氏名', '着金額', '着金日']}
-          rows={[...metaContracted].sort((a, b) => (b.payment_amount ?? 0) - (a.payment_amount ?? 0)).map(c => [
+          headers={['担当者', '氏名', '売上計上額', '成約日', '着金額', '着金日']}
+          rows={[...metaContracted].sort((a, b) => contractAmt(b) - contractAmt(a)).map(c => [
             members.find(m => m.id === c.member_id)?.name ?? '-',
             c.name ?? '-',
+            `¥${contractAmt(c).toLocaleString()}`,
+            c.contract_date ?? '-',
             `¥${(c.payment_amount ?? 0).toLocaleString()}`,
             c.payment_date ?? '-',
           ])}
@@ -757,10 +999,12 @@ export default function AICampPage() {
       {openCardKey === 'rev_other' && (
         <BreakdownPanel
           title="その他売上 — 広告以外 成約者一覧"
-          headers={['担当者', '氏名', '着金額', '着金日']}
-          rows={[...contracted.filter(c => !c.source?.toLowerCase().includes('meta'))].sort((a, b) => (b.payment_amount ?? 0) - (a.payment_amount ?? 0)).map(c => [
+          headers={['担当者', '氏名', '売上計上額', '成約日', '着金額', '着金日']}
+          rows={[...contracted.filter(c => !c.source?.toLowerCase().includes('meta'))].sort((a, b) => contractAmt(b) - contractAmt(a)).map(c => [
             members.find(m => m.id === c.member_id)?.name ?? '-',
             c.name ?? '-',
+            `¥${contractAmt(c).toLocaleString()}`,
+            c.contract_date ?? '-',
             `¥${(c.payment_amount ?? 0).toLocaleString()}`,
             c.payment_date ?? '-',
           ])}
@@ -817,12 +1061,13 @@ export default function AICampPage() {
       </div>
 
       {/* サマリーKPI */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 lg:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 lg:gap-4">
         {[
           { label: '成約数',     cardKey: 'kpi_contracted', value: contracted.length,  unit: '件', color: 'text-green-600' },
           { label: '実商談数',   cardKey: 'kpi_conducted',  value: conducted.length,   unit: '件', color: 'text-gray-800' },
           { label: 'キャンセル率', cardKey: 'kpi_cancel',  value: cancelRate,          unit: '%',  color: cancelRate > 20 ? 'text-red-500' : 'text-gray-800' },
           { label: '成約率',     cardKey: 'kpi_contract',   value: contractRate,       unit: '%',  color: 'text-blue-600' },
+          { label: 'クーリングオフ', cardKey: 'kpi_coolingoff', value: coolingOff.length, unit: '件', color: coolingOff.length > 0 ? 'text-orange-600' : 'text-gray-800' },
         ].map(k => (
           <div
             key={k.label}
@@ -850,13 +1095,14 @@ export default function AICampPage() {
       {openCardKey === 'kpi_conducted' && (
         <BreakdownPanel
           title="実商談数 — 担当者別内訳"
-          headers={['担当者', '実商談数', '成約', '失注', '保留']}
+          headers={['担当者', '実商談数', '成約', '失注', '保留', 'クーリングオフ']}
           rows={[...memberStats].sort((a, b) => b.conducted - a.conducted).filter(s => s.conducted > 0).map(s => [
             s.member.name,
             `${s.conducted}件`,
             `${s.contracted}件`,
-            `${s.conducted - s.contracted - s.held}件`,
+            `${s.conducted - s.contracted - s.held - s.coolingOff}件`,
             `${s.held}件`,
+            `${s.coolingOff}件`,
           ])}
         />
       )}
@@ -883,6 +1129,17 @@ export default function AICampPage() {
             ])}
           />
         </div>
+      )}
+      {openCardKey === 'kpi_coolingoff' && (
+        <BreakdownPanel
+          title="クーリングオフ一覧（成約後の解約）"
+          headers={['担当者', '氏名', '日付']}
+          rows={[...coolingOff].sort((a, b) => (b.consultation_date ?? '').localeCompare(a.consultation_date ?? '')).map(c => [
+            members.find(m => m.id === c.member_id)?.name ?? '-',
+            c.name ?? '-',
+            c.consultation_date?.slice(0, 10) ?? '-',
+          ])}
+        />
       )}
       {openCardKey === 'kpi_contract' && (
         <BreakdownPanel
@@ -1529,7 +1786,7 @@ export default function AICampPage() {
                     <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
                       className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none">
                       <option value="">ステータス: 全て</option>
-                      {['予定', '成約', '失注', '保留', 'ドタキャン', 'キャンセル'].map(s => <option key={s}>{s}</option>)}
+                      {CONSULTATION_STATUSES.map(s => <option key={s}>{s}</option>)}
                     </select>
                     <input type="date" value={rangeStart} onChange={e => setRangeStart(e.target.value)} className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none" />
                     <span className="text-xs text-gray-400">〜</span>
@@ -1783,6 +2040,22 @@ export default function AICampPage() {
                                 : <span className="text-xs text-gray-500">{c.line_name ?? '-'}</span>}
                             </td>
                           )}
+                          {visibleCols.has('line_added') && (
+                            <td className={`px-4 py-3 whitespace-nowrap ${c.line_added ? '' : 'bg-red-50'}`} onClick={e => e.stopPropagation()}>
+                              <button
+                                type="button"
+                                onClick={() => toggleLineAdded(c)}
+                                title={c.line_added ? 'LINE追加を確認済み（クリックで未確認に戻す）' : 'LINE未追加の可能性あり（本人確認後クリックで確認済みに）'}
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border transition ${
+                                  c.line_added
+                                    ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200'
+                                    : 'bg-red-100 text-red-600 border-red-200 hover:bg-red-200'
+                                }`}
+                              >
+                                {c.line_added ? <><Check className="w-3 h-3" />確認済み</> : '未確認'}
+                              </button>
+                            </td>
+                          )}
                           {visibleCols.has('age') && (
                             <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
                               {isEditing ? <input type="number" value={inlineDraft.age} onChange={e => setDraft('age', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs font-mono w-16 focus:outline-none" />
@@ -1815,6 +2088,24 @@ export default function AICampPage() {
                                   {c.status ?? '予定'}
                                 </span>
                               )}
+                            </td>
+                          )}
+                          {visibleCols.has('contract_amount') && (
+                            <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
+                              {isEditing ? (
+                                <input type="number" value={inlineDraft.contract_amount} onChange={e => setDraft('contract_amount', e.target.value)}
+                                  className="border border-blue-300 rounded px-2 py-1 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-blue-400 w-28" placeholder="円" />
+                              ) : (
+                                <span className="font-mono text-gray-700">
+                                  {(c.contract_amount ?? c.payment_amount) ? `¥${(c.contract_amount ?? c.payment_amount)!.toLocaleString()}` : '-'}
+                                </span>
+                              )}
+                            </td>
+                          )}
+                          {visibleCols.has('contract_date') && (
+                            <td className="px-4 py-3" onClick={e => isEditing && e.stopPropagation()}>
+                              {isEditing ? <input type="date" value={inlineDraft.contract_date} onChange={e => setDraft('contract_date', e.target.value)} className="border border-blue-300 rounded px-2 py-1 text-xs focus:outline-none" />
+                                : <span className="text-xs text-gray-500">{c.contract_date ?? '-'}</span>}
                             </td>
                           )}
                           {visibleCols.has('payment_amount') && (
@@ -2067,6 +2358,169 @@ export default function AICampPage() {
           </div>
         )
       })()}
+
+      {/* 流入経路分析タブ */}
+      {activeTab === 'source_analytics' && (
+        <div className="space-y-5">
+          {/* KPIサマリ */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="bg-white border border-gray-200 rounded p-4">
+              <p className="text-xs font-bold text-gray-400 mb-1">相談数（{monthLabel}）</p>
+              <p className="text-2xl lg:text-3xl font-black font-mono text-gray-900">{sourceAnalytics.totalConsultations}</p>
+            </div>
+            <div className="bg-white border border-gray-200 rounded p-4">
+              <p className="text-xs font-bold text-gray-400 mb-1">成約数</p>
+              <p className="text-2xl lg:text-3xl font-black font-mono text-green-600">{sourceAnalytics.totalContracted}</p>
+            </div>
+            <div className="bg-white border border-gray-200 rounded p-4">
+              <p className="text-xs font-bold text-gray-400 mb-1">全体CVR</p>
+              <p className="text-2xl lg:text-3xl font-black font-mono text-blue-600">{sourceAnalytics.totalCvr}%</p>
+            </div>
+            <div className="bg-white border border-gray-200 rounded p-4">
+              <p className="text-xs font-bold text-gray-400 mb-1">広告ROAS</p>
+              <p className="text-2xl lg:text-3xl font-black font-mono text-gray-900">
+                {sourceAnalytics.adRoas !== null ? `${sourceAnalytics.adRoas}x` : '-'}
+              </p>
+              <p className="text-xs text-gray-400 mt-1">
+                広告費 ¥{Math.round(sourceAnalytics.totalAdSpend).toLocaleString()}
+              </p>
+            </div>
+          </div>
+
+          {/* source 別俯瞰テーブル */}
+          <div className="bg-white border border-gray-200 rounded overflow-hidden">
+            <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-bold text-gray-700">流入経路別パフォーマンス</h2>
+                <p className="text-xs text-gray-400 mt-0.5">{monthLabel} / 行クリックで登録経路の内訳を表示</p>
+              </div>
+            </div>
+            {sourceAnalytics.rows.length === 0 ? (
+              <p className="px-5 py-8 text-center text-sm text-gray-400">該当月のデータがありません</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-100">
+                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-400 whitespace-nowrap">流入経路</th>
+                      <th className="px-4 py-2 text-right text-xs font-semibold text-gray-400 whitespace-nowrap">相談数</th>
+                      <th className="px-4 py-2 text-right text-xs font-semibold text-gray-400 whitespace-nowrap">成約数</th>
+                      <th className="px-4 py-2 text-right text-xs font-semibold text-gray-400 whitespace-nowrap">CVR</th>
+                      <th className="px-4 py-2 text-right text-xs font-semibold text-gray-400 whitespace-nowrap">売上</th>
+                      <th className="px-4 py-2 text-right text-xs font-semibold text-gray-400 whitespace-nowrap">広告費</th>
+                      <th className="px-4 py-2 text-right text-xs font-semibold text-gray-400 whitespace-nowrap">CPA</th>
+                      <th className="px-4 py-2 text-right text-xs font-semibold text-gray-400 whitespace-nowrap">ROAS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sourceAnalytics.rows.map(row => {
+                      const expanded = expandedSources.has(row.key)
+                      const Chevron = expanded ? ChevronDown : ChevronRight
+                      return (
+                        <Fragment key={row.key}>
+                          <tr className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer" onClick={() => toggleSource(row.key)}>
+                            <td className="px-4 py-2.5 text-sm text-gray-800 font-medium">
+                              <span className="inline-flex items-center gap-1.5">
+                                <Chevron className="w-3.5 h-3.5 text-gray-400" />
+                                {row.displayName}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2.5 font-mono text-sm text-gray-700 text-right">{row.consultations}</td>
+                            <td className="px-4 py-2.5 font-mono text-sm font-bold text-green-600 text-right">{row.contracted}</td>
+                            <td className="px-4 py-2.5 font-mono text-sm text-blue-600 text-right">{row.cvr}%</td>
+                            <td className="px-4 py-2.5 font-mono text-xs text-gray-700 text-right">¥{Math.round(row.revenue).toLocaleString()}</td>
+                            <td className="px-4 py-2.5 font-mono text-xs text-gray-700 text-right">{row.adSpend > 0 ? `¥${Math.round(row.adSpend).toLocaleString()}` : '-'}</td>
+                            <td className="px-4 py-2.5 font-mono text-xs text-gray-700 text-right">{row.cpa !== null ? `¥${row.cpa.toLocaleString()}` : '-'}</td>
+                            <td className="px-4 py-2.5 font-mono text-xs font-bold text-gray-800 text-right">{row.roas !== null ? `${row.roas}x` : '-'}</td>
+                          </tr>
+                          {expanded && (
+                            <tr className="bg-blue-50/40">
+                              <td colSpan={8} className="px-4 py-3">
+                                {row.regBreakdown.length === 0 ? (
+                                  <p className="text-xs text-gray-400">内訳データなし</p>
+                                ) : (
+                                  <table className="w-full text-xs">
+                                    <thead>
+                                      <tr className="text-gray-400">
+                                        <th className="px-3 py-1.5 text-left font-medium">登録経路（ad_set_name）</th>
+                                        <th className="px-3 py-1.5 text-right font-medium">相談数</th>
+                                        <th className="px-3 py-1.5 text-right font-medium">成約数</th>
+                                        <th className="px-3 py-1.5 text-right font-medium">CVR</th>
+                                        <th className="px-3 py-1.5 text-right font-medium">広告費</th>
+                                        <th className="px-3 py-1.5 text-right font-medium">CPA</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {row.regBreakdown.map(r => (
+                                        <tr key={r.registration_source} className="border-t border-blue-100/60">
+                                          <td className="px-3 py-1.5 text-gray-700 max-w-[280px] truncate" title={r.registration_source}>{r.registration_source}</td>
+                                          <td className="px-3 py-1.5 font-mono text-gray-700 text-right">{r.consultations}</td>
+                                          <td className="px-3 py-1.5 font-mono font-bold text-green-600 text-right">{r.contracted}</td>
+                                          <td className="px-3 py-1.5 font-mono text-blue-600 text-right">{r.cvr}%</td>
+                                          <td className="px-3 py-1.5 font-mono text-gray-700 text-right">{r.adSpend > 0 ? `¥${Math.round(r.adSpend).toLocaleString()}` : '-'}</td>
+                                          <td className="px-3 py-1.5 font-mono text-gray-700 text-right">{r.cpa !== null ? `¥${r.cpa.toLocaleString()}` : '-'}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                )}
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* 月次トレンドチャート */}
+          <div className="bg-white border border-gray-200 rounded">
+            <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <h2 className="text-sm font-bold text-gray-700">月次トレンド（直近6ヶ月）</h2>
+                <p className="text-xs text-gray-400 mt-0.5">流入経路別の{trendMetric === 'consultations' ? '相談数' : '成約数'}推移（件数上位5経路）</p>
+              </div>
+              <div className="flex gap-1 bg-gray-100 rounded p-0.5">
+                <button
+                  onClick={() => setTrendMetric('consultations')}
+                  className={`px-3 py-1 text-xs font-medium rounded transition ${trendMetric === 'consultations' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  相談数
+                </button>
+                <button
+                  onClick={() => setTrendMetric('contracted')}
+                  className={`px-3 py-1 text-xs font-medium rounded transition ${trendMetric === 'contracted' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  成約数
+                </button>
+              </div>
+            </div>
+            <div className="p-4">
+              {trendLoading ? (
+                <div className="h-64 flex items-center justify-center text-sm text-gray-400">読み込み中...</div>
+              ) : trendChart.data.every(d => trendChart.seriesKeys.every(k => (d[k] as number) === 0)) ? (
+                <div className="h-64 flex items-center justify-center text-sm text-gray-400">表示できるデータがありません</div>
+              ) : (
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={trendChart.data} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#6b7280' }} />
+                    <YAxis tick={{ fontSize: 12, fill: '#6b7280' }} allowDecimals={false} />
+                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 4, border: '1px solid #e5e7eb' }} />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    {trendChart.seriesKeys.map((key, i) => (
+                      <Bar key={key} dataKey={key} stackId="a" fill={TREND_COLORS[i % TREND_COLORS.length]} />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 日次ログタブ */}
       {activeTab === 'daily' && (

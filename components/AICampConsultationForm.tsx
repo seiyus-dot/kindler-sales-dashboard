@@ -23,8 +23,11 @@ export default function AICampConsultationForm({ members, initial, onClose, onSa
     source: initial?.source ?? '',
     registration_source: initial?.registration_source ?? '',
     status: initial?.status ?? '予定',
+    line_added: initial?.line_added ?? false,
     payment_amount: initial?.payment_amount?.toString() ?? '',
     payment_date: initial?.payment_date ?? '',
+    contract_amount: initial?.contract_amount?.toString() ?? '',
+    contract_date: initial?.contract_date ?? '',
     payment_method: initial?.payment_method ?? '',
     payment_count: initial?.payment_count?.toString() ?? '',
     unit_amount: initial?.unit_amount?.toString() ?? '',
@@ -88,8 +91,11 @@ export default function AICampConsultationForm({ members, initial, onClose, onSa
       source: form.source || null,
       registration_source: form.registration_source || null,
       status: form.status,
+      line_added: form.line_added,
       payment_amount: form.payment_amount ? parseInt(form.payment_amount) : null,
       payment_date: form.payment_date || null,
+      contract_amount: form.contract_amount ? parseInt(form.contract_amount) : null,
+      contract_date: form.contract_date || null,
       payment_method: form.payment_method || null,
       payment_count: form.payment_count ? parseInt(form.payment_count) : null,
       unit_amount: form.unit_amount ? parseInt(form.unit_amount) : null,
@@ -141,6 +147,21 @@ export default function AICampConsultationForm({ members, initial, onClose, onSa
           <Field label="お名前">
             <input value={form.name} onChange={e => set('name', e.target.value)} className="input" placeholder="例：松岡 毅" />
           </Field>
+
+          <div className="col-span-2">
+            <label className={`flex items-center gap-2.5 px-3 py-2.5 rounded border cursor-pointer transition ${form.line_added ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+              <input
+                type="checkbox"
+                checked={form.line_added}
+                onChange={e => setForm(f => ({ ...f, line_added: e.target.checked }))}
+                className="rounded w-4 h-4"
+              />
+              <span className="text-sm font-medium text-gray-700">
+                公式LINE追加を確認済み
+                <span className="block text-[10px] font-normal text-slate-400">未チェックの人は開催前に個別で追加を催促する対象になります</span>
+              </span>
+            </label>
+          </div>
 
           <div className="col-span-2">
             <Field label="個人顧客マスタにリンク">
@@ -201,6 +222,48 @@ export default function AICampConsultationForm({ members, initial, onClose, onSa
           {/* 成約情報 */}
           {isContracted && (
             <>
+              {/* 売上計上（成約ベース） */}
+              <div className="col-span-2 -mb-1 mt-1">
+                <p className="text-xs font-bold text-navy">売上計上（成約ベース）</p>
+                <p className="text-[10px] text-slate-400">成約した時点で契約満額を売上として計上する軸</p>
+              </div>
+              <Field label="売上計上額（円）">
+                <input
+                  type="number"
+                  value={form.contract_amount}
+                  onChange={e => {
+                    const v = e.target.value
+                    setForm(f => ({
+                      ...f,
+                      contract_amount: v,
+                      // 着金額が未入力 or 旧計上額と一致なら同額をコピー（分割払い以外。成約=満額着金の典型）
+                      payment_amount:
+                        f.payment_method !== 'stripe(分割)' && (!f.payment_amount || f.payment_amount === f.contract_amount)
+                          ? v
+                          : f.payment_amount,
+                    }))
+                  }}
+                  className="input font-mono"
+                  placeholder="498000"
+                />
+              </Field>
+              <Field label="成約日">
+                <input
+                  type="date"
+                  value={form.contract_date}
+                  onChange={e => {
+                    const v = e.target.value
+                    setForm(f => ({ ...f, contract_date: v, payment_date: f.payment_date || v }))
+                  }}
+                  className="input"
+                />
+              </Field>
+
+              {/* 着金（入金ベース） */}
+              <div className="col-span-2 -mb-1 mt-1">
+                <p className="text-xs font-bold text-navy">着金（入金ベース）</p>
+                <p className="text-[10px] text-slate-400">実際に入金された額・入金日。分割払いも初回着金日に満額計上</p>
+              </div>
               <Field label="支払い方法">
                 <select value={form.payment_method} onChange={e => {
                   const v = e.target.value
@@ -226,7 +289,13 @@ export default function AICampConsultationForm({ members, initial, onClose, onSa
                       onChange={e => {
                         const u = e.target.value
                         const total = parseInt(u || '0') * parseInt(form.payment_count || '0')
-                        setForm(f => ({ ...f, unit_amount: u, payment_amount: total > 0 ? total.toString() : '' }))
+                        setForm(f => ({
+                          ...f,
+                          unit_amount: u,
+                          payment_amount: total > 0 ? total.toString() : '',
+                          // 売上計上額が未入力なら分割満額を計上額にも反映
+                          contract_amount: f.contract_amount || (total > 0 ? total.toString() : ''),
+                        }))
                       }}
                       className="input font-mono"
                       placeholder="66000"
@@ -239,7 +308,12 @@ export default function AICampConsultationForm({ members, initial, onClose, onSa
                       onChange={e => {
                         const n = e.target.value
                         const total = (parseInt(form.unit_amount || '0')) * parseInt(n || '0')
-                        setForm(f => ({ ...f, payment_count: n, payment_amount: total > 0 ? total.toString() : '' }))
+                        setForm(f => ({
+                          ...f,
+                          payment_count: n,
+                          payment_amount: total > 0 ? total.toString() : '',
+                          contract_amount: f.contract_amount || (total > 0 ? total.toString() : ''),
+                        }))
                       }}
                       className="input font-mono"
                       placeholder="3"

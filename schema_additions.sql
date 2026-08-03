@@ -75,7 +75,7 @@ create table if not exists aicamp_consultations (
   member_id uuid references members(id),
   source text,
   registration_source text,
-  status text default '予定', -- 予定/成約/失注/保留/ドタキャン/キャンセル
+  status text default '予定', -- 予定/成約/失注/保留/ドタキャン/キャンセル/クーリングオフ
   payment_amount int,
   payment_method text,
   customer_attribute text,
