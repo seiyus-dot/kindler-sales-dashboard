@@ -5,7 +5,7 @@ import { useTabParam } from '@/lib/useTabParam'
 import Link from 'next/link'
 import { supabase, AICampConsultation, AICampMonthlyGoal, AICampAdWeekly, Member, LineFriend, AICampDailyLog, UtageDelivery, CONSULTATION_STATUSES, PAYMENT_METHODS, AI_EXPERIENCES } from '@/lib/supabase'
 import PageHeader from '@/components/PageHeader'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ComposedChart, Line } from 'recharts'
 import { ChevronRight, ChevronDown, Check } from 'lucide-react'
 
 const MONTHLY_INCOMES = ['〜10万円', '11～20万円', '21～30万円', '31～40万円', '41～50万円', '51～60万円', '61～70万円', '71～80万円', '81～90万円', '91～100万円', '101万円以上']
@@ -100,6 +100,24 @@ function CalcPanel({ rows }: { rows: { label: string; value: string }[] }) {
   )
 }
 
+function StatusBadges({ contracted, lost, held }: { contracted: number; lost: number; held: number }) {
+  const items = [
+    { status: '成約', count: contracted },
+    { status: '失注', count: lost },
+    { status: '保留', count: held },
+  ].filter(i => i.count > 0)
+  if (items.length === 0) return <span className="text-xs text-gray-300">-</span>
+  return (
+    <div className="flex flex-wrap gap-1">
+      {items.map(i => (
+        <span key={i.status} className={`px-1.5 py-0.5 rounded text-[11px] font-medium whitespace-nowrap ${STATUS_COLORS[i.status]}`}>
+          {i.status}{i.count}
+        </span>
+      ))}
+    </div>
+  )
+}
+
 function BreakdownPanel({ title, headers, rows }: {
   title?: string
   headers: string[]
@@ -183,7 +201,7 @@ function AICampPageContent() {
   const [showAddWeek, setShowAddWeek] = useState(false)
   const [newWeek, setNewWeek] = useState({ week_label: '', ad_spend: '', list_count: '', consultation_count: '', seated_count: '', notes: '' })
   const [adServiceType, setAdServiceType] = useState<'AI CAMP' | 'プロダクト AI CAMP'>('プロダクト AI CAMP')
-  const [activeTab, setActiveTab] = useTabParam(['overview', 'ads', 'source_analytics', 'cases', 'line_friends', 'daily', 'utage'] as const, 'overview')
+  const [activeTab, setActiveTab] = useTabParam(['overview', 'ads', 'source_analytics', 'cases', 'weekly', 'line_friends', 'daily', 'utage'] as const, 'overview')
   const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set())
   const [trendMetric, setTrendMetric] = useState<'consultations' | 'contracted'>('consultations')
   const [trendRows, setTrendRows] = useState<Pick<AICampConsultation, 'source' | 'status' | 'consultation_date' | 'payment_amount'>[]>([])
@@ -193,6 +211,8 @@ function AICampPageContent() {
   const [filterServiceType, setFilterServiceType] = useState('')
   const [rangeStart, setRangeStart] = useState('')
   const [rangeEnd, setRangeEnd] = useState('')
+  const [weeklyStatuses, setWeeklyStatuses] = useState<Set<string>>(new Set(['成約', '失注', '保留']))
+  const [weeklyOpenCell, setWeeklyOpenCell] = useState<string | null>(null)
   const [appView, setAppView] = useState<'list' | 'calendar'>('list')
   const [showColSettings, setShowColSettings] = useState(false)
   const [lineFriends, setLineFriends] = useState<LineFriend[]>([])
@@ -376,6 +396,17 @@ function AICampPageContent() {
       start: `${y}-${sm.padStart(2, '0')}-${sd.padStart(2, '0')}`,
       end: `${endYear}-${em.padStart(2, '0')}-${ed.padStart(2, '0')}`,
     }
+  }
+
+  function weekBucketOf(dateStr: string): { key: string; label: string } {
+    const [y, m, d] = dateStr.slice(0, 10).split('-').map(Number)
+    const base = new Date(y, m - 1, d)
+    const diffToMonday = (base.getDay() + 6) % 7
+    const monday = new Date(base); monday.setDate(base.getDate() - diffToMonday)
+    const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6)
+    const fmt = (x: Date) => `${x.getMonth() + 1}/${x.getDate()}`
+    const keyOf = (x: Date) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`
+    return { key: keyOf(monday), label: `${fmt(monday)}〜${fmt(sunday)}` }
   }
 
   function computeFbForWeek(weekLabel: string, monthStr: string) {
@@ -728,6 +759,135 @@ function AICampPageContent() {
     }
   }).filter(s => s.conducted + s.cancelled + s.contracted > 0 || consultations.some(c => c.member_id === s.member.id))
 
+  // 週次管理タブ用集計：週（consultation_date基準、月曜始まり）×担当者 で成約/失注/保留を集計
+  const weeklyMatrix = useMemo(() => {
+    const relevant = consultations.filter(c =>
+      c.consultation_date && c.member_id &&
+      weeklyStatuses.has(c.status ?? '') &&
+      (!filterMember || c.member_id === filterMember)
+    )
+    const cols = filterMember ? members.filter(m => m.id === filterMember) : members
+    const weekMap = new Map<string, { label: string; byMember: Map<string, AICampConsultation[]> }>()
+    relevant.forEach(c => {
+      const { key, label } = weekBucketOf(c.consultation_date!)
+      let week = weekMap.get(key)
+      if (!week) { week = { label, byMember: new Map() }; weekMap.set(key, week) }
+      const list = week.byMember.get(c.member_id!) ?? []
+      list.push(c)
+      week.byMember.set(c.member_id!, list)
+    })
+    const countOf = (list: AICampConsultation[], status: string) => list.filter(c => c.status === status).length
+    const rows = Array.from(weekMap.keys()).sort().map(weekKey => {
+      const week = weekMap.get(weekKey)!
+      const cells = cols.map(m => {
+        const list = week.byMember.get(m.id) ?? []
+        return { member: m, list, contracted: countOf(list, '成約'), lost: countOf(list, '失注'), held: countOf(list, '保留') }
+      })
+      return {
+        weekKey,
+        label: week.label,
+        cells,
+        rowTotal: {
+          contracted: cells.reduce((s, x) => s + x.contracted, 0),
+          lost: cells.reduce((s, x) => s + x.lost, 0),
+          held: cells.reduce((s, x) => s + x.held, 0),
+        },
+      }
+    })
+    const colTotals = cols.map((m, i) => ({
+      member: m,
+      contracted: rows.reduce((s, r) => s + r.cells[i].contracted, 0),
+      lost: rows.reduce((s, r) => s + r.cells[i].lost, 0),
+      held: rows.reduce((s, r) => s + r.cells[i].held, 0),
+    }))
+    const grandTotal = {
+      contracted: rows.reduce((s, r) => s + r.rowTotal.contracted, 0),
+      lost: rows.reduce((s, r) => s + r.rowTotal.lost, 0),
+      held: rows.reduce((s, r) => s + r.rowTotal.held, 0),
+    }
+    return { cols, rows, colTotals, grandTotal }
+  }, [consultations, members, filterMember, weeklyStatuses])
+
+  // 週次管理タブ用サマリー：週単位・全担当者合計（filterMember指定時はその担当者のみ）で
+  // 予定数（全件）・実施数（成約+失注+保留+クーリングオフ）・キャンセル数（ドタキャン+キャンセル）等を集計
+  const weeklyOverview = useMemo(() => {
+    const CONDUCTED_SET = new Set(['成約', '失注', '保留', 'クーリングオフ'])
+    const CANCELLED_SET = new Set(['ドタキャン', 'キャンセル'])
+    const relevant = consultations.filter(c => c.consultation_date && (!filterMember || c.member_id === filterMember))
+    const weekMap = new Map<string, { label: string; list: AICampConsultation[] }>()
+    relevant.forEach(c => {
+      const { key, label } = weekBucketOf(c.consultation_date!)
+      let week = weekMap.get(key)
+      if (!week) { week = { label, list: [] }; weekMap.set(key, week) }
+      week.list.push(c)
+    })
+    return Array.from(weekMap.keys()).sort().map(weekKey => {
+      const { label, list } = weekMap.get(weekKey)!
+      return {
+        weekKey,
+        label,
+        total: list.length,
+        conducted: list.filter(c => CONDUCTED_SET.has(c.status ?? '')).length,
+        cancelled: list.filter(c => CANCELLED_SET.has(c.status ?? '')).length,
+        contracted: list.filter(c => c.status === '成約').length,
+        lost: list.filter(c => c.status === '失注').length,
+        held: list.filter(c => c.status === '保留').length,
+        coolingOff: list.filter(c => c.status === 'クーリングオフ').length,
+      }
+    })
+  }, [consultations, filterMember])
+
+  // 週次グラフ直下のインサイト：既存の週次集計・担当者別集計から、ルールベースでハイライトを生成
+  const weeklyInsights = useMemo(() => {
+    const list: { tone: 'positive' | 'warning' | 'neutral'; text: string }[] = []
+
+    if (weeklyOverview.length >= 2) {
+      const last = weeklyOverview[weeklyOverview.length - 1]
+      const prev = weeklyOverview[weeklyOverview.length - 2]
+      const diff = last.contracted - prev.contracted
+      if (diff > 0) {
+        list.push({ tone: 'positive', text: `直近週（${last.label}）の成約は${last.contracted}件。前週（${prev.label}）から${diff}件増加しています。` })
+      } else if (diff < 0) {
+        list.push({ tone: 'warning', text: `直近週（${last.label}）の成約は${last.contracted}件。前週（${prev.label}）から${Math.abs(diff)}件減少しています。` })
+      } else {
+        list.push({ tone: 'neutral', text: `直近週（${last.label}）の成約は${last.contracted}件で、前週と同数です。` })
+      }
+
+      const heldDiff = last.held - prev.held
+      if (heldDiff > 0) {
+        list.push({ tone: 'warning', text: `保留が前週から${heldDiff}件増加（直近週${last.held}件）。フォローアップの優先度を上げましょう。` })
+      }
+    }
+
+    const totalConducted = weeklyOverview.reduce((s, w) => s + w.conducted, 0)
+    const totalCancelled = weeklyOverview.reduce((s, w) => s + w.cancelled, 0)
+    const totalAll = totalConducted + totalCancelled
+    if (totalAll > 0) {
+      const rate = Math.round(totalCancelled / totalAll * 100)
+      list.push({
+        tone: rate > 20 ? 'warning' : 'positive',
+        text: `当月のキャンセル率は${rate}%（${totalCancelled}/${totalAll}件）です。${rate > 20 ? '20%を超えており改善余地があります。' : '20%未満で良好な水準です。'}`,
+      })
+    }
+
+    if (!filterMember) {
+      const topMember = [...memberStats].sort((a, b) => b.contracted - a.contracted)[0]
+      if (topMember && topMember.contracted > 0) {
+        list.push({ tone: 'neutral', text: `当月の成約トップは${topMember.member.name}さん（${topMember.contracted}件、¥${topMember.revenue.toLocaleString()}）です。` })
+      }
+    }
+
+    return list
+  }, [weeklyOverview, memberStats, filterMember])
+
+  function toggleWeeklyStatus(status: string) {
+    setWeeklyStatuses(prev => {
+      const next = new Set(prev)
+      if (next.has(status)) next.delete(status); else next.add(status)
+      return next
+    })
+  }
+
   const monthLabel = `${month.split('-')[0]}年${parseInt(month.split('-')[1])}月`
 
   // 流入経路分析タブ用集計（当月の consultations + fbAds から source 別俯瞰）
@@ -916,6 +1076,7 @@ function AICampPageContent() {
           { key: 'ads',              label: '広告' },
           { key: 'source_analytics', label: '流入経路分析' },
           { key: 'cases',            label: '案件一覧' },
+          { key: 'weekly',           label: '週次管理' },
           { key: 'line_friends',     label: 'LINE友達' },
           { key: 'daily',            label: '日次ログ' },
           { key: 'utage',            label: 'Utage配信' },
@@ -2223,6 +2384,182 @@ function AICampPageContent() {
                     })}
                   </tbody>
                 </table>
+              </div>
+            )}
+          </div>
+        )
+      })()}
+
+      {activeTab === 'weekly' && (() => {
+        const WEEKLY_STATUS_LIST = ['成約', '失注', '保留'] as const
+        const openCell = weeklyOpenCell
+          ? (() => {
+              const [wk, mid] = weeklyOpenCell.split('__')
+              const row = weeklyMatrix.rows.find(r => r.weekKey === wk)
+              const cell = row?.cells.find(c => c.member.id === mid)
+              return row && cell ? { row, cell } : null
+            })()
+          : null
+
+        return (
+          <div className="bg-white border border-gray-200 rounded">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 px-5 py-3 border-b border-gray-100">
+              <h2 className="text-sm font-bold text-gray-700">週次管理 — 週×担当者 成約/失注/保留マトリクス（{monthLabel}・実施日基準）</h2>
+              <div className="flex gap-2 items-center flex-wrap">
+                {WEEKLY_STATUS_LIST.map(s => (
+                  <button
+                    key={s}
+                    onClick={() => toggleWeeklyStatus(s)}
+                    className={`px-2.5 py-1 rounded text-xs font-medium border transition ${
+                      weeklyStatuses.has(s)
+                        ? `${STATUS_COLORS[s]} border-transparent`
+                        : 'bg-white text-gray-400 border-gray-200'
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+                <select value={filterMember} onChange={e => { setFilterMember(e.target.value); setWeeklyOpenCell(null) }}
+                  className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none">
+                  <option value="">担当者: 全員</option>
+                  {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+                {filterMember && (
+                  <button onClick={() => setFilterMember('')} className="text-xs text-gray-400 hover:text-gray-600 px-1">✕ クリア</button>
+                )}
+              </div>
+            </div>
+
+            {/* 週次サマリー：予定数・実施数・キャンセル数（全担当者合計、filterMember指定時はその担当者のみ） */}
+            {weeklyOverview.length > 0 && (
+              <div className="px-5 pt-4 space-y-3">
+                <p className="text-xs font-bold text-gray-500">週次サマリー（予定数・実施数・キャンセル数）{filterMember ? `— ${members.find(m => m.id === filterMember)?.name ?? ''}` : '（全担当者合計）'}</p>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart
+                      data={weeklyOverview.map(w => ({ 週: w.label, 成約: w.contracted, 失注: w.lost, 保留: w.held, クーリングオフ: w.coolingOff, キャンセル: w.cancelled, 予定数: w.total }))}
+                      margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                      <XAxis dataKey="週" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                      <Tooltip />
+                      <Legend wrapperStyle={{ fontSize: 12 }} />
+                      <Bar dataKey="成約" stackId="a" fill="#16a34a" />
+                      <Bar dataKey="失注" stackId="a" fill="#ef4444" />
+                      <Bar dataKey="保留" stackId="a" fill="#f59e0b" />
+                      <Bar dataKey="クーリングオフ" stackId="a" fill="#fb923c" />
+                      <Bar dataKey="キャンセル" stackId="a" fill="#9ca3af" />
+                      <Line type="monotone" dataKey="予定数" stroke="#1a3a6e" strokeWidth={2} dot={{ r: 3 }} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {weeklyInsights.length > 0 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {weeklyInsights.map((insight, i) => (
+                      <div
+                        key={i}
+                        className={`px-3 py-2 rounded border text-xs leading-relaxed ${
+                          insight.tone === 'positive' ? 'bg-green-50 border-green-100 text-green-700' :
+                          insight.tone === 'warning'  ? 'bg-amber-50 border-amber-100 text-amber-700' :
+                                                        'bg-blue-50 border-blue-100 text-blue-700'
+                        }`}
+                      >
+                        {insight.text}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <BreakdownPanel
+                  headers={['週', '予定数', '実施数', 'キャンセル数', '成約', '失注', '保留', 'クーリングオフ']}
+                  rows={weeklyOverview.map(w => [
+                    w.label,
+                    `${w.total}件`,
+                    `${w.conducted}件`,
+                    `${w.cancelled}件`,
+                    `${w.contracted}件`,
+                    `${w.lost}件`,
+                    `${w.held}件`,
+                    `${w.coolingOff}件`,
+                  ])}
+                />
+              </div>
+            )}
+
+            <p className="px-5 pt-5 pb-1 text-xs font-bold text-gray-500">週×担当者マトリクス（成約/失注/保留）</p>
+            <div className="overflow-x-auto">
+              {weeklyMatrix.rows.length === 0 ? (
+                <p className="px-5 py-6 text-sm text-gray-400">該当データがありません</p>
+              ) : (
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-100">
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">週</th>
+                      {weeklyMatrix.cols.map(m => (
+                        <th key={m.id} className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">{m.name}</th>
+                      ))}
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">合計</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {weeklyMatrix.rows.map(row => (
+                      <tr key={row.weekKey} className="border-b border-gray-50 hover:bg-gray-50">
+                        <td className="px-4 py-3 font-medium text-gray-700 whitespace-nowrap">{row.label}</td>
+                        {row.cells.map(cell => {
+                          const cellKey = `${row.weekKey}__${cell.member.id}`
+                          const hasData = cell.contracted + cell.lost + cell.held > 0
+                          return (
+                            <td key={cell.member.id} className="px-4 py-3">
+                              <button
+                                onClick={() => hasData && setWeeklyOpenCell(weeklyOpenCell === cellKey ? null : cellKey)}
+                                disabled={!hasData}
+                                className={`rounded px-1 py-0.5 transition ${
+                                  hasData ? 'hover:bg-blue-50 cursor-pointer' : 'cursor-default'
+                                } ${weeklyOpenCell === cellKey ? 'bg-blue-50 ring-1 ring-blue-200' : ''}`}
+                              >
+                                <StatusBadges contracted={cell.contracted} lost={cell.lost} held={cell.held} />
+                              </button>
+                            </td>
+                          )
+                        })}
+                        <td className="px-4 py-3">
+                          <StatusBadges contracted={row.rowTotal.contracted} lost={row.rowTotal.lost} held={row.rowTotal.held} />
+                        </td>
+                      </tr>
+                    ))}
+                    <tr className="bg-gray-50 border-t border-gray-200 font-bold">
+                      <td className="px-4 py-3 text-gray-500">合計</td>
+                      {weeklyMatrix.colTotals.map(t => (
+                        <td key={t.member.id} className="px-4 py-3">
+                          <StatusBadges contracted={t.contracted} lost={t.lost} held={t.held} />
+                        </td>
+                      ))}
+                      <td className="px-4 py-3">
+                        <StatusBadges contracted={weeklyMatrix.grandTotal.contracted} lost={weeklyMatrix.grandTotal.lost} held={weeklyMatrix.grandTotal.held} />
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {openCell && (
+              <div className="px-5 pb-5">
+                <BreakdownPanel
+                  title={`${openCell.row.label} — ${openCell.cell.member.name} の内訳`}
+                  headers={['氏名', 'ステータス', 'サービス', '金額', '実施日']}
+                  rows={[...openCell.cell.list]
+                    .sort((a, b) => (b.consultation_date ?? '').localeCompare(a.consultation_date ?? ''))
+                    .map(c => [
+                      c.name ?? c.line_name ?? '-',
+                      c.status ?? '-',
+                      c.service_type ?? 'AI CAMP',
+                      `¥${contractAmt(c).toLocaleString()}`,
+                      c.consultation_date?.slice(0, 10) ?? '-',
+                    ])}
+                />
               </div>
             )}
           </div>
