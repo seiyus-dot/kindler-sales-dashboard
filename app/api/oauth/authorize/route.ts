@@ -146,7 +146,9 @@ export async function POST(req: Request) {
   const state = String(form.get('state') ?? '')
   const codeChallenge = String(form.get('code_challenge') ?? '')
   const codeChallengeMethod = String(form.get('code_challenge_method') ?? 'S256')
-  const secret = String(form.get('secret') ?? '')
+  // 環境変数側は allowedSharedSecrets() で trim 済み。入力側もそろえないと、
+  // コピペで前後に空白や改行が混ざっただけで「キーが違います」になってしまう。
+  const secret = String(form.get('secret') ?? '').trim()
 
   if (!isAcceptableRedirectUri(redirectUri)) {
     return new Response('redirect_uri が不正です', { status: 400 })
