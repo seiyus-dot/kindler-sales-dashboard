@@ -1,5 +1,6 @@
 import { createMcpHandler } from 'mcp-handler'
 import { registerMcpTools } from '@/lib/mcp-tools'
+import { registerMfBillingTools } from '@/lib/mcp-mf-tools'
 
 const ALLOWED_TOKENS = (process.env.MCP_AUTH_TOKENS ?? '')
   .split(',')
@@ -11,6 +12,7 @@ const ALLOW_DELETE = process.env.MCP_ALLOW_DELETE === 'true'
 const mcpHandler = createMcpHandler(
   (server) => {
     registerMcpTools(server, { allowDelete: ALLOW_DELETE })
+    registerMfBillingTools(server)
   },
   {},
   { basePath: '/api', verboseLogs: false }
