@@ -6,7 +6,8 @@ import Link from 'next/link'
 import { supabase, AICampConsultation, AICampMonthlyGoal, AICampAdWeekly, Member, LineFriend, AICampDailyLog, UtageDelivery, CONSULTATION_STATUSES, PAYMENT_METHODS, AI_EXPERIENCES } from '@/lib/supabase'
 import PageHeader from '@/components/PageHeader'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ComposedChart, Line } from 'recharts'
-import { ChevronRight, ChevronDown, Check } from 'lucide-react'
+import { ChevronRight, ChevronDown, Check, Download } from 'lucide-react'
+import { downloadCsv, csvStamp, csvDateTime } from '@/lib/csv'
 
 const MONTHLY_INCOMES = ['〜10万円', '11～20万円', '21～30万円', '31～40万円', '41～50万円', '51～60万円', '61～70万円', '71～80万円', '81～90万円', '91～100万円', '101万円以上']
 const SERVICE_TYPES = ['AI CAMP', 'プロダクト AI CAMP']
@@ -67,6 +68,36 @@ const AICAMP_COLUMNS = [
 ] as const
 
 type ColKey = typeof AICAMP_COLUMNS[number]['key']
+
+// 商談ビューのCSV値。列設定（visibleCols）で選ばれた列を、表示と同じ順・同じ意味で書き出す
+function dealCsvValue(c: AICampConsultation, key: ColKey): string | number {
+  switch (key) {
+    case 'consultation_date':   return csvDateTime(c.consultation_date)
+    case 'service_type':        return c.service_type ?? 'AI CAMP'
+    case 'member_id':           return c.member?.name ?? ''
+    case 'name':                return c.name ?? ''
+    case 'line_name':           return c.line_name ?? ''
+    case 'line_added':          return c.line_added ? '確認済み' : '未確認'
+    case 'age':                 return c.age ?? ''
+    case 'source':              return c.source ?? ''
+    case 'registration_source': return c.registration_source ?? ''
+    case 'status':              return c.status ?? '予定'
+    // 表示と同じく、売上計上額は contract_amount → payment_amount の順にフォールバック（円）
+    case 'contract_amount':     return c.contract_amount ?? c.payment_amount ?? ''
+    case 'contract_date':       return c.contract_date ?? ''
+    case 'payment_amount':      return c.payment_amount ?? ''
+    case 'payment_date':        return c.payment_date ?? ''
+    case 'payment_method':      return c.payment_method ?? ''
+    case 'reply_deadline':      return c.reply_deadline ?? ''
+    case 'occupation':          return c.occupation ?? ''
+    case 'monthly_income':      return c.monthly_income ?? ''
+    case 'ai_experience':       return c.ai_experience ?? ''
+    case 'customer_attribute':  return c.customer_attribute ?? ''
+    case 'motivation':          return c.motivation ?? ''
+    case 'reason':              return c.reason ?? ''
+    case 'minutes_url':         return c.minutes_url ?? ''
+  }
+}
 import AICampConsultationForm from '@/components/AICampConsultationForm'
 import AIImport from '@/components/AIImport'
 import DedupeModal from '@/components/DedupeModal'
@@ -697,6 +728,81 @@ function AICampPageContent() {
     if (rangeEnd && d && d > rangeEnd) return false
     return true
   })
+
+  // ---- CSV出力（いずれも画面の絞り込み結果をそのまま書き出す）----
+  function exportDealsCsv() {
+    const cols = AICAMP_COLUMNS.filter(col => visibleCols.has(col.key))
+    downloadCsv(
+      `AICAMP_商談一覧_${month}_${csvStamp()}`,
+      cols.map(col => col.label),
+      filtered.map(c => cols.map(col => dealCsvValue(c, col.key))),
+    )
+  }
+
+  function exportApplicationsCsv(rows: AICampConsultation[]) {
+    downloadCsv(
+      `AICAMP_申込一覧_${month}_${csvStamp()}`,
+      ['申し込み日時', '実施日時', 'サービス', '担当者', '氏名', '年齢', '職業', '月収', '叶えたいこと', 'Zoom', 'ステータス'],
+      rows.map(c => [
+        csvDateTime(c.applied_at),
+        csvDateTime(c.consultation_date),
+        c.service_type ?? 'AI CAMP',
+        c.member?.name ?? '',
+        c.name ?? '',
+        c.age ?? '',
+        c.occupation ?? '',
+        c.monthly_income ?? '',
+        c.motivation ?? '',
+        c.minutes_url ?? '',
+        c.status ?? '予定',
+      ]),
+    )
+  }
+
+  function exportLineFriendsCsv(rows: LineFriend[]) {
+    downloadCsv(
+      `AICAMP_LINE友達一覧_${csvStamp()}`,
+      ['LINE友だちID', 'LINE登録名', 'ステータス', '登録経路', 'ブロック日時', '登録日'],
+      rows.map(f => [
+        f.line_user_id,
+        f.line_display_name ?? '',
+        f.status ?? '',
+        f.registration_source ?? '',
+        csvDateTime(f.blocked_at),
+        csvDateTime(f.registered_at),
+      ]),
+    )
+  }
+
+  function exportDailyCsv() {
+    downloadCsv(
+      `AICAMP_日次ログ_${csvStamp()}`,
+      ['日付', '申込数', 'キャンセル数', '成約', '保留', '失注', 'メモ'],
+      dailyLogs.map(l => [l.log_date, l.application_count, l.cancel_count, l.contract_count, l.hold_count, l.loss_count, l.notes ?? '']),
+    )
+  }
+
+  function exportUtageCsv() {
+    downloadCsv(
+      `AICAMP_Utage配信_${csvStamp()}`,
+      ['管理名称', '送信日時', '送信数', '開封数', '開封率', 'クリック数', 'クリック率', '申込数', '申込率', 'ブロック数', 'ブロック率', '配信内容', 'メモ'],
+      utageDeliveries.map(d => [
+        d.title,
+        csvDateTime(d.sent_at),
+        d.sent_count,
+        d.open_count,
+        fmtRate(d.open_count, d.sent_count),
+        d.click_count,
+        fmtRate(d.click_count, d.sent_count),
+        d.application_count ?? '',
+        d.application_count != null ? fmtRate(d.application_count, d.sent_count) : '',
+        d.block_count ?? '',
+        d.block_count != null ? fmtRate(d.block_count, d.sent_count) : '',
+        d.content ?? '',
+        d.notes ?? '',
+      ]),
+    )
+  }
 
   // KPI集計（月全体）
   const contracted = consultations.filter(c => c.status === '成約')
@@ -1964,6 +2070,13 @@ function AICampPageContent() {
                   {lineMatching ? 'マッチング中...' : 'LINEマッチング'}
                 </button>
                 <AIImport members={members} onImported={fetchAll} />
+                <button
+                  onClick={() => caseView === 'applications' ? exportApplicationsCsv(applications) : exportDealsCsv()}
+                  disabled={caseView === 'applications' ? applications.length === 0 : filtered.length === 0}
+                  className="flex items-center gap-1 px-3 py-1.5 text-xs border border-gray-200 rounded hover:bg-gray-50 transition text-gray-600 disabled:opacity-50 whitespace-nowrap"
+                >
+                  <Download className="w-3.5 h-3.5" />CSV出力
+                </button>
                 {caseView === 'deals' && (
                   <>
                     <button onClick={() => setShowSalesReport(true)}
@@ -2615,6 +2728,13 @@ function AICampPageContent() {
                   {(lineFriendsSearchText || lineFriendsFilterStatus) && (
                     <button onClick={() => { setLineFriendsSearchText(''); setLineFriendsFilterStatus('') }} className="text-xs text-gray-400 hover:text-gray-600">✕ クリア</button>
                   )}
+                  <button
+                    onClick={() => exportLineFriendsCsv(filtered)}
+                    disabled={filtered.length === 0}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs border border-gray-200 rounded hover:bg-gray-50 transition text-gray-600 disabled:opacity-50 whitespace-nowrap"
+                  >
+                    <Download className="w-3.5 h-3.5" />CSV出力
+                  </button>
                   <input ref={lineFriendsFileRef} type="file" accept=".csv,.tsv,.txt" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) importLineFriendsCsv(f); e.target.value = '' }} />
                   <button
                     onClick={() => lineFriendsFileRef.current?.click()}
@@ -2864,6 +2984,10 @@ function AICampPageContent() {
         <div className="space-y-4">
           <div className="flex justify-between items-center">
             <p className="text-xs text-gray-500">1日1行で記録。同日に再入力すると上書きされます。</p>
+            <div className="flex items-center gap-2">
+            <button onClick={exportDailyCsv} disabled={dailyLogs.length === 0} className="flex items-center gap-1 px-3 py-1.5 text-xs border border-gray-200 rounded hover:bg-gray-50 transition text-gray-600 disabled:opacity-50 whitespace-nowrap">
+              <Download className="w-3.5 h-3.5" />CSV出力
+            </button>
             <button
               onClick={() => {
                 setDailyForm({ log_date: new Date().toISOString().slice(0, 10), application_count: '', cancel_count: '', contract_count: '', hold_count: '', loss_count: '', notes: '' })
@@ -2873,6 +2997,7 @@ function AICampPageContent() {
             >
               + 今日の数字を入力
             </button>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
@@ -2977,6 +3102,10 @@ function AICampPageContent() {
         <div className="space-y-4">
           <div className="flex justify-between items-center">
             <p className="text-xs text-gray-500">一斉配信ごとに数値を記録します。率は自動計算されます。</p>
+            <div className="flex items-center gap-2">
+            <button onClick={exportUtageCsv} disabled={utageDeliveries.length === 0} className="flex items-center gap-1 px-3 py-1.5 text-xs border border-gray-200 rounded hover:bg-gray-50 transition text-gray-600 disabled:opacity-50 whitespace-nowrap">
+              <Download className="w-3.5 h-3.5" />CSV出力
+            </button>
             <button
               onClick={() => {
                 setUtageForm({ title: '', sent_at: new Date().toISOString().slice(0, 16), sent_count: '', open_count: '', click_count: '', application_count: '', block_count: '', content: '', notes: '' })
@@ -2986,6 +3115,7 @@ function AICampPageContent() {
             >
               + 配信を記録
             </button>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
