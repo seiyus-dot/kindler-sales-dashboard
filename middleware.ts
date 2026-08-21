@@ -3,7 +3,12 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  if (request.nextUrl.pathname.startsWith('/api/')) {
+  // /api/* と OAuthディスカバリ(/.well-known/*) は各ルートが自前で認証するのでガードしない。
+  // ここを通すのを忘れるとChatGPTのディスカバリが /login にリダイレクトされて接続できない。
+  if (
+    request.nextUrl.pathname.startsWith('/api/') ||
+    request.nextUrl.pathname.startsWith('/.well-known/')
+  ) {
     return NextResponse.next({ request })
   }
 
