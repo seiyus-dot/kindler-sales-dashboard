@@ -97,7 +97,13 @@ function page(args: {
     <p><span class="host">${escapeHtml(host)}</span> から KINDLER 営業ダッシュボードへの接続が要求されています。許可する場合は接続キーを入力してください。</p>
     ${args.error ? `<div class="error">${escapeHtml(args.error)}</div>` : ''}
     <label for="secret">接続キー</label>
-    <input id="secret" name="secret" type="password" autocomplete="off" autofocus required
+    <!--
+      type="password" + autocomplete="off" だとブラウザのパスワードマネージャが
+      無関係な保存済みパスワードを勝手に入れてしまい、「接続キーが違います」の
+      原因になる。new-password と各マネージャの無効化属性で抑止する。
+    -->
+    <input id="secret" name="secret" type="password" autocomplete="new-password" autofocus required
+           data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
            placeholder="MCP_AUTH_TOKENS の値">
     <input type="hidden" name="redirect_uri" value="${escapeHtml(args.redirectUri)}">
     <input type="hidden" name="state" value="${escapeHtml(args.state)}">
