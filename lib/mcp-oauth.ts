@@ -21,10 +21,19 @@ const CODE_TTL_SEC = 600 // 認可コードは10分
 const ACCESS_TTL_SEC = 60 * 60 * 24 * 30 // アクセストークンは30日
 const REFRESH_TTL_SEC = 60 * 60 * 24 * 365 // リフレッシュトークンは1年
 
+/** Vercelの環境変数にクォート付きで保存されてしまう事故が多いので剥がしておく */
+function stripQuotes(v: string): string {
+  const t = v.trim()
+  if (t.length >= 2 && ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'")))) {
+    return t.slice(1, -1).trim()
+  }
+  return t
+}
+
 export function allowedSharedSecrets(): string[] {
   return (process.env.MCP_AUTH_TOKENS ?? '')
     .split(',')
-    .map((t) => t.trim())
+    .map(stripQuotes)
     .filter(Boolean)
 }
 
