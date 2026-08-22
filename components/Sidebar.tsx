@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, BriefcaseBusiness, ClipboardList, Settings, Users, Menu, X, BookOpen, Tent, UserPlus, Zap, GanttChartSquare, FileText, FileSignature, List, MonitorPlay, ChevronDown, Contact, TrendingUp, Bell, LogOut } from 'lucide-react'
+import { LayoutDashboard, BriefcaseBusiness, ClipboardList, Settings, Users, Menu, X, BookOpen, Tent, UserPlus, Zap, GanttChartSquare, FileText, FileSignature, List, MonitorPlay, ChevronDown, Contact, TrendingUp, Bell, LogOut, CalendarCheck, Receipt
+} from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import NewsBell from '@/components/NewsBell'
@@ -13,6 +14,7 @@ const NEWS_READ_KEY = 'kindler_news_read'
 const navItems = [
   { href: '/dashboard',      label: 'ダッシュボード',    icon: LayoutDashboard },
   { href: '/deals',          label: '法人案件',          icon: BriefcaseBusiness },
+  { href: '/meetings',       label: 'MTG記録',           icon: CalendarCheck },
   { href: '/weekly',         label: '週次ログ',          icon: ClipboardList },
   { href: '/mrr',            label: 'MRR推移',           icon: TrendingUp },
   { href: '/members',        label: 'メンバー',          icon: Users },
@@ -25,6 +27,7 @@ const navItems = [
   { href: '/utage',          label: 'UTAGE',             icon: Zap },
   { href: '/advisor',        label: 'AI顧問管理',        icon: GanttChartSquare },
   { href: '/contracts',      label: '契約管理',          icon: FileSignature },
+  { href: '/invoices',       label: '請求書発行',        icon: Receipt },
   { href: '/order-requests', label: '発注リスト',        icon: List },
 ]
 
@@ -55,9 +58,9 @@ function NavLink({ href, label, icon: Icon, onClick, badge }: { href: string; la
   )
 }
 
-function OrderFormNavItem({ onClick }: { onClick?: () => void }) {
+function OrderFormNavItem({ items, onClick }: { items: typeof orderFormSubItems; onClick?: () => void }) {
   const pathname = usePathname()
-  const active = pathname.startsWith('/order-form') || pathname.startsWith('/product-aicamp/apply')
+  const active = items.some(item => pathname.startsWith(item.href))
   const [open, setOpen] = useState(active)
 
   return (
@@ -74,7 +77,7 @@ function OrderFormNavItem({ onClick }: { onClick?: () => void }) {
       </button>
       {open && (
         <div className="ml-7 mt-0.5 space-y-0.5">
-          {orderFormSubItems.map(item => {
+          {items.map(item => {
             const subActive = pathname.startsWith(item.href)
             return (
               <Link
@@ -95,19 +98,42 @@ function OrderFormNavItem({ onClick }: { onClick?: () => void }) {
   )
 }
 
+function getCookie(name: string): string | undefined {
+  return document.cookie
+    .split(';')
+    .map(c => c.trim())
+    .find(c => c.startsWith(`${name}=`))
+    ?.slice(name.length + 1)
+}
+
 export default function Sidebar() {
   const [open, setOpen] = useState(false)
   const [unreadNews, setUnreadNews] = useState(0)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [allowedPages, setAllowedPages] = useState<string[]>([])
   const router = useRouter()
 
   useEffect(() => {
-    setIsAdmin(document.cookie.split(';').some(c => c.trim() === 'user_role=admin'))
+    const role = getCookie('user_role')
+    setIsAdmin(role === 'admin')
+
+    const rawPages = getCookie('user_allowed_pages')
+    if (rawPages) {
+      try {
+        setAllowedPages(JSON.parse(decodeURIComponent(rawPages)))
+      } catch {
+        setAllowedPages([])
+      }
+    }
   }, [])
 
+  const canSee = (href: string) => isAdmin || allowedPages.some(p => href.startsWith(p))
+
   const visibleNavItems = navItems.filter(item =>
-    item.href !== '/invites' || isAdmin
+    item.href === '/invites' ? isAdmin : canSee(item.href)
   )
+  const showNews = canSee('/news')
+  const visibleOrderFormSubItems = orderFormSubItems.filter(item => canSee(item.href))
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -177,8 +203,12 @@ export default function Sidebar() {
               {visibleNavItems.map(item => (
                 <NavLink key={item.href} {...item} onClick={() => setOpen(false)} />
               ))}
-              <NavLink href="/news" label="お知らせ" icon={Bell} onClick={() => setOpen(false)} badge={unreadNews} />
-              <OrderFormNavItem onClick={() => setOpen(false)} />
+              {showNews && (
+                <NavLink href="/news" label="お知らせ" icon={Bell} onClick={() => setOpen(false)} badge={unreadNews} />
+              )}
+              {visibleOrderFormSubItems.length > 0 && (
+                <OrderFormNavItem items={visibleOrderFormSubItems} onClick={() => setOpen(false)} />
+              )}
             </nav>
             <div className="p-4 border-t border-slate-100">
               <button
@@ -194,8 +224,8 @@ export default function Sidebar() {
       )}
 
       {/* デスクトップ サイドバー */}
-      <aside className="hidden lg:flex w-52 bg-white border-r border-slate-200 flex-col flex-shrink-0">
-        <div className="p-6 border-b border-slate-100">
+      <aside className="hidden lg:flex w-60 bg-white border-r border-slate-200 flex-col flex-shrink-0">
+        <div className="h-[68px] px-5 flex items-center border-b border-slate-100 flex-shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 bg-navy rounded-lg flex items-center justify-center text-white font-black text-base">K</div>
             <div>
@@ -208,8 +238,8 @@ export default function Sidebar() {
           {visibleNavItems.map(item => (
             <NavLink key={item.href} {...item} />
           ))}
-          <NavLink href="/news" label="お知らせ" icon={Bell} badge={unreadNews} />
-          <OrderFormNavItem />
+          {showNews && <NavLink href="/news" label="お知らせ" icon={Bell} badge={unreadNews} />}
+          {visibleOrderFormSubItems.length > 0 && <OrderFormNavItem items={visibleOrderFormSubItems} />}
         </nav>
         <div className="p-4 border-t border-slate-100">
           <button
