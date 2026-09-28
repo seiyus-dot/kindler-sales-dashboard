@@ -15,13 +15,48 @@ export type MfPartner = {
   name_kana: string | null
   /** 請求書発行に必須。取引先の既定部署ID */
   department_id: string
+  /** 部署に住所・担当者情報が登録されていれば入る（無ければnull） */
+  department: {
+    zip: string | null
+    address: string | null
+    tel: string | null
+    email: string | null
+    person_name: string | null
+    person_title: string | null
+  } | null
+}
+
+type RawPartnerDepartment = {
+  id: string
+  zip?: string
+  address1?: string
+  address2?: string
+  tel?: string
+  email?: string
+  person_name?: string
+  person_title?: string
 }
 
 type RawPartner = {
   id: string
   name?: string
   name_kana?: string
-  departments?: { id: string }[]
+  departments?: RawPartnerDepartment[]
+}
+
+function toDepartment(d: RawPartnerDepartment | undefined): MfPartner['department'] {
+  if (!d) return null
+  const address = [d.address1, d.address2].filter(Boolean).join(' ').trim() || null
+  const has = d.zip || address || d.tel || d.email || d.person_name || d.person_title
+  if (!has) return null
+  return {
+    zip: d.zip?.trim() || null,
+    address,
+    tel: d.tel?.trim() || null,
+    email: d.email?.trim() || null,
+    person_name: d.person_name?.trim() || null,
+    person_title: d.person_title?.trim() || null,
+  }
 }
 
 /** 取引先を全ページ取得する（現状215件・per_page=100で3ページ程度） */
@@ -41,14 +76,15 @@ export async function fetchAllPartners(): Promise<MfPartner[]> {
     }
     const json = (await res.json()) as { data?: RawPartner[]; pagination?: { total_pages?: number } }
     for (const p of json.data ?? []) {
-      const departmentId = p.departments?.[0]?.id
+      const department = p.departments?.[0]
       // 部署が無い取引先には請求書を発行できないので候補から外す
-      if (!departmentId) continue
+      if (!department?.id) continue
       out.push({
         id: p.id,
         name: (p.name ?? '').trim(),
         name_kana: p.name_kana?.trim() || null,
-        department_id: departmentId,
+        department_id: department.id,
+        department: toDepartment(department),
       })
     }
     totalPages = json.pagination?.total_pages ?? 1
@@ -56,6 +92,30 @@ export async function fetchAllPartners(): Promise<MfPartner[]> {
   } while (page <= totalPages)
 
   return out.sort((a, b) => a.name.localeCompare(b.name, 'ja'))
+}
+
+/** 取引先IDで1件取得する（請求書下書き作成前の存在確認・部署ID解決に使う） */
+export async function fetchPartnerById(id: string): Promise<MfPartner | null> {
+  const token = await getValidAccessToken()
+  const res = await fetch(`${MF_INVOICE_API_BASE}/partners/${id}.json`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+    cache: 'no-store',
+  })
+  if (res.status === 404) return null
+  if (!res.ok) {
+    throw new Error(`MF API GET /partners/${id}.json → ${res.status}: ${await res.text()}`)
+  }
+  const json = (await res.json()) as { data?: RawPartner } | RawPartner
+  const raw = 'data' in json && json.data ? json.data : (json as RawPartner)
+  const department = raw.departments?.[0]
+  if (!department?.id) return null
+  return {
+    id: raw.id,
+    name: (raw.name ?? '').trim(),
+    name_kana: raw.name_kana?.trim() || null,
+    department_id: department.id,
+    department: toDepartment(department),
+  }
 }
 
 /** 取引先名・カナの部分一致で絞り込む（大文字小文字を無視） */

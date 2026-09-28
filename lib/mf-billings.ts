@@ -29,6 +29,13 @@ const EXCLUDED_BILLING_IDS = new Set<string>([
   'EF8CCqiM7YDHXukU_mRK2w', // 鹿児島実業高等学校PTA / AIセミナー御請求書 400,000円（重複のため除外）
 ])
 
+type RawBillingItem = {
+  name?: string
+  quantity?: number | string
+  price?: number | string
+  unit_price?: number | string
+}
+
 type RawBilling = {
   id: string
   partner_id?: string
@@ -39,10 +46,13 @@ type RawBilling = {
   due_date?: string
   sales_date?: string
   payment_status?: string
+  posting_status?: string
+  email_status?: string
   subtotal_price?: string
   excise_price?: string
   total_price?: string
   pdf_url?: string
+  items?: RawBillingItem[]
 }
 
 export type Billing = {
@@ -64,6 +74,21 @@ export type Billing = {
   pdf_url: string | null
 }
 
+export type BillingItem = {
+  name: string
+  quantity: number
+  /** 税抜単価（円） */
+  unit_price: number
+}
+
+export type BillingDetail = Billing & {
+  items: BillingItem[]
+  /** 郵送状況（生値。意味の確定した仕様書が無いため未加工で返す） */
+  posting_status: string | null
+  /** メール送付状況（同上） */
+  email_status: string | null
+}
+
 /** 'YYYY/MM/DD' → 'YYYY-MM-DD'。空なら null */
 function normalizeDate(v: string | undefined): string | null {
   if (!v) return null
@@ -78,6 +103,14 @@ function toYen(v: string | undefined): number {
 
 function isSelfBilling(partnerName: string): boolean {
   return SELF_PARTNER_PATTERNS.some((p) => partnerName.includes(p))
+}
+
+function normalizeItems(raw: RawBillingItem[] | undefined): BillingItem[] {
+  return (raw ?? []).map((it) => ({
+    name: (it.name ?? '').trim(),
+    quantity: Number(it.quantity ?? 0),
+    unit_price: toYen(String(it.price ?? it.unit_price ?? 0)),
+  }))
 }
 
 function normalize(raw: RawBilling): Billing {
@@ -146,6 +179,27 @@ export async function fetchBillings(args: {
   return out.filter((b) => !EXCLUDED_BILLING_IDS.has(b.id) && !isSelfBilling(b.partner_name))
 }
 
+/** 請求書を1件、明細つきで取得する。存在しなければnull */
+export async function fetchBillingById(id: string): Promise<BillingDetail | null> {
+  const token = await getValidAccessToken()
+  const res = await fetch(`${MF_INVOICE_API_BASE}/billings/${id}.json`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+    cache: 'no-store',
+  })
+  if (res.status === 404) return null
+  if (!res.ok) {
+    throw new Error(`MF API GET /billings/${id}.json → ${res.status}: ${await res.text()}`)
+  }
+  const json = (await res.json()) as { data?: RawBilling } | RawBilling
+  const raw = 'data' in json && json.data ? json.data : (json as RawBilling)
+  return {
+    ...normalize(raw),
+    items: normalizeItems(raw.items),
+    posting_status: raw.posting_status ?? null,
+    email_status: raw.email_status ?? null,
+  }
+}
+
 /**
  * 取引先名・件名の部分一致で絞り込む（大文字小文字を無視）。
  * MFの `q` は前方一致なので、こちらで持つ。
@@ -199,4 +253,56 @@ export function shiftMonthsJST(months: number): string {
 export function overdueDays(dueDate: string | null, today: string): number | null {
   if (!dueDate) return null
   return Math.floor((Date.parse(today) - Date.parse(dueDate)) / 86_400_000)
+}
+
+/** 'YYYY-MM-DD' をn日ずらす（負値で過去）。日跨ぎのタイムゾーン事故を避けるためUTC正午基準で計算 */
+export function shiftDaysFromDate(dateStr: string, days: number): string {
+  const d = new Date(`${dateStr}T12:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + days)
+  return d.toISOString().slice(0, 10)
+}
+
+export type DuplicateCandidate = {
+  id: string
+  title: string
+  billing_date: string | null
+  due_date: string | null
+  total: number
+  pdf_url: string | null
+}
+
+/**
+ * 誤って同じ請求書を二重作成していないか調べる。
+ * 同一取引先×近い請求日の範囲で、件名が部分一致するものを候補として返す
+ * （MFの検索は前方一致でしか効かないため、期間で取ってからこちら側で絞る）。
+ */
+export async function findPossibleDuplicateBillings(args: {
+  partnerId: string
+  title?: string
+  aroundDate?: string
+  windowDays?: number
+}): Promise<DuplicateCandidate[]> {
+  const center = args.aroundDate ?? todayJST()
+  const windowDays = args.windowDays ?? 60
+  const from = shiftDaysFromDate(center, -windowDays)
+  const to = shiftDaysFromDate(center, windowDays)
+
+  const billings = await fetchBillings({ from, to, rangeKey: 'billing_date', includeExcluded: true })
+  const needle = args.title?.trim().toLowerCase()
+
+  return billings
+    .filter((b) => b.partner_id === args.partnerId)
+    .filter((b) => {
+      if (!needle) return true
+      const t = b.title.toLowerCase()
+      return t.includes(needle) || needle.includes(t)
+    })
+    .map((b) => ({
+      id: b.id,
+      title: b.title,
+      billing_date: b.billing_date,
+      due_date: b.due_date,
+      total: b.total,
+      pdf_url: b.pdf_url,
+    }))
 }

@@ -222,6 +222,23 @@ export type FreeBillingItem = {
   unit: string
   /** 税抜単価（円） */
   unitPrice: number
+  /** 消費税率（%）。省略時10。対応外の値は10%として扱う */
+  taxRate?: number
+}
+
+/** 税率(%) → MF v3 の excise コード。未指定・非対応値は標準税率にフォールバック */
+function exciseForTaxRate(taxRate: number | undefined): string {
+  switch (taxRate) {
+    case 8:
+      return 'eight_percent_as_reduced_tax_rate'
+    case 0:
+      return 'tax_exempt'
+    case 10:
+    case undefined:
+      return 'ten_percent'
+    default:
+      return 'ten_percent'
+  }
 }
 
 export async function createFreeBilling(args: {
@@ -245,7 +262,7 @@ export async function createFreeBilling(args: {
       quantity: it.quantity,
       unit: it.unit,
       price: it.unitPrice,
-      excise: 'ten_percent',
+      excise: exciseForTaxRate(it.taxRate),
     })),
     config: { consumption_tax_display_type: 'internal' },
   }

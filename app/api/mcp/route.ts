@@ -1,6 +1,7 @@
 import { createMcpHandler } from 'mcp-handler'
 import { registerMcpTools } from '@/lib/mcp-tools'
 import { registerMfBillingTools } from '@/lib/mcp-mf-tools'
+import { registerMfInvoiceWriteTools } from '@/lib/mcp-mf-write-tools'
 import { isValidAccessToken, originFrom } from '@/lib/mcp-oauth'
 
 const ALLOWED_TOKENS = (process.env.MCP_AUTH_TOKENS ?? '')
@@ -9,11 +10,13 @@ const ALLOWED_TOKENS = (process.env.MCP_AUTH_TOKENS ?? '')
   .filter(Boolean)
 
 const ALLOW_DELETE = process.env.MCP_ALLOW_DELETE === 'true'
+const ALLOW_MF_WRITE = process.env.MCP_ALLOW_MF_WRITE === 'true'
 
 const mcpHandler = createMcpHandler(
   (server) => {
     registerMcpTools(server, { allowDelete: ALLOW_DELETE })
     registerMfBillingTools(server)
+    registerMfInvoiceWriteTools(server, { allowWrite: ALLOW_MF_WRITE })
   },
   {},
   { basePath: '/api', verboseLogs: false }
