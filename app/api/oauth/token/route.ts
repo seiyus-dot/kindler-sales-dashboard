@@ -4,6 +4,7 @@
  */
 import {
   ACCESS_TOKEN_TTL_SEC,
+  actorFromRefreshToken,
   isValidRefreshToken,
   issueAccessToken,
   issueRefreshToken,
@@ -39,12 +40,13 @@ export async function POST(req: Request) {
     if (!isValidRefreshToken(refresh)) {
       return oauthError('invalid_grant', 'リフレッシュトークンが無効か期限切れです')
     }
+    const actor = actorFromRefreshToken(refresh) ?? 'default'
     return Response.json(
       {
-        access_token: issueAccessToken(),
+        access_token: issueAccessToken(actor),
         token_type: 'Bearer',
         expires_in: ACCESS_TOKEN_TTL_SEC,
-        refresh_token: issueRefreshToken(),
+        refresh_token: issueRefreshToken(actor),
         scope: 'mcp',
       },
       { headers: CORS }
@@ -74,10 +76,10 @@ export async function POST(req: Request) {
 
   return Response.json(
     {
-      access_token: issueAccessToken(),
+      access_token: issueAccessToken(parsed.actor),
       token_type: 'Bearer',
       expires_in: ACCESS_TOKEN_TTL_SEC,
-      refresh_token: issueRefreshToken(),
+      refresh_token: issueRefreshToken(parsed.actor),
       scope: 'mcp',
     },
     { headers: CORS }

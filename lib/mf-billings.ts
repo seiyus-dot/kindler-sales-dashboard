@@ -30,6 +30,7 @@ const EXCLUDED_BILLING_IDS = new Set<string>([
 ])
 
 type RawBillingItem = {
+  id?: string
   name?: string
   quantity?: number | string
   price?: number | string
@@ -75,6 +76,8 @@ export type Billing = {
 }
 
 export type BillingItem = {
+  /** mf_remove_billing_itemで指定するID */
+  id: string | null
   name: string
   quantity: number
   /** 税抜単価（円） */
@@ -107,6 +110,7 @@ function isSelfBilling(partnerName: string): boolean {
 
 function normalizeItems(raw: RawBillingItem[] | undefined): BillingItem[] {
   return (raw ?? []).map((it) => ({
+    id: it.id ?? null,
     name: (it.name ?? '').trim(),
     quantity: Number(it.quantity ?? 0),
     unit_price: toYen(String(it.price ?? it.unit_price ?? 0)),
@@ -179,8 +183,13 @@ export async function fetchBillings(args: {
   return out.filter((b) => !EXCLUDED_BILLING_IDS.has(b.id) && !isSelfBilling(b.partner_name))
 }
 
-/** 請求書を1件、明細つきで取得する。存在しなければnull */
-export async function fetchBillingById(id: string): Promise<BillingDetail | null> {
+/**
+ * 請求書を1件、生のレスポンスのまま取得する（更新時に「触らない項目」をそのまま
+ * 詰め直すために使う。normalize()を通すと更新APIが期待しない形に変わってしまう
+ * フィールドがあるかもしれないため、あえて型を絞らずRecordで返す）。
+ * 存在しなければnull
+ */
+export async function fetchRawBilling(id: string): Promise<Record<string, unknown> | null> {
   const token = await getValidAccessToken()
   const res = await fetch(`${MF_INVOICE_API_BASE}/billings/${id}.json`, {
     headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
@@ -190,8 +199,14 @@ export async function fetchBillingById(id: string): Promise<BillingDetail | null
   if (!res.ok) {
     throw new Error(`MF API GET /billings/${id}.json → ${res.status}: ${await res.text()}`)
   }
-  const json = (await res.json()) as { data?: RawBilling } | RawBilling
-  const raw = 'data' in json && json.data ? json.data : (json as RawBilling)
+  const json = (await res.json()) as { data?: Record<string, unknown> } | Record<string, unknown>
+  return ('data' in json && json.data ? json.data : json) as Record<string, unknown>
+}
+
+/** 請求書を1件、明細つきで取得する。存在しなければnull */
+export async function fetchBillingById(id: string): Promise<BillingDetail | null> {
+  const raw = (await fetchRawBilling(id)) as RawBilling | null
+  if (!raw) return null
   return {
     ...normalize(raw),
     items: normalizeItems(raw.items),
@@ -260,6 +275,57 @@ export function shiftDaysFromDate(dateStr: string, days: number): string {
   const d = new Date(`${dateStr}T12:00:00Z`)
   d.setUTCDate(d.getUTCDate() + days)
   return d.toISOString().slice(0, 10)
+}
+
+export type SentHistoryEntry = {
+  id: number
+  type: string
+  document_type: string
+  document_id: string
+  to: string
+  cc: string
+  sender_name: string
+  sent_at: string
+}
+
+/**
+ * 指定した書類（請求書・見積書）が実際にいつ・誰宛に送付されたかの履歴を返す。
+ * 空配列なら一度も送付されていない（下書きのまま）とほぼ断定できる。
+ */
+export async function fetchSentHistories(documentId: string): Promise<SentHistoryEntry[]> {
+  const token = await getValidAccessToken()
+  const out: SentHistoryEntry[] = []
+  let page = 1
+  let totalPages = 1
+  do {
+    const params = new URLSearchParams({ document_id: documentId, page: String(page), per_page: '100' })
+    const res = await fetch(`${MF_INVOICE_API_BASE}/sent_histories.json?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      cache: 'no-store',
+    })
+    if (!res.ok) {
+      throw new Error(`MF API GET /sent_histories.json → ${res.status}: ${await res.text()}`)
+    }
+    const json = (await res.json()) as {
+      data?: Array<Record<string, unknown>>
+      pagination?: { total_pages?: number }
+    }
+    for (const raw of json.data ?? []) {
+      out.push({
+        id: Number(raw.id),
+        type: String(raw.type ?? ''),
+        document_type: String(raw.document_type ?? ''),
+        document_id: String(raw.document_id ?? ''),
+        to: String(raw.to ?? ''),
+        cc: String(raw.cc ?? ''),
+        sender_name: String(raw.sender_name ?? ''),
+        sent_at: String(raw.sent_at ?? ''),
+      })
+    }
+    totalPages = json.pagination?.total_pages ?? 1
+    page += 1
+  } while (page <= totalPages)
+  return out
 }
 
 export type DuplicateCandidate = {

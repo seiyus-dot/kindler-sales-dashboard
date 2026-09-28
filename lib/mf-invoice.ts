@@ -227,7 +227,7 @@ export type FreeBillingItem = {
 }
 
 /** 税率(%) → MF v3 の excise コード。未指定・非対応値は標準税率にフォールバック */
-function exciseForTaxRate(taxRate: number | undefined): string {
+export function exciseForTaxRate(taxRate: number | undefined): string {
   switch (taxRate) {
     case 8:
       return 'eight_percent_as_reduced_tax_rate'
@@ -276,4 +276,73 @@ export async function createFreeBilling(args: {
 // 共通：レスポンスから PDF URL を取り出す
 export function extractPdfUrl(res: { pdf_url?: string; attachment?: { url?: string } }): string | null {
   return res.pdf_url ?? res.attachment?.url ?? null
+}
+
+// ---------------------------------------------
+// 請求書の更新（下書きの件名・備考・明細の修正）
+//
+// 作成が /invoice_template_billings.json なのに対し、v3 APIドキュメントの
+// operation id "put-billings-id"（"Update a billing"）から更新は /billings/{id}.json
+// であることまでは確認できたが、部分更新か全置換かは未検証。
+// 呼び出し側（mcp-mf-write-tools.ts）が、変更しない項目はGETで取得した生の値を
+// そのまま詰め直して送ることで、全置換だった場合の消失事故を防ぐ設計にしている。
+// ---------------------------------------------
+export async function updateBillingRaw(
+  id: string,
+  body: Record<string, unknown>,
+): Promise<MFBillingResponse> {
+  return await mfFetch<MFBillingResponse>(`/billings/${id}.json`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
+}
+
+// ---------------------------------------------
+// 明細の個別追加・削除（全置換のupdateBillingRawより安全な部分編集。下書きのみ対象）
+// ---------------------------------------------
+export async function addBillingItem(
+  billingId: string,
+  item: FreeBillingItem,
+): Promise<{ id: string }> {
+  return await mfFetch<{ id: string }>(`/billings/${billingId}/items.json`, {
+    method: 'POST',
+    body: JSON.stringify({
+      name: item.name,
+      quantity: item.quantity,
+      unit: item.unit,
+      price: item.unitPrice,
+      excise: exciseForTaxRate(item.taxRate),
+    }),
+  })
+}
+
+export async function removeBillingItem(billingId: string, itemId: string): Promise<void> {
+  await mfFetch<void>(`/billings/${billingId}/items/${itemId}.json`, { method: 'DELETE' })
+}
+
+// ---------------------------------------------
+// 下書きの削除（作り間違いの取り消し。送付済みのものは対象外）
+// ---------------------------------------------
+export async function deleteBillingDraft(id: string): Promise<void> {
+  await mfFetch<void>(`/billings/${id}.json`, { method: 'DELETE' })
+}
+
+// ---------------------------------------------
+// 入金ステータスの更新（自社内の消込フラグ。取引先への送付は発生しない）
+// 読み(GET)は日本語文字列、書き(PUT)は数値文字列という非対称仕様（docs/cashflow-forecast-design.md参照）
+// ---------------------------------------------
+export const PAYMENT_STATUS_CODES = {
+  未設定: '0',
+  未入金: '1',
+  入金済み: '2',
+  未払い: '3',
+  振込済み: '4',
+} as const
+export type PaymentStatusLabel = keyof typeof PAYMENT_STATUS_CODES
+
+export async function updateBillingPaymentStatus(id: string, status: PaymentStatusLabel): Promise<void> {
+  await mfFetch<void>(`/billings/${id}/payment_status.json`, {
+    method: 'PUT',
+    body: JSON.stringify({ payment_status: PAYMENT_STATUS_CODES[status] }),
+  })
 }

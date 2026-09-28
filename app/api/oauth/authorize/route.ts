@@ -9,7 +9,7 @@
  * 差し替えること（設計判断のメモとして残す）。
  */
 import {
-  isValidSharedSecret,
+  resolveSharedSecretActor,
   issueAuthorizationCode,
   allowedSharedSecrets,
 } from '@/lib/mcp-oauth'
@@ -170,7 +170,8 @@ export async function POST(req: Request) {
     })
   }
 
-  if (!isValidSharedSecret(secret)) {
+  const actor = resolveSharedSecretActor(secret)
+  if (!actor) {
     return page({
       redirectUri,
       state,
@@ -180,7 +181,7 @@ export async function POST(req: Request) {
     })
   }
 
-  const code = issueAuthorizationCode({ redirectUri, codeChallenge, codeChallengeMethod })
+  const code = issueAuthorizationCode({ redirectUri, codeChallenge, codeChallengeMethod, actor })
   const back = new URL(redirectUri)
   back.searchParams.set('code', code)
   if (state) back.searchParams.set('state', state)

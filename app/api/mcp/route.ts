@@ -2,12 +2,10 @@ import { createMcpHandler } from 'mcp-handler'
 import { registerMcpTools } from '@/lib/mcp-tools'
 import { registerMfBillingTools } from '@/lib/mcp-mf-tools'
 import { registerMfInvoiceWriteTools } from '@/lib/mcp-mf-write-tools'
-import { isValidAccessToken, originFrom } from '@/lib/mcp-oauth'
-
-const ALLOWED_TOKENS = (process.env.MCP_AUTH_TOKENS ?? '')
-  .split(',')
-  .map((t) => t.trim())
-  .filter(Boolean)
+import { registerMfPartnerWriteTools } from '@/lib/mcp-mf-partner-tools'
+import { registerMfItemTools } from '@/lib/mcp-mf-item-tools'
+import { registerMfQuoteTools } from '@/lib/mcp-mf-quote-tools'
+import { actorFromAccessToken, originFrom, resolveSharedSecretActor } from '@/lib/mcp-oauth'
 
 const ALLOW_DELETE = process.env.MCP_ALLOW_DELETE === 'true'
 const ALLOW_MF_WRITE = process.env.MCP_ALLOW_MF_WRITE === 'true'
@@ -17,6 +15,9 @@ const mcpHandler = createMcpHandler(
     registerMcpTools(server, { allowDelete: ALLOW_DELETE })
     registerMfBillingTools(server)
     registerMfInvoiceWriteTools(server, { allowWrite: ALLOW_MF_WRITE })
+    registerMfPartnerWriteTools(server, { allowWrite: ALLOW_MF_WRITE })
+    registerMfItemTools(server, { allowWrite: ALLOW_MF_WRITE })
+    registerMfQuoteTools(server, { allowWrite: ALLOW_MF_WRITE })
   },
   {},
   { basePath: '/api', verboseLogs: false }
@@ -31,16 +32,20 @@ function bearerToken(req: Request): string | undefined {
  * 認証は2系統。
  * 1. MCP_AUTH_TOKENS の共有シークレットを直接Bearerで送る（Claude Desktop等、ヘッダを自分で設定できるクライアント）
  * 2. /api/oauth/* で発行したアクセストークン（ChatGPTのようにOAuthしか選べないクライアント）
+ *
+ * どちらの経路でも、一致した接続キーのラベル（actor）を「誰の接続か」として
+ * req.auth に載せる。mcp-handlerがこれをMCPツール呼び出しのextra.authInfoまで
+ * 転送するので、書き込み系ツールの監査ログ（lib/mf-write-audit.ts）で使う。
  */
-function isAuthorized(req: Request) {
+function resolveActor(req: Request): string | null {
   const token = bearerToken(req)
-  if (!token) return false
-  if (ALLOWED_TOKENS.length > 0 && ALLOWED_TOKENS.includes(token)) return true
-  return isValidAccessToken(token)
+  if (!token) return null
+  return resolveSharedSecretActor(token) ?? actorFromAccessToken(token)
 }
 
 async function handler(req: Request) {
-  if (!isAuthorized(req)) {
+  const actor = resolveActor(req)
+  if (!actor) {
     // RFC 9728: 401には認可サーバの在り処を示すWWW-Authenticateを付ける。
     // これが無いとChatGPTはOAuthフローを開始できない。
     const origin = originFrom(req)
@@ -51,6 +56,11 @@ async function handler(req: Request) {
         'WWW-Authenticate': `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource"`,
       },
     })
+  }
+  ;(req as Request & { auth?: { token: string; clientId: string; scopes: string[] } }).auth = {
+    token: bearerToken(req)!,
+    clientId: actor,
+    scopes: ['mcp'],
   }
   return mcpHandler(req)
 }

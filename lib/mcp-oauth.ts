@@ -30,24 +30,47 @@ function stripQuotes(v: string): string {
   return t
 }
 
-export function allowedSharedSecrets(): string[] {
+/**
+ * MCP_AUTH_TOKENS は "label:secret" 形式のカンマ区切りに対応する（ラベル無しの
+ * 素の値も従来どおり有効）。ラベルは「誰の接続か」の識別子として監査ログに残す。
+ */
+type SharedSecretEntry = { label: string; secret: string }
+
+function parseAuthTokenEntries(): SharedSecretEntry[] {
   return (process.env.MCP_AUTH_TOKENS ?? '')
     .split(',')
     .map(stripQuotes)
     .filter(Boolean)
+    .map((entry): SharedSecretEntry => {
+      const idx = entry.indexOf(':')
+      if (idx > 0) {
+        const label = entry.slice(0, idx).trim()
+        const secret = entry.slice(idx + 1).trim()
+        if (label && secret) return { label, secret }
+      }
+      return { label: 'default', secret: entry }
+    })
+}
+
+export function allowedSharedSecrets(): string[] {
+  return parseAuthTokenEntries().map((e) => e.secret)
 }
 
 /** 共有シークレットとして正しいか（長さの違いも定数時間で吸収する） */
 export function isValidSharedSecret(candidate: string): boolean {
-  const secrets = allowedSharedSecrets()
-  if (secrets.length === 0) return false
-  let ok = false
-  for (const s of secrets) {
-    const a = Buffer.from(sha256Hex(s), 'utf8')
+  return resolveSharedSecretActor(candidate) !== null
+}
+
+/** 一致した接続キーのラベル（＝誰の接続か）を返す。一致しなければnull */
+export function resolveSharedSecretActor(candidate: string): string | null {
+  const entries = parseAuthTokenEntries()
+  let matched: string | null = null
+  for (const e of entries) {
+    const a = Buffer.from(sha256Hex(e.secret), 'utf8')
     const b = Buffer.from(sha256Hex(candidate), 'utf8')
-    if (a.length === b.length && timingSafeEqual(a, b)) ok = true
+    if (a.length === b.length && timingSafeEqual(a, b)) matched = e.label
   }
-  return ok
+  return matched
 }
 
 function sha256Hex(v: string): string {
@@ -109,23 +132,25 @@ export function issueAuthorizationCode(args: {
   redirectUri: string
   codeChallenge: string
   codeChallengeMethod: string
+  actor: string
 }): string {
   return issue(
     'code',
-    { ru: args.redirectUri, cc: args.codeChallenge, ccm: args.codeChallengeMethod },
+    { ru: args.redirectUri, cc: args.codeChallenge, ccm: args.codeChallengeMethod, ac: args.actor },
     CODE_TTL_SEC
   )
 }
 
 export function verifyAuthorizationCode(
   code: string
-): { redirectUri: string; codeChallenge: string; codeChallengeMethod: string } | null {
+): { redirectUri: string; codeChallenge: string; codeChallengeMethod: string; actor: string } | null {
   const body = verify('code', code)
   if (!body) return null
   return {
     redirectUri: String(body.ru ?? ''),
     codeChallenge: String(body.cc ?? ''),
     codeChallengeMethod: String(body.ccm ?? 'S256'),
+    actor: String(body.ac ?? 'default'),
   }
 }
 
@@ -140,20 +165,34 @@ export function verifyPkce(verifier: string, challenge: string, method: string):
 // ---------------------------------------------
 // アクセストークン / リフレッシュトークン
 // ---------------------------------------------
-export function issueAccessToken(): string {
-  return issue('access', {}, ACCESS_TTL_SEC)
+export function issueAccessToken(actor: string): string {
+  return issue('access', { ac: actor }, ACCESS_TTL_SEC)
 }
 
-export function issueRefreshToken(): string {
-  return issue('refresh', {}, REFRESH_TTL_SEC)
+export function issueRefreshToken(actor: string): string {
+  return issue('refresh', { ac: actor }, REFRESH_TTL_SEC)
 }
 
 export function isValidAccessToken(token: string): boolean {
   return verify('access', token) !== null
 }
 
+/** アクセストークンに埋め込まれたactor（接続ラベル）を取り出す。無効なら null */
+export function actorFromAccessToken(token: string): string | null {
+  const body = verify('access', token)
+  if (!body) return null
+  return String(body.ac ?? 'default')
+}
+
 export function isValidRefreshToken(token: string): boolean {
   return verify('refresh', token) !== null
+}
+
+/** リフレッシュトークンに埋め込まれたactor（接続ラベル）を取り出す。無効なら null */
+export function actorFromRefreshToken(token: string): string | null {
+  const body = verify('refresh', token)
+  if (!body) return null
+  return String(body.ac ?? 'default')
 }
 
 export const ACCESS_TOKEN_TTL_SEC = ACCESS_TTL_SEC
