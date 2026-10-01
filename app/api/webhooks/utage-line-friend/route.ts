@@ -28,7 +28,8 @@ export async function POST(req: NextRequest) {
   }
 
   const now = new Date().toISOString()
-  const blocked = body.event === 'block'
+  // UTAGE側はURL末尾の &event=block で指定する想定（送信データに入れても可）
+  const blocked = (req.nextUrl.searchParams.get('event') ?? body.event) === 'block'
   const fields = {
     status: blocked ? STATUS_BLOCKED : STATUS_FOLLOWING,
     blocked_at: blocked ? now : null,
