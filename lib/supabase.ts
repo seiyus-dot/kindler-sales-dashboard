@@ -193,6 +193,11 @@ export type AICampConsultation = {
   service_type?: string
   applied_at?: string
   contact_id?: string
+  email?: string
+  phone?: string
+  utage_applicant_id?: string
+  utage_event_name?: string
+  line_friend_id?: string
   created_at: string
   updated_at: string
   member?: Member

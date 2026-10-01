@@ -11,6 +11,8 @@ import { downloadCsv, csvStamp, csvDateTime } from '@/lib/csv'
 
 const MONTHLY_INCOMES = ['〜10万円', '11～20万円', '21～30万円', '31～40万円', '41～50万円', '51～60万円', '61～70万円', '71～80万円', '81～90万円', '91～100万円', '101万円以上']
 const SERVICE_TYPES = ['AI CAMP', 'プロダクト AI CAMP']
+// 実際に面談が行われたステータス（着座）
+const CONDUCTED_STATUSES = ['成約', '失注', '保留', 'クーリングオフ']
 
 const AICAMP_COL_MIN_WIDTH: Record<string, string> = {
   consultation_date:    'min-w-[100px]',
@@ -226,6 +228,8 @@ function AICampPageContent() {
     cpc: number
     ctr: number
   }[]>([])
+  // 週次表の面談申込数・着座数の自動計算用（月をまたぐ週も拾えるよう前後7日広めに取得）
+  const [funnelRows, setFunnelRows] = useState<Pick<AICampConsultation, 'applied_at' | 'consultation_date' | 'status' | 'source'>[]>([])
   const [adEditId, setAdEditId] = useState<string | null>(null)
   const [adDraft, setAdDraft] = useState<Record<string, string>>({})
   const [adSaving, setAdSaving] = useState(false)
@@ -360,8 +364,9 @@ function AICampPageContent() {
       })
       const result = await res.json()
       if (!res.ok) { alert('インポートに失敗しました: ' + result.error); return }
-      alert(`${result.added}件追加、${result.updated}件更新しました`)
+      alert(`${result.added}件追加、${result.updated}件更新しました${result.autoChecked ? `\n商談${result.autoChecked}件のLINE追加確認を「確認済み」にしました` : ''}`)
       await fetchLineFriends()
+      if (result.autoChecked) await fetchAll()
     } catch (e) {
       alert('ファイル読み込みエラー: ' + String(e))
     } finally {
@@ -399,6 +404,13 @@ function AICampPageContent() {
       .gte('day', `${month}-01`)
       .lt('day', nextMonth(month))
       .order('day', { ascending: false })
+    const [fy, fm] = month.split('-').map(Number)
+    const funnelFrom = new Date(Date.UTC(fy, fm - 1, 1 - 7)).toISOString()
+    const funnelTo = new Date(Date.UTC(fy, fm, 1 + 7)).toISOString()
+    const funnelRes = await supabase
+      .from('aicamp_consultations')
+      .select('applied_at, consultation_date, status, source')
+      .or(`and(applied_at.gte.${funnelFrom},applied_at.lt.${funnelTo}),and(consultation_date.gte.${funnelFrom},consultation_date.lt.${funnelTo})`)
     if (consRes.data) setConsultations(consRes.data)
     if (membersRes.data) setMembers(membersRes.data)
     setGoal(goalRes.data ?? null)
@@ -406,6 +418,7 @@ function AICampPageContent() {
     setProductGoalInput(goalRes.data?.product_contract_goal?.toString() ?? '0')
     setAdWeekly(adRes.data ?? [])
     setFbAds(fbRes.data ?? [])
+    setFunnelRows(funnelRes.data ?? [])
     setDailyLogs(dailyRes.data ?? [])
     setUtageDeliveries(utageRes.data ?? [])
     setLoading(false)
@@ -419,9 +432,12 @@ function AICampPageContent() {
   function parseWeekRange(weekLabel: string, monthStr: string): { start: string; end: string } | null {
     const [y] = monthStr.split('-')
     const cleaned = weekLabel.replace(/\s/g, '').replace(/[～〜]/g, '~')
-    const match = cleaned.match(/^(\d+)\/(\d+)~(\d+)\/(\d+)$/)
+    // 「9/1~9/6」に加え「9/28~30」（終了月の省略）と「8/31」（1日だけ）も受け付ける
+    const match = cleaned.match(/^(\d+)\/(\d+)(?:~(?:(\d+)\/)?(\d+))?$/)
     if (!match) return null
-    const [, sm, sd, em, ed] = match
+    const [, sm, sd] = match
+    const em = match[3] ?? sm
+    const ed = match[4] ?? sd
     const endYear = parseInt(em) < parseInt(sm) ? String(parseInt(y) + 1) : y
     return {
       start: `${y}-${sm.padStart(2, '0')}-${sd.padStart(2, '0')}`,
@@ -447,6 +463,21 @@ function AICampPageContent() {
     return {
       ad_spend: rows.reduce((s, d) => s + (d.amount_spent ?? 0), 0),
       list_count: rows.reduce((s, d) => s + (d.registrations_completed ?? 0), 0),
+    }
+  }
+
+  // Meta広告経由の面談のみ（CPAの分母なので広告費と対象を揃える）
+  //   面談申込数 = 申込日時がその週の件数（申込日時の無いUTAGE連携前の手入力行は面談日で代用）
+  //   着座数     = 面談日がその週で、実施ステータス（成約/失注/保留/クーリングオフ）の件数
+  function computeFunnelForWeek(weekLabel: string, monthStr: string) {
+    const range = parseWeekRange(weekLabel, monthStr)
+    if (!range) return null
+    const jstDate = (ts?: string | null) => ts ? new Date(new Date(ts).getTime() + 9 * 3600 * 1000).toISOString().slice(0, 10) : ''
+    const inRange = (d: string) => d >= range.start && d <= range.end
+    const meta = funnelRows.filter(c => c.source?.toLowerCase().includes('meta'))
+    return {
+      consultation_count: meta.filter(c => inRange(jstDate(c.applied_at ?? c.consultation_date))).length,
+      seated_count: meta.filter(c => CONDUCTED_STATUSES.includes(c.status ?? '') && inRange(jstDate(c.consultation_date))).length,
     }
   }
 
@@ -542,12 +573,13 @@ function AICampPageContent() {
     setAdSaving(true)
     const editingRow = adWeekly.find(r => r.id === adEditId)
     const computed = computeFbForWeek(adDraft.week_label, editingRow?.month ?? month)
+    const funnel = computeFunnelForWeek(adDraft.week_label, editingRow?.month ?? month)
     await supabase.from('aicamp_ad_weekly').update({
       week_label: adDraft.week_label,
       ad_spend: computed?.ad_spend ?? 0,
       list_count: computed?.list_count ?? 0,
-      consultation_count: adDraft.consultation_count ? parseInt(adDraft.consultation_count) : null,
-      seated_count: adDraft.seated_count ? parseInt(adDraft.seated_count) : null,
+      consultation_count: funnel?.consultation_count ?? null,
+      seated_count: funnel?.seated_count ?? null,
       notes: adDraft.notes || null,
     }).eq('id', adEditId)
     setAdSaving(false)
@@ -559,13 +591,14 @@ function AICampPageContent() {
     if (!newWeek.week_label.trim()) return
     setAdSaving(true)
     const computed = computeFbForWeek(newWeek.week_label.trim(), month)
+    const funnel = computeFunnelForWeek(newWeek.week_label.trim(), month)
     await supabase.from('aicamp_ad_weekly').insert({
       month,
       week_label: newWeek.week_label.trim(),
       ad_spend: computed?.ad_spend ?? 0,
       list_count: computed?.list_count ?? 0,
-      consultation_count: newWeek.consultation_count ? parseInt(newWeek.consultation_count) : null,
-      seated_count: newWeek.seated_count ? parseInt(newWeek.seated_count) : null,
+      consultation_count: funnel?.consultation_count ?? null,
+      seated_count: funnel?.seated_count ?? null,
       notes: newWeek.notes || null,
       sort_order: adWeekly.filter(r => (r.service_type ?? 'プロダクト AI CAMP') === adServiceType).length,
       service_type: adServiceType,
@@ -813,7 +846,7 @@ function AICampPageContent() {
   const held = consultations.filter(c => c.status === '保留')
   // クーリングオフ＝成約後の解約。面談は実施され成約まで至ったため実商談には含めるが、成約・売上・キャンセル率には含めず別枠で把握する
   const coolingOff = consultations.filter(c => c.status === 'クーリングオフ')
-  const conducted = consultations.filter(c => ['成約', '失注', '保留', 'クーリングオフ'].includes(c.status ?? ''))
+  const conducted = consultations.filter(c => CONDUCTED_STATUSES.includes(c.status ?? ''))
   const cancelled = consultations.filter(c => ['ドタキャン', 'キャンセル'].includes(c.status ?? ''))
   const totalScheduled = conducted.length + cancelled.length
   const cancelRate = totalScheduled > 0 ? Math.round(cancelled.length / totalScheduled * 100) : 0
@@ -1429,11 +1462,12 @@ function AICampPageContent() {
         // CPA計算はMeta広告リスト（fb_ads）ベース
         const totalAdSpend   = fbAds.reduce((s, r) => s + (r.amount_spent ?? 0), 0)
         const totalListCount = fbAds.reduce((s, r) => s + (r.registrations_completed ?? 0), 0)
-        // 面談申込・着座は週別手入力テーブルから
+        // 面談申込・着座は aicamp_consultations から週ごとに自動計算（週ラベルが読めない行のみ保存値）
         const weeklyAdSpend   = adFilteredWeekly.reduce((s, r) => s + r.ad_spend, 0)
         const weeklyListCount = adFilteredWeekly.reduce((s, r) => s + r.list_count, 0)
-        const totalConsultation = adFilteredWeekly.reduce((s, r) => s + (r.consultation_count ?? 0), 0)
-        const totalSeated = adFilteredWeekly.reduce((s, r) => s + (r.seated_count ?? 0), 0)
+        const funnelOf = (r: AICampAdWeekly) => computeFunnelForWeek(r.week_label, r.month)
+        const totalConsultation = adFilteredWeekly.reduce((s, r) => s + (funnelOf(r)?.consultation_count ?? r.consultation_count ?? 0), 0)
+        const totalSeated = adFilteredWeekly.reduce((s, r) => s + (funnelOf(r)?.seated_count ?? r.seated_count ?? 0), 0)
         const cpa = totalListCount > 0 ? Math.round(totalAdSpend / totalListCount) : null
         const meetingCpa = totalConsultation > 0 ? Math.round(totalAdSpend / totalConsultation) : null
         const seatedCpa = totalSeated > 0 ? Math.round(totalAdSpend / totalSeated) : null
@@ -1476,8 +1510,8 @@ function AICampPageContent() {
                             <td className="px-4 py-2"><input value={adDraft.week_label} onChange={e => setAdDraft(d => ({ ...d, week_label: e.target.value }))} className="border border-blue-300 rounded px-2 py-1 text-xs w-28 focus:outline-none" placeholder="4/1〜4/5" /></td>
                             <td className="px-4 py-2 font-mono text-xs text-gray-500">{(() => { const c = computeFbForWeek(adDraft.week_label, adWeekly.find(r => r.id === adEditId)?.month ?? month); return c ? `¥${c.ad_spend.toLocaleString()}` : '-' })()}<span className="text-gray-400 ml-1 text-[10px]">自動</span></td>
                             <td className="px-4 py-2 font-mono text-xs text-gray-500">{(() => { const c = computeFbForWeek(adDraft.week_label, adWeekly.find(r => r.id === adEditId)?.month ?? month); return c ? c.list_count : '-' })()}<span className="text-gray-400 ml-1 text-[10px]">自動</span></td>
-                            <td className="px-4 py-2"><input type="number" value={adDraft.consultation_count} onChange={e => setAdDraft(d => ({ ...d, consultation_count: e.target.value }))} className="border border-blue-300 rounded px-2 py-1 text-xs font-mono w-20 focus:outline-none" /></td>
-                            <td className="px-4 py-2"><input type="number" value={adDraft.seated_count} onChange={e => setAdDraft(d => ({ ...d, seated_count: e.target.value }))} className="border border-blue-300 rounded px-2 py-1 text-xs font-mono w-20 focus:outline-none" /></td>
+                            <td className="px-4 py-2 font-mono text-xs text-gray-500">{(() => { const f = computeFunnelForWeek(adDraft.week_label, adWeekly.find(r => r.id === adEditId)?.month ?? month); return f ? f.consultation_count : <span className="text-gray-300">-</span> })()}<span className="text-gray-400 ml-1 text-[10px]">自動</span></td>
+                            <td className="px-4 py-2 font-mono text-xs text-gray-500">{(() => { const f = computeFunnelForWeek(adDraft.week_label, adWeekly.find(r => r.id === adEditId)?.month ?? month); return f ? f.seated_count : <span className="text-gray-300">-</span> })()}<span className="text-gray-400 ml-1 text-[10px]">自動</span></td>
                             <td className="px-4 py-2"><input type="text" value={adDraft.notes} onChange={e => setAdDraft(d => ({ ...d, notes: e.target.value }))} className="border border-blue-300 rounded px-2 py-1 text-xs w-40 focus:outline-none" placeholder="備考" /></td>
                             <td className="px-4 py-2">
                               <div className="flex gap-2 justify-end">
@@ -1490,8 +1524,7 @@ function AICampPageContent() {
                           <>
                             <td className="px-4 py-3 font-medium text-gray-700">{row.week_label}</td>
                             {(() => { const c = computeFbForWeek(row.week_label, row.month); return (<><td className="px-4 py-3 font-mono text-gray-700">¥{(c?.ad_spend ?? row.ad_spend).toLocaleString()}</td><td className="px-4 py-3 font-mono text-gray-700">{c?.list_count ?? row.list_count}</td></>) })()}
-                            <td className="px-4 py-3 font-mono text-gray-500">{row.consultation_count ?? '-'}</td>
-                            <td className="px-4 py-3 font-mono text-gray-500">{row.seated_count ?? '-'}</td>
+                            {(() => { const f = computeFunnelForWeek(row.week_label, row.month); return (<><td className="px-4 py-3 font-mono text-gray-700">{f?.consultation_count ?? row.consultation_count ?? '-'}</td><td className="px-4 py-3 font-mono text-gray-700">{f?.seated_count ?? row.seated_count ?? '-'}</td></>) })()}
                             <td className="px-4 py-3 text-gray-500 text-xs max-w-[160px] truncate" title={row.notes ?? ''}>{row.notes ?? ''}</td>
                             <td className="px-4 py-3">
                               <div className="flex gap-2 justify-end">
@@ -1511,8 +1544,8 @@ function AICampPageContent() {
                       <td className="px-4 py-2"><input value={newWeek.week_label} onChange={e => setNewWeek(w => ({ ...w, week_label: e.target.value }))} className="border border-green-300 rounded px-2 py-1 text-xs w-28 focus:outline-none" placeholder="4/1〜4/5" /></td>
                       <td className="px-4 py-2 font-mono text-xs text-gray-500">{(() => { const c = computeFbForWeek(newWeek.week_label.trim(), month); return c ? `¥${c.ad_spend.toLocaleString()}` : <span className="text-gray-300">-</span> })()}<span className="text-gray-400 ml-1 text-[10px]">自動</span></td>
                       <td className="px-4 py-2 font-mono text-xs text-gray-500">{(() => { const c = computeFbForWeek(newWeek.week_label.trim(), month); return c ? c.list_count : <span className="text-gray-300">-</span> })()}<span className="text-gray-400 ml-1 text-[10px]">自動</span></td>
-                      <td className="px-4 py-2"><input type="number" value={newWeek.consultation_count} onChange={e => setNewWeek(w => ({ ...w, consultation_count: e.target.value }))} className="border border-green-300 rounded px-2 py-1 text-xs font-mono w-20 focus:outline-none" placeholder="-" /></td>
-                      <td className="px-4 py-2"><input type="number" value={newWeek.seated_count} onChange={e => setNewWeek(w => ({ ...w, seated_count: e.target.value }))} className="border border-green-300 rounded px-2 py-1 text-xs font-mono w-20 focus:outline-none" placeholder="-" /></td>
+                      <td className="px-4 py-2 font-mono text-xs text-gray-500">{(() => { const f = computeFunnelForWeek(newWeek.week_label.trim(), month); return f ? f.consultation_count : <span className="text-gray-300">-</span> })()}<span className="text-gray-400 ml-1 text-[10px]">自動</span></td>
+                      <td className="px-4 py-2 font-mono text-xs text-gray-500">{(() => { const f = computeFunnelForWeek(newWeek.week_label.trim(), month); return f ? f.seated_count : <span className="text-gray-300">-</span> })()}<span className="text-gray-400 ml-1 text-[10px]">自動</span></td>
                       <td className="px-4 py-2"><input type="text" value={newWeek.notes} onChange={e => setNewWeek(w => ({ ...w, notes: e.target.value }))} className="border border-green-300 rounded px-2 py-1 text-xs w-40 focus:outline-none" placeholder="備考" /></td>
                       <td className="px-4 py-2">
                         <div className="flex gap-2 justify-end">

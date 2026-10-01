@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { getAuthUser } from '@/lib/auth-check'
+import { autoCheckLineAdded } from '@/lib/line-check'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -33,5 +34,6 @@ export async function POST(request: NextRequest) {
     }).eq('line_user_id', r.line_user_id as string)
   }
 
-  return NextResponse.json({ added: newRecords.length, updated: updateRecords.length })
+  const autoChecked = await autoCheckLineAdded(supabase)
+  return NextResponse.json({ added: newRecords.length, updated: updateRecords.length, autoChecked })
 }
