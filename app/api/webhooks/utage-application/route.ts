@@ -106,7 +106,8 @@ export async function POST(req: NextRequest) {
   // 申込フォームの回答（UTAGE %event_item02%〜06%）
   const answers = {
     age: parseAge(body.age ?? ''),
-    occupation: body.occupation || null,
+    // 申込フォームの初期値「例：営業（法人営業／個人営業）」がそのまま送られてくることがあるので空扱い
+    occupation: body.occupation && !body.occupation.startsWith('例：') ? body.occupation : null,
     monthly_income: normalizeMonthlyIncome(body.monthly_income ?? ''),
     ai_experience: body.ai_experience || null,
     motivation: body.motivation || null,
