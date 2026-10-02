@@ -28,6 +28,14 @@ function normalizeMonthlyIncome(v: string): string | null {
   return v.replace(/^0\s*[〜～~]\s*/, '〜').replace(/(\d)\s*[〜~]\s*(\d)/, '$1～$2')
 }
 
+function cleanOccupation(v: string): string | null {
+  const s = v
+    .replace('例：営業（法人営業／個人営業）', '')
+    .replace(/^例(.+?)：営業（法人営業／個人営業）$/, '$1')
+    .trim()
+  return s || null
+}
+
 function parseAge(v: string): number | null {
   const m = v.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xfee0)).match(/\d{1,3}/)
   return m ? Number(m[0]) : null
@@ -106,8 +114,8 @@ export async function POST(req: NextRequest) {
   // 申込フォームの回答（UTAGE %event_item02%〜06%）
   const answers = {
     age: parseAge(body.age ?? ''),
-    // 申込フォームの初期値「例：営業（法人営業／個人営業）」がそのまま送られてくることがあるので空扱い
-    occupation: body.occupation && !body.occupation.startsWith('例：') ? body.occupation : null,
+    // 申込フォームの初期値「例：営業（法人営業／個人営業）」がそのまま／後ろに付いたまま送られてくるので取り除く
+    occupation: cleanOccupation(body.occupation ?? ''),
     monthly_income: normalizeMonthlyIncome(body.monthly_income ?? ''),
     ai_experience: body.ai_experience || null,
     motivation: body.motivation || null,
