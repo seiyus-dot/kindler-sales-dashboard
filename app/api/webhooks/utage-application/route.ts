@@ -90,11 +90,18 @@ export async function POST(req: NextRequest) {
 
   let source: string | null = null
   if (tracking) {
-    const { count } = await supabase
+    // 広告セット名がどの代理店の広告データにあるかで流入経路を決める（代理店ごとの source_values の先頭）
+    const { data: adRow } = await supabase
       .from('fb_ads')
-      .select('day', { count: 'exact', head: true })
+      .select('agency_slug')
       .eq('ad_set_name', tracking)
-    if ((count ?? 0) > 0 || META_AD_SET_PATTERN.test(tracking)) source = 'Meta広告'
+      .limit(1)
+      .maybeSingle()
+    const agencySource = adRow?.agency_slug
+      ? (await supabase.from('ad_agencies').select('source_values').eq('slug', adRow.agency_slug).maybeSingle()).data?.source_values?.at(0)
+      : undefined
+    if (agencySource) source = agencySource
+    else if (adRow || META_AD_SET_PATTERN.test(tracking)) source = 'Meta広告'
     else if (tracking === 'HP上のLP') source = 'HP'
     else if (ASUKA_EVENT_PATTERN.test(tracking)) source = '自社SNS'
   }
