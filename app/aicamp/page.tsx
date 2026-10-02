@@ -230,6 +230,10 @@ function AICampPageContent() {
   }[]>([])
   // 週次表の面談申込数・着座数の自動計算用（月をまたぐ週も拾えるよう前後7日広めに取得）
   const [funnelRows, setFunnelRows] = useState<Pick<AICampConsultation, 'applied_at' | 'consultation_date' | 'status' | 'source'>[]>([])
+  // 広告タブの代理店切り替え（広告1／広告2…）。fbAds は概要・流入経路分析用に広告1固定、adFbAds は広告タブ用
+  const [adAgencies, setAdAgencies] = useState<{ slug: string; name: string; source_values: string[] }[]>([])
+  const [adAgency, setAdAgency] = useState('agency1')
+  const [adFbAds, setAdFbAds] = useState<typeof fbAds>([])
   const [adEditId, setAdEditId] = useState<string | null>(null)
   const [adDraft, setAdDraft] = useState<Record<string, string>>({})
   const [adSaving, setAdSaving] = useState(false)
@@ -294,6 +298,20 @@ function AICampPageContent() {
   }
 
   useEffect(() => { fetchAll() }, [month])
+  useEffect(() => {
+    supabase.from('ad_agencies').select('slug, name, source_values').order('sort_order')
+      .then(({ data }) => setAdAgencies(data ?? []))
+  }, [])
+  useEffect(() => {
+    supabase
+      .from('fb_ads')
+      .select('day, ad_set_name, amount_spent, registrations_completed, impressions, link_clicks, reach, cpm, cpc, ctr')
+      .gte('day', `${month}-01`)
+      .lt('day', nextMonth(month))
+      .eq('agency_slug', adAgency)
+      .order('day', { ascending: false })
+      .then(({ data }) => setAdFbAds(data ?? []))
+  }, [month, adAgency])
   useEffect(() => { if (activeTab === 'line_friends') fetchLineFriends() }, [activeTab])
   useEffect(() => {
     if (activeTab !== 'source_analytics' || trendLoaded) return
@@ -462,22 +480,29 @@ function AICampPageContent() {
   function computeFbForWeek(weekLabel: string, monthStr: string) {
     const range = parseWeekRange(weekLabel, monthStr)
     if (!range) return null
-    const rows = fbAds.filter(d => d.day >= range.start && d.day <= range.end)
+    const rows = adFbAds.filter(d => d.day >= range.start && d.day <= range.end)
     return {
       ad_spend: rows.reduce((s, d) => s + (d.amount_spent ?? 0), 0),
       list_count: rows.reduce((s, d) => s + (d.registrations_completed ?? 0), 0),
     }
   }
 
-  // Meta広告経由の面談のみ（CPAの分母なので広告費と対象を揃える）
+  // 選択中の代理店（広告1／広告2）経由の面談のみ（CPAの分母なので広告費と対象を揃える）
   //   面談申込数 = 申込日時がその週の件数（申込日時の無いUTAGE連携前の手入力行は面談日で代用）
   //   着座数     = 面談日がその週で、実施ステータス（成約/失注/保留/クーリングオフ）の件数
+  // 面談の流入経路が、選択中の代理店のもの（ad_agencies.source_values）か
+  function isAdAgencySource(source?: string | null) {
+    const values = adAgencies.find(a => a.slug === adAgency)?.source_values ?? ['Meta広告', 'meta広告']
+    const s = (source ?? '').toLowerCase()
+    return values.some(v => v.toLowerCase() === s)
+  }
+
   function computeFunnelForWeek(weekLabel: string, monthStr: string) {
     const range = parseWeekRange(weekLabel, monthStr)
     if (!range) return null
     const jstDate = (ts?: string | null) => ts ? new Date(new Date(ts).getTime() + 9 * 3600 * 1000).toISOString().slice(0, 10) : ''
     const inRange = (d: string) => d >= range.start && d <= range.end
-    const meta = funnelRows.filter(c => c.source?.toLowerCase().includes('meta'))
+    const meta = funnelRows.filter(c => isAdAgencySource(c.source))
     return {
       consultation_count: meta.filter(c => inRange(jstDate(c.applied_at ?? c.consultation_date))).length,
       seated_count: meta.filter(c => CONDUCTED_STATUSES.includes(c.status ?? '') && inRange(jstDate(c.consultation_date))).length,
@@ -872,8 +897,9 @@ function AICampPageContent() {
   // 広告タブ用：全サービス合計
   const adFilteredWeekly = adWeekly
   const adFilteredContracted = contracted
-  const adFilteredMetaRevenue = metaRevenue
-  const adFilteredConsultations = consultations
+  const adAgencyConsultations = consultations.filter(c => isAdAgencySource(c.source))
+  const adAgencyContracted = contracted.filter(c => isAdAgencySource(c.source))
+  const adAgencyRevenue = adAgencyContracted.filter(c => inSelMonth(contractKey(c))).reduce((s, c) => s + contractAmt(c), 0)
   const nonMetaRevenue = totalRevenue - metaRevenue
   const nonMetaPaidRevenue = paidRevenue - metaPaidRevenue
   const progressPct = contractGoal > 0 ? Math.min(Math.round(aicampContracted.length / contractGoal * 100), 100) : 0
@@ -1460,11 +1486,28 @@ function AICampPageContent() {
 
       {activeTab === 'ads' && (<>
 
+      {adAgencies.length > 1 && (
+        <div className="flex flex-wrap items-center gap-3 mb-4">
+          <div className="inline-flex bg-white border border-gray-200 rounded-lg p-1">
+            {adAgencies.map(a => (
+              <button
+                key={a.slug}
+                onClick={() => setAdAgency(a.slug)}
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${adAgency === a.slug ? 'bg-navy text-white shadow-sm' : 'text-gray-500 hover:text-navy'}`}
+              >
+                {a.name}
+              </button>
+            ))}
+          </div>
+          <span className="text-xs text-gray-400">代理店ごとの広告費・面談・成約。代理店に見せる画面は「広告レポート」です</span>
+        </div>
+      )}
+
       {/* 広告数値 */}
       {(() => {
         // CPA計算はMeta広告リスト（fb_ads）ベース
-        const totalAdSpend   = fbAds.reduce((s, r) => s + (r.amount_spent ?? 0), 0)
-        const totalListCount = fbAds.reduce((s, r) => s + (r.registrations_completed ?? 0), 0)
+        const totalAdSpend   = adFbAds.reduce((s, r) => s + (r.amount_spent ?? 0), 0)
+        const totalListCount = adFbAds.reduce((s, r) => s + (r.registrations_completed ?? 0), 0)
         // 面談申込・着座は aicamp_consultations から週ごとに自動計算（週ラベルが読めない行のみ保存値）
         const weeklyAdSpend   = adFilteredWeekly.reduce((s, r) => s + r.ad_spend, 0)
         const weeklyListCount = adFilteredWeekly.reduce((s, r) => s + r.list_count, 0)
@@ -1474,8 +1517,8 @@ function AICampPageContent() {
         const cpa = totalListCount > 0 ? Math.round(totalAdSpend / totalListCount) : null
         const meetingCpa = totalConsultation > 0 ? Math.round(totalAdSpend / totalConsultation) : null
         const seatedCpa = totalSeated > 0 ? Math.round(totalAdSpend / totalSeated) : null
-        const cpo = metaContracted.length > 0 ? Math.round(totalAdSpend / metaContracted.length) : null
-        const roas = totalAdSpend > 0 ? Math.round(adFilteredMetaRevenue / totalAdSpend * 100) : null
+        const cpo = adAgencyContracted.length > 0 ? Math.round(totalAdSpend / adAgencyContracted.length) : null
+        const roas = totalAdSpend > 0 ? Math.round(adAgencyRevenue / totalAdSpend * 100) : null
 
         const adCols = ['期間', '広告費[円]', 'リスト数[人]', '面談申込数[人]', '着座数[人]', '備考', '']
 
@@ -1575,7 +1618,7 @@ function AICampPageContent() {
             </div>
 
             {/* ファネル */}
-            {fbAds.length > 0 && totalListCount > 0 && (
+            {adFbAds.length > 0 && totalListCount > 0 && (
               <div className="border-t border-gray-100 px-5 py-4">
                 <p className="text-xs font-bold text-gray-500 mb-3">LINEファネル</p>
                 {(() => {
@@ -1583,7 +1626,7 @@ function AICampPageContent() {
                     { label: 'リスト数', value: totalListCount, unit: '人', color: 'bg-blue-500' },
                     { label: '面談申込', value: totalConsultation, unit: '人', color: 'bg-indigo-500', prev: totalListCount },
                     { label: '着座', value: totalSeated, unit: '人', color: 'bg-violet-500', prev: totalConsultation },
-                    { label: '成約(Meta)', value: metaContracted.length, unit: '件', color: 'bg-green-500', prev: totalSeated },
+                    { label: '成約', value: adAgencyContracted.length, unit: '件', color: 'bg-green-500', prev: totalSeated },
                   ]
                   const max = totalListCount
                   return (
@@ -1616,7 +1659,7 @@ function AICampPageContent() {
             )}
 
             {/* KPI */}
-            {fbAds.length > 0 && (
+            {adFbAds.length > 0 && (
               <div className="border-t border-gray-100 px-5 py-4 grid grid-cols-2 sm:grid-cols-5 gap-4">
                 {[
                   {
@@ -1655,11 +1698,11 @@ function AICampPageContent() {
                   {
                     label: 'CPO', cardKey: 'ad_cpo',
                     value: cpo ? `¥${cpo.toLocaleString()}` : '-',
-                    sub: `広告費÷Meta成約${metaContracted.length}件`,
+                    sub: `広告費÷成約${adAgencyContracted.length}件`,
                     calcRows: [
                       { label: '式', value: '広告費 ÷ Meta成約数' },
                       { label: '広告費', value: `¥${Math.round(totalAdSpend).toLocaleString()}` },
-                      { label: 'Meta成約数', value: `${metaContracted.length}件` },
+                      { label: '成約数', value: `${adAgencyContracted.length}件` },
                       { label: '= CPO', value: cpo ? `¥${cpo.toLocaleString()}` : '-' },
                     ],
                   },
@@ -1670,7 +1713,7 @@ function AICampPageContent() {
                     color: roas !== null ? (roas >= 100 ? 'text-green-600' : roas >= 60 ? 'text-amber-500' : 'text-red-500') : 'text-gray-300',
                     calcRows: [
                       { label: '式', value: 'Meta売上 ÷ 広告費 × 100' },
-                      { label: 'Meta売上', value: `¥${adFilteredMetaRevenue.toLocaleString()}` },
+                      { label: '売上', value: `¥${adAgencyRevenue.toLocaleString()}` },
                       { label: '広告費', value: `¥${Math.round(totalAdSpend).toLocaleString()}` },
                       { label: '= ROAS', value: roas !== null ? `${roas}%` : '-' },
                     ],
@@ -1694,10 +1737,10 @@ function AICampPageContent() {
       })()}
 
       {/* Meta広告パフォーマンス（fb_ads） */}
-      {fbAds.length > 0 && (() => {
+      {adFbAds.length > 0 && (() => {
         // 日付でグループ集計
         const byDay: Record<string, { day: string; amount_spent: number; registrations: number; impressions: number; clicks: number; reach: number }> = {}
-        fbAds.forEach(r => {
+        adFbAds.forEach(r => {
           if (!byDay[r.day]) byDay[r.day] = { day: r.day, amount_spent: 0, registrations: 0, impressions: 0, clicks: 0, reach: 0 }
           byDay[r.day].amount_spent += r.amount_spent ?? 0
           byDay[r.day].registrations += r.registrations_completed ?? 0
@@ -1829,7 +1872,7 @@ function AICampPageContent() {
                 {(() => {
                   // 広告セット別に集計
                   const adSetMap: Record<string, { spend: number; reach: number; clicks: number; impressions: number; registrations: number }> = {}
-                  fbAds.forEach(r => {
+                  adFbAds.forEach(r => {
                     const key = r.ad_set_name || '不明'
                     if (!adSetMap[key]) adSetMap[key] = { spend: 0, reach: 0, clicks: 0, impressions: 0, registrations: 0 }
                     adSetMap[key].spend += r.amount_spent ?? 0
@@ -1840,7 +1883,7 @@ function AICampPageContent() {
                   })
                   // 登録経路別に相談・成約を集計（registration_source = ad_set_name、選択サービスでフィルタ）
                   const srcMap: Record<string, { consultations: number; contracted: number }> = {}
-                  adFilteredConsultations.forEach(c => {
+                  adAgencyConsultations.forEach(c => {
                     const key = c.registration_source || ''
                     if (!key) return
                     if (!srcMap[key]) srcMap[key] = { consultations: 0, contracted: 0 }
