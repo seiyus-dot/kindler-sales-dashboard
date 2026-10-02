@@ -22,6 +22,17 @@ function parseConsultationDate(date: string, time: string): string | null {
   return `${d[1]}-${pad(d[2])}-${pad(d[3])}T${hh}:${mm}:00+09:00`
 }
 
+// UTAGEの選択肢「0〜10万円」「11〜20万円」を、アプリの月収マスタ表記「〜10万円」「11～20万円」に揃える
+function normalizeMonthlyIncome(v: string): string | null {
+  if (!v) return null
+  return v.replace(/^0\s*[〜～~]\s*/, '〜').replace(/(\d)\s*[〜~]\s*(\d)/, '$1～$2')
+}
+
+function parseAge(v: string): number | null {
+  const m = v.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xfee0)).match(/\d{1,3}/)
+  return m ? Number(m[0]) : null
+}
+
 export async function POST(req: NextRequest) {
   if (!verifyWebhookToken(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -92,11 +103,20 @@ export async function POST(req: NextRequest) {
     source,
   }
 
+  // 申込フォームの回答（UTAGE %event_item02%〜06%）
+  const answers = {
+    age: parseAge(body.age ?? ''),
+    occupation: body.occupation || null,
+    monthly_income: normalizeMonthlyIncome(body.monthly_income ?? ''),
+    ai_experience: body.ai_experience || null,
+    motivation: body.motivation || null,
+  }
+
   // 担当者が先に手入力していた行（同じ氏名×同じ面談日時）があれば、新規作成せずに紐づける
   if (name && consultationDate) {
     const { data: candidates } = await supabase
       .from('aicamp_consultations')
-      .select('id, name, source, registration_source, line_name, line_added')
+      .select('id, name, source, registration_source, line_name, line_added, age, occupation, monthly_income, ai_experience, motivation')
       .eq('consultation_date', consultationDate)
       .is('utage_applicant_id', null)
     const manual = candidates?.find(c => c.name && normalizeName(c.name) === normalizeName(name))
@@ -105,11 +125,16 @@ export async function POST(req: NextRequest) {
         .from('aicamp_consultations')
         .update({
           ...payload,
-          // 手入力済みの流入経路は上書きしない
+          // 手入力済みの値は上書きしない
           source: manual.source ?? payload.source,
           registration_source: manual.registration_source ?? payload.registration_source,
           line_name: manual.line_name ?? (body.line_name || null),
           line_added: manual.line_added || lineAdded,
+          age: manual.age ?? answers.age,
+          occupation: manual.occupation ?? answers.occupation,
+          monthly_income: manual.monthly_income ?? answers.monthly_income,
+          ai_experience: manual.ai_experience ?? answers.ai_experience,
+          motivation: manual.motivation ?? answers.motivation,
         })
         .eq('id', manual.id)
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -121,6 +146,7 @@ export async function POST(req: NextRequest) {
     .from('aicamp_consultations')
     .insert({
       ...payload,
+      ...answers,
       name,
       line_name: body.line_name || null,
       line_added: lineAdded,
