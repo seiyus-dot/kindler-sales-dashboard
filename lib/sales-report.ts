@@ -90,8 +90,9 @@ function parseAmount(v: string | undefined): number | null {
   return yen ? Number(yen[0]) : null
 }
 
+// 「■商談日」が2回以上ある投稿は、フォーマットの案内文など報告以外として読まない
 export function isSalesReport(text: string): boolean {
-  return /[■【]\s*商談日/.test(text) && /[■【]\s*商談結果/.test(text)
+  return (text.match(/[■【]\s*商談日/g) ?? []).length === 1 && /[■【]\s*商談結果/.test(text)
 }
 
 export function parseSalesReport(text: string): SalesReport {
