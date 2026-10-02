@@ -90,6 +90,13 @@ export async function POST(req: NextRequest) {
 
   let source: string | null = null
   if (tracking) {
+    // 代理店専用シナリオの登録経路（ad_agencies.tracking_names、例: 辛嶋さんチームの lp3-a）なら、その代理店
+    const { data: agencies } = await supabase.from('ad_agencies').select('source_values, tracking_names')
+    const key = tracking.trim().toLowerCase()
+    const byRoute = agencies?.find(a => (a.tracking_names ?? []).some((t: string) => t.trim().toLowerCase() === key))
+    if (byRoute?.source_values?.at(0)) source = byRoute.source_values[0]
+  }
+  if (tracking && !source) {
     // 広告セット名がどの代理店の広告データにあるかで流入経路を決める（代理店ごとの source_values の先頭）
     const { data: adRow } = await supabase
       .from('fb_ads')
