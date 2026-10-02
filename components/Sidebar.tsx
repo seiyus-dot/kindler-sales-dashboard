@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, BriefcaseBusiness, ClipboardList, Settings, Users, Menu, X, BookOpen, Tent, UserPlus, Zap, GanttChartSquare, FileText, FileSignature, List, MonitorPlay, ChevronDown, Contact, TrendingUp, Bell, LogOut, CalendarCheck, Receipt
+import { LayoutDashboard, BriefcaseBusiness, ClipboardList, Settings, Users, Menu, X, BookOpen, Tent, UserPlus, Zap, GanttChartSquare, FileText, FileSignature, List, MonitorPlay, ChevronDown, Contact, TrendingUp, Bell, LogOut, CalendarCheck, Receipt, BarChart3
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
@@ -29,6 +29,7 @@ const navItems = [
   { href: '/contracts',      label: '契約管理',          icon: FileSignature },
   { href: '/invoices',       label: '請求書発行',        icon: Receipt },
   { href: '/order-requests', label: '発注リスト',        icon: List },
+  { href: '/agency-report',  label: '広告レポート',      icon: BarChart3 },
 ]
 
 const orderFormSubItems = [

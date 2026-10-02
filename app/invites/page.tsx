@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { UserPlus, Trash2, Shield, User, Pencil, X } from 'lucide-react'
+import { UserPlus, Trash2, Shield, User, Pencil, X, Building2 } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
 import { supabase } from '@/lib/supabase'
 
@@ -10,7 +10,10 @@ type AllowedEmail = {
   name: string
   role: 'admin' | 'member'
   allowed_pages: string[]
+  agency_id?: string | null
 }
+
+type Agency = { id: string; name: string }
 
 const ALL_PAGES = [
   { href: '/dashboard', label: 'ダッシュボード' },
@@ -26,7 +29,11 @@ const ALL_PAGES = [
   { href: '/order-form', label: '発注フォーム' },
   { href: '/order-requests', label: '発注リスト' },
   { href: '/mrr', label: 'MRR推移' },
+  { href: '/agency-report', label: '広告レポート' },
 ]
+
+// 代理店アカウントはレポートページ（自社分の集計）だけ。社内データはDB・APIの段階で読めない
+const AGENCY_PAGES = ['/agency-report']
 
 export default function InvitesPage() {
   const [invites, setInvites] = useState<AllowedEmail[]>([])
@@ -39,16 +46,24 @@ export default function InvitesPage() {
   const [newName, setNewName] = useState('')
   const [newRole, setNewRole] = useState<'admin' | 'member'>('member')
   const [newPages, setNewPages] = useState<string[]>(['/aicamp'])
+  const [newAgency, setNewAgency] = useState<string>('')
+  const [agencies, setAgencies] = useState<Agency[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   async function fetchInvites() {
     setLoading(true)
-    const { data, error } = await supabase
+    // agency_id 列は schema_ad_agencies.sql 実行後に増える。未実行でも一覧は出す
+    const withAgency = await supabase
       .from('allowed_emails')
-      .select('email, name, role, allowed_pages')
+      .select('email, name, role, allowed_pages, agency_id')
       .order('email')
+    const { data, error } = withAgency.error
+      ? await supabase.from('allowed_emails').select('email, name, role, allowed_pages').order('email')
+      : withAgency
+    const { data: ag } = await supabase.from('ad_agencies').select('id, name').order('sort_order')
+    setAgencies((ag ?? []) as Agency[])
     if (error) {
       setError('データの読み込みに失敗しました')
     } else {
@@ -68,6 +83,7 @@ export default function InvitesPage() {
     setNewName('')
     setNewRole('member')
     setNewPages(['/aicamp'])
+    setNewAgency('')
     setError(null)
     setShowForm(true)
   }
@@ -78,6 +94,7 @@ export default function InvitesPage() {
     setNewName(invite.name ?? '')
     setNewRole(invite.role)
     setNewPages(invite.allowed_pages ?? ['/aicamp'])
+    setNewAgency(invite.agency_id ?? '')
     setError(null)
     setShowForm(true)
   }
@@ -92,13 +109,18 @@ export default function InvitesPage() {
     if (!newEmail) return
     setSaving(true)
     setError(null)
-    const pages = newRole === 'admin' ? ALL_PAGES.map(p => p.href) : newPages
-    const entry = { email: newEmail.toLowerCase().trim(), name: newName.trim(), role: newRole, allowed_pages: pages }
+    const isAgency = !!newAgency
+    const role = isAgency ? 'member' : newRole
+    const pages = isAgency ? AGENCY_PAGES : role === 'admin' ? ALL_PAGES.map(p => p.href) : newPages
+    const entry = {
+      email: newEmail.toLowerCase().trim(), name: newName.trim(), role, allowed_pages: pages,
+      ...(agencies.length ? { agency_id: newAgency || null } : {}),
+    }
 
     if (editTarget) {
       const { error } = await supabase
         .from('allowed_emails')
-        .update({ name: entry.name, role: entry.role, allowed_pages: entry.allowed_pages })
+        .update({ name: entry.name, role: entry.role, allowed_pages: entry.allowed_pages, ...(agencies.length ? { agency_id: entry.agency_id } : {}) })
         .eq('email', editTarget.email)
       if (error) { setError('更新に失敗しました: ' + error.message); setSaving(false); return }
     } else {
@@ -179,7 +201,9 @@ export default function InvitesPage() {
                     </span>
                   </td>
                   <td className="px-5 py-4 text-sm text-slate-500">
-                    {invite.role === 'admin'
+                    {invite.agency_id
+                      ? <span className="inline-flex items-center gap-1 text-amber-700"><Building2 size={13} />代理店：{agencies.find(a => a.id === invite.agency_id)?.name ?? '—'}（広告レポートのみ）</span>
+                      : invite.role === 'admin'
                       ? '全ページ'
                       : (invite.allowed_pages ?? []).map(p => ALL_PAGES.find(x => x.href === p)?.label ?? p).join('・')}
                   </td>
@@ -243,7 +267,19 @@ export default function InvitesPage() {
                   disabled={!!editTarget}
                 />
               </div>
-              <div>
+              {agencies.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">社外の広告代理店のアカウント</label>
+                  <select value={newAgency} onChange={e => setNewAgency(e.target.value)} className="input w-full">
+                    <option value="">いいえ（社内メンバー）</option>
+                    {agencies.map(a => <option key={a.id} value={a.id}>はい：{a.name}</option>)}
+                  </select>
+                  {newAgency && (
+                    <p className="mt-1.5 text-xs text-amber-700">代理店のアカウントは、自社分の広告レポートだけを見られます（社内データや申込者の個人情報は見られません）。</p>
+                  )}
+                </div>
+              )}
+              {!newAgency && <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">ロール</label>
                 <div className="flex gap-3">
                   <button
@@ -261,8 +297,8 @@ export default function InvitesPage() {
                     Member（ページ選択）
                   </button>
                 </div>
-              </div>
-              {newRole === 'member' && (
+              </div>}
+              {!newAgency && newRole === 'member' && (
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">アクセス可能なページ</label>
                   <div className="grid grid-cols-2 gap-2">

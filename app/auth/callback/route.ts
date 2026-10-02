@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { readAccess, pagesFor } from '@/lib/access'
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
@@ -31,19 +32,24 @@ export async function GET(request: Request) {
       const { data: { user } } = await supabase.auth.getUser()
 
       if (user?.email) {
-        const { data: allowed } = await supabase
-          .from('allowed_emails')
-          .select('email, role, allowed_pages')
-          .eq('email', user.email)
-          .single()
+        // 代理店アカウントは allowed_emails を直接読めないので、自分の権限だけ返す my_access() を使う
+        let access = await readAccess(supabase)
+        if (access === undefined) {
+          const { data: allowed } = await supabase
+            .from('allowed_emails')
+            .select('email, role, allowed_pages')
+            .eq('email', user.email)
+            .single()
+          access = allowed ? { role: allowed.role ?? 'member', allowedPages: allowed.allowed_pages ?? ['/aicamp'], agencyId: null } : null
+        }
 
-        if (!allowed) {
+        if (!access) {
           await supabase.auth.signOut()
           return NextResponse.redirect(new URL('/login?error=unauthorized', origin))
         }
 
-        const role = allowed.role ?? 'member'
-        const allowedPages: string[] = allowed.allowed_pages ?? ['/aicamp']
+        const role = access.agencyId ? 'member' : access.role
+        const allowedPages = pagesFor(access)
         const redirectTo = role === 'admin' ? '/dashboard' : (allowedPages[0] ?? '/aicamp')
 
         const res = NextResponse.redirect(new URL(redirectTo, origin))

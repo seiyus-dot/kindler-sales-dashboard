@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { readAccess, pagesFor } from '@/lib/access'
 
 export async function middleware(request: NextRequest) {
   // /api/* と OAuthディスカバリ(/.well-known/*) は各ルートが自前で認証するのでガードしない。
@@ -51,7 +52,14 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user && !isAuthCallback) {
-    const role = request.cookies.get('user_role')?.value
+    // 権限はDBの権限表から判定する（cookieは本人が書き換えられるため）。
+    // my_access() が無い（SQL未実行）間だけ従来どおりcookieで判定する。
+    const access = await readAccess(supabase)
+    if (access === null) {
+      return NextResponse.redirect(new URL('/api/auth/signout', request.url))
+    }
+
+    const role = access ? access.role : request.cookies.get('user_role')?.value
 
     // ロールクッキー未設定 → セッションをクリアして再ログインへ
     if (!role) {
@@ -60,13 +68,14 @@ export async function middleware(request: NextRequest) {
 
     // admin専用ページ（memberは問答無用でブロック）
     const adminOnlyPages = ['/invites']
-    if (role === 'member' && adminOnlyPages.some((p) => pathname.startsWith(p))) {
+    if (role !== 'admin' && adminOnlyPages.some((p) => pathname.startsWith(p))) {
       return NextResponse.redirect(new URL('/aicamp', request.url))
     }
 
-    if (role === 'member') {
+    // 代理店アカウントは admin 扱いにしない（レポートページだけ）
+    if (role !== 'admin' || access?.agencyId) {
       const rawPages = request.cookies.get('user_allowed_pages')?.value
-      const allowedPages: string[] = rawPages ? JSON.parse(rawPages) : ['/aicamp']
+      const allowedPages: string[] = access ? pagesFor(access) : rawPages ? JSON.parse(rawPages) : ['/aicamp']
 
       const isAllowed = allowedPages.some((p) => pathname.startsWith(p))
       if (!isAllowed) {

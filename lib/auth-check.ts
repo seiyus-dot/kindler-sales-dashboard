@@ -26,5 +26,11 @@ export async function getAuthUser(request: NextRequest) {
   )
 
   const { data: { user } } = await supabase.auth.getUser()
-  return user ?? null
+  if (!user) return null
+
+  // 代理店アカウントは社内向けAPIを使えない（代理店向けは /api/agency-report のみ）
+  const { data: isAgency, error } = await supabase.rpc('is_agency_user')
+  if (!error && isAgency) return null
+
+  return user
 }
