@@ -46,35 +46,40 @@ export async function POST(req: NextRequest) {
   if (existing) return NextResponse.json({ ok: true, duplicate: true, id: existing.id })
 
   const eventName = body.event_name ?? ''
-  const tracking = body.tracking ?? ''
   const name = (body.name || `${body.sei ?? ''} ${body.mei ?? ''}`.trim()) || null
 
   // LINE友だちIDが付いて届く＝申込者がUTAGE上でLINE連携済み。友だち一覧でブロック中なら確認済みにしない
   const lineId = body.line_id || null
   let lineAdded = false
+  let friendTracking = ''
   if (lineId) {
     const { data: friend } = await supabase
       .from('line_friends')
-      .select('status, blocked_at')
+      .select('status, blocked_at, registration_source')
       .eq('line_user_id', lineId)
       .maybeSingle()
     lineAdded = !friend || !isBlockedFriend(friend)
+    friendTracking = friend?.registration_source ?? ''
   }
+  // 申込で入るリマインダ用シナリオには登録経路が無く %tracking_name% は空で届く。
+  // 最初に友だちになったシナリオの登録経路（line_friends.registration_source）で補う
+  const tracking = body.tracking || friendTracking
   const consultationDate = parseConsultationDate(
     body.event_date || body.event_schedule || '',
     body.event_time || '',
   )
 
   let source: string | null = null
-  if (ASUKA_EVENT_PATTERN.test(eventName)) {
-    source = '自社SNS'
-  } else if (tracking) {
+  if (tracking) {
     const { count } = await supabase
       .from('fb_ads')
       .select('day', { count: 'exact', head: true })
       .eq('ad_set_name', tracking)
     if ((count ?? 0) > 0 || META_AD_SET_PATTERN.test(tracking)) source = 'Meta広告'
+    else if (tracking === 'HP上のLP') source = 'HP'
+    else if (ASUKA_EVENT_PATTERN.test(tracking)) source = '自社SNS'
   }
+  if (!source && ASUKA_EVENT_PATTERN.test(eventName)) source = '自社SNS'
 
   const payload = {
     utage_applicant_id: applicantId,
