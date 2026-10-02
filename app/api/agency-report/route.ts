@@ -92,10 +92,12 @@ export async function GET(req: NextRequest) {
   let fbRows: { day: string; ad_set_name: string; amount_spent: number; registrations_completed: number }[] = []
   let spendRows: { id: string; week_start: string; week_end: string; spend: number; list_count: number | null; notes: string | null }[] = []
   if (agency.uses_fb_ads) {
-    const { data } = await db.from('fb_ads')
+    const query = () => db.from('fb_ads')
       .select('day, ad_set_name, amount_spent, registrations_completed')
       .gte('day', rangeStart).lte('day', rangeEnd).limit(10000)
-    fbRows = data ?? []
+    // agency_slug 列は schema_fb_ads_agency.sql で追加。未実行なら全行が広告1のもの
+    const scoped = await query().eq('agency_slug', agency.slug)
+    fbRows = scoped.error ? (agency.slug === 'agency1' ? (await query()).data ?? [] : []) : scoped.data ?? []
   } else {
     const { data } = await db.from('ad_agency_spend')
       .select('id, week_start, week_end, spend, list_count, notes')

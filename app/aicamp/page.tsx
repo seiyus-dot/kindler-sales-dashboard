@@ -398,12 +398,15 @@ function AICampPageContent() {
       supabase.from('aicamp_daily_logs').select('*').order('log_date', { ascending: false }),
       supabase.from('utage_deliveries').select('*').order('sent_at', { ascending: false }),
     ])
-    const fbRes = await supabase
+    // 広告タブ・流入経路分析は広告1（委託先A・Meta / Adveronix連携）の数値。広告2以降は「広告レポート」で見る
+    const fbQuery = () => supabase
       .from('fb_ads')
       .select('day, ad_set_name, amount_spent, registrations_completed, impressions, link_clicks, reach, cpm, cpc, ctr')
       .gte('day', `${month}-01`)
       .lt('day', nextMonth(month))
       .order('day', { ascending: false })
+    const fbScoped = await fbQuery().eq('agency_slug', 'agency1')
+    const fbRes = fbScoped.error ? await fbQuery() : fbScoped
     const [fy, fm] = month.split('-').map(Number)
     const funnelFrom = new Date(Date.UTC(fy, fm - 1, 1 - 7)).toISOString()
     const funnelTo = new Date(Date.UTC(fy, fm, 1 + 7)).toISOString()
