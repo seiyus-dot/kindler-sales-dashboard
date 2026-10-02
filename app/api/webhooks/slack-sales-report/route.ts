@@ -16,7 +16,7 @@ type SlackMessage = { text?: string; ts?: string; thread_ts?: string; bot_id?: s
 type SlackEvent = SlackMessage & { type?: string; channel?: string; message?: SlackMessage; previous_message?: SlackMessage }
 
 function verifySlackSignature(req: NextRequest, rawBody: string): boolean {
-  const secret = process.env.SLACK_SIGNING_SECRET
+  const secret = process.env.SLACK_SIGNING_SECRET?.trim()
   const ts = req.headers.get('x-slack-request-timestamp')
   const sig = req.headers.get('x-slack-signature')
   if (!secret || !ts || !sig) return false
@@ -28,7 +28,7 @@ function verifySlackSignature(req: NextRequest, rawBody: string): boolean {
 }
 
 async function replyInThread(channel: string, threadTs: string, text: string) {
-  const token = process.env.SLACK_BOT_TOKEN
+  const token = process.env.SLACK_BOT_TOKEN?.trim()
   if (!token) return
   await fetch('https://slack.com/api/chat.postMessage', {
     method: 'POST',
