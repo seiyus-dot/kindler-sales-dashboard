@@ -5,12 +5,20 @@ import { registerMfInvoiceWriteTools } from '@/lib/mcp-mf-write-tools'
 import { registerMfPartnerWriteTools } from '@/lib/mcp-mf-partner-tools'
 import { registerMfItemTools } from '@/lib/mcp-mf-item-tools'
 import { registerMfQuoteTools } from '@/lib/mcp-mf-quote-tools'
-import { actorFromAccessToken, originFrom, resolveSharedSecretActor } from '@/lib/mcp-oauth'
+import { registerGmailTools } from '@/lib/mcp-gmail-tools'
+import { actorFromAccessToken, isUserActor, originFrom, resolveSharedSecretActor } from '@/lib/mcp-oauth'
+import { mcpUserAccess } from '@/lib/gmail-auth'
 
 const ALLOW_DELETE = process.env.MCP_ALLOW_DELETE === 'true'
 const ALLOW_MF_WRITE = process.env.MCP_ALLOW_MF_WRITE === 'true'
 
-const mcpHandler = createMcpHandler(
+/**
+ * 接続者によってツールの範囲を分ける。
+ * - full:   共有の接続キー（管理者が配布）と、Googleで接続した admin。CRM・MF請求・Gmailすべて
+ * - member: Googleで接続した一般メンバー。CRM＋本人のGmailだけ（MFの請求・取引先データには触れない）
+ * 一覧（tools/list）にも出さないよう、ハンドラごと分けている。
+ */
+const fullHandler = createMcpHandler(
   (server) => {
     registerMcpTools(server, { allowDelete: ALLOW_DELETE })
     registerMfBillingTools(server)
@@ -18,6 +26,16 @@ const mcpHandler = createMcpHandler(
     registerMfPartnerWriteTools(server, { allowWrite: ALLOW_MF_WRITE })
     registerMfItemTools(server, { allowWrite: ALLOW_MF_WRITE })
     registerMfQuoteTools(server, { allowWrite: ALLOW_MF_WRITE })
+    registerGmailTools(server)
+  },
+  {},
+  { basePath: '/api', verboseLogs: false }
+)
+
+const memberHandler = createMcpHandler(
+  (server) => {
+    registerMcpTools(server, { allowDelete: ALLOW_DELETE })
+    registerGmailTools(server)
   },
   {},
   { basePath: '/api', verboseLogs: false }
@@ -32,6 +50,8 @@ function bearerToken(req: Request): string | undefined {
  * 認証は2系統。
  * 1. MCP_AUTH_TOKENS の共有シークレットを直接Bearerで送る（Claude Desktop等、ヘッダを自分で設定できるクライアント）
  * 2. /api/oauth/* で発行したアクセストークン（ChatGPTのようにOAuthしか選べないクライアント）
+ *    認可画面で「Googleアカウントで接続」を選んだ場合、actorは本人のメールアドレスになり
+ *    Gmailツール（lib/mcp-gmail-tools.ts）が本人のGmailで動く。
  *
  * どちらの経路でも、一致した接続キーのラベル（actor）を「誰の接続か」として
  * req.auth に載せる。mcp-handlerがこれをMCPツール呼び出しのextra.authInfoまで
@@ -44,7 +64,14 @@ function resolveActor(req: Request): string | null {
 }
 
 async function handler(req: Request) {
-  const actor = resolveActor(req)
+  let actor = resolveActor(req)
+  let role: 'admin' | 'member' = 'admin' // 共有の接続キーは管理者扱い
+  // Googleで接続したメンバーは毎回権限表を引き直す。外れた時点で使えなくなり、権限の変更もすぐ反映される
+  if (actor && isUserActor(actor)) {
+    const access = await mcpUserAccess(actor)
+    if (access) role = access.role
+    else actor = null
+  }
   if (!actor) {
     // RFC 9728: 401には認可サーバの在り処を示すWWW-Authenticateを付ける。
     // これが無いとChatGPTはOAuthフローを開始できない。
@@ -62,7 +89,7 @@ async function handler(req: Request) {
     clientId: actor,
     scopes: ['mcp'],
   }
-  return mcpHandler(req)
+  return role === 'admin' ? fullHandler(req) : memberHandler(req)
 }
 
 export { handler as GET, handler as POST, handler as DELETE }

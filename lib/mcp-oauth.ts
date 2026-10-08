@@ -141,6 +141,43 @@ export function issueAuthorizationCode(args: {
   )
 }
 
+// ---------------------------------------------
+// Googleログイン往復中のstate（MCPクライアントから受け取った認可パラメータを持ち回る）
+// nonce は同じブラウザで始めたフローかを確かめるため、cookieにも入れて照合する。
+// ---------------------------------------------
+export type GoogleLoginState = {
+  redirectUri: string
+  state: string
+  codeChallenge: string
+  codeChallengeMethod: string
+  nonce: string
+}
+
+export function issueGoogleLoginState(s: GoogleLoginState): string {
+  return issue(
+    'gstate',
+    { ru: s.redirectUri, st: s.state, cc: s.codeChallenge, ccm: s.codeChallengeMethod, n: s.nonce },
+    CODE_TTL_SEC
+  )
+}
+
+export function verifyGoogleLoginState(token: string): GoogleLoginState | null {
+  const body = verify('gstate', token)
+  if (!body) return null
+  return {
+    redirectUri: String(body.ru ?? ''),
+    state: String(body.st ?? ''),
+    codeChallenge: String(body.cc ?? ''),
+    codeChallengeMethod: String(body.ccm ?? 'S256'),
+    nonce: String(body.n ?? ''),
+  }
+}
+
+/** Googleログインで接続したactor（＝メールアドレス）か。共有シークレットのラベルは@を含まない */
+export function isUserActor(actor: string): boolean {
+  return actor.includes('@')
+}
+
 export function verifyAuthorizationCode(
   code: string
 ): { redirectUri: string; codeChallenge: string; codeChallengeMethod: string; actor: string } | null {
@@ -208,4 +245,33 @@ export function originFrom(req: Request): string {
   const host = forwardedHost ?? url.host
   const proto = forwardedProto ?? (host.startsWith('localhost') ? 'http' : 'https')
   return `${proto}://${host}`
+}
+
+/**
+ * 認可コードを渡してよい戻り先のホスト（＝接続を許すMCPクライアント）。
+ * ここを絞らないと、攻撃者が自分のサイトを戻り先にした接続リンクを踏ませるだけで
+ * 認可コード（→ CRM・本人のGmailを操作できるトークン）を奪える。
+ * 増やすときは MCP_ALLOWED_REDIRECT_HOSTS（カンマ区切り）で上書きする。
+ */
+const DEFAULT_REDIRECT_HOSTS = ['claude.ai', 'claude.com', 'chatgpt.com', 'chat.openai.com']
+
+function allowedRedirectHosts(): string[] {
+  const env = process.env.MCP_ALLOWED_REDIRECT_HOSTS
+  if (!env) return DEFAULT_REDIRECT_HOSTS
+  return env.split(',').map((h) => stripQuotes(h).toLowerCase()).filter(Boolean)
+}
+
+/** 戻り先が許可リストのクライアントか（Claude Code/Desktop等のローカル受け口は localhost を許す） */
+export function isAcceptableRedirectUri(raw: string): boolean {
+  try {
+    const u = new URL(raw)
+    if (u.username || u.password) return false
+    const host = u.hostname.toLowerCase()
+    if (host === 'localhost' || host === '127.0.0.1' || host === '[::1]') {
+      return u.protocol === 'http:' || u.protocol === 'https:'
+    }
+    return u.protocol === 'https:' && allowedRedirectHosts().includes(host)
+  } catch {
+    return false
+  }
 }

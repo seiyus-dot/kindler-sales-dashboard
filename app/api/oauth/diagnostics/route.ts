@@ -32,6 +32,11 @@ export function GET() {
         client_id: Boolean(process.env.MF_CLIENT_ID),
         client_secret: Boolean(process.env.MF_CLIENT_SECRET),
       },
+      google_login_configured: {
+        client_id: Boolean(process.env.GOOGLE_OAUTH_CLIENT_ID),
+        client_secret: Boolean(process.env.GOOGLE_OAUTH_CLIENT_SECRET),
+        token_enc_key: Boolean(process.env.GMAIL_TOKEN_ENC_KEY),
+      },
       supabase_service_role_configured: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
       deployed_commit: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null,
     },

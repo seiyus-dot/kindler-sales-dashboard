@@ -4,29 +4,20 @@
  * GET  : 接続キー（＝MCP_AUTH_TOKENSの共有シークレット）を入力させる画面を返す
  * POST : 入力されたキーを照合し、正しければ認可コードを付けて redirect_uri に戻す
  *
- * 認可の可否は「共有シークレットを知っているか」だけで決まる。ユーザー個人を識別しないため
- * 誰が接続したかは追跡できない。個人単位で管理したくなったらSupabaseのGoogleログインに
- * 差し替えること（設計判断のメモとして残す）。
+ * 接続方法は2つ。
+ * - Googleアカウントで接続（/api/oauth/google/*）: 営業メンバー個人として接続し、本人のGmailも使える。
+ *   actorはメールアドレス。GOOGLE_OAUTH_CLIENT_ID 等が未設定ならボタン自体を出さない。
+ * - 接続キー: MCP_AUTH_TOKENS の共有シークレット。誰の接続かはキーのラベルでしか分からず、Gmailは使えない。
  */
 import {
   resolveSharedSecretActor,
   issueAuthorizationCode,
   allowedSharedSecrets,
+  isAcceptableRedirectUri,
 } from '@/lib/mcp-oauth'
+import { isGoogleLoginConfigured } from '@/lib/gmail-auth'
 
 export const dynamic = 'force-dynamic'
-
-/** オープンリダイレクタにしないための最低限の検証 */
-function isAcceptableRedirectUri(raw: string): boolean {
-  try {
-    const u = new URL(raw)
-    if (u.protocol === 'https:') return true
-    // ローカル検証用にのみ http://localhost を許す
-    return u.protocol === 'http:' && (u.hostname === 'localhost' || u.hostname === '127.0.0.1')
-  } catch {
-    return false
-  }
-}
 
 function escapeHtml(v: string): string {
   return v
@@ -50,6 +41,18 @@ function page(args: {
       return args.redirectUri
     }
   })()
+
+  const googleHref = `/api/oauth/google/start?${new URLSearchParams({
+    redirect_uri: args.redirectUri,
+    state: args.state,
+    code_challenge: args.codeChallenge,
+    code_challenge_method: args.codeChallengeMethod,
+  }).toString()}`
+  const googleBlock = isGoogleLoginConfigured()
+    ? `<a class="google" href="${escapeHtml(googleHref)}">Googleアカウントで接続（営業メンバー）</a>
+    <p class="note" style="margin:10px 0 0">自分のGmailでメールの下書き作成・送信・検索ができるようになります。</p>
+    <div class="divider"><span>または接続キーで接続</span></div>`
+    : ''
 
   const html = `<!doctype html>
 <html lang="ja">
@@ -88,14 +91,23 @@ function page(args: {
     background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c;
     padding: 10px 12px; border-radius: 8px; font-size: 13px; margin-bottom: 16px;
   }
+  .google {
+    display: block; width: 100%; padding: 12px; border-radius: 8px; text-align: center;
+    background: #fff; color: #1a3a6e; border: 1.5px solid #1a3a6e;
+    font-size: 15px; font-weight: 700; text-decoration: none;
+  }
+  .google:hover { background: #f0f4ff; }
+  .divider { display: flex; align-items: center; gap: 10px; margin: 22px 0 18px; font-size: 11px; color: #9ca3af; }
+  .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: #e5e7eb; }
   .note { margin: 18px 0 0; font-size: 11px; color: #9ca3af; line-height: 1.6; }
 </style>
 </head>
 <body>
   <form class="card" method="post">
     <h1>MCP接続の許可</h1>
-    <p><span class="host">${escapeHtml(host)}</span> から KINDLER 営業ダッシュボードへの接続が要求されています。許可する場合は接続キーを入力してください。</p>
+    <p><span class="host">${escapeHtml(host)}</span> から KINDLER 営業ダッシュボードへの接続が要求されています。許可する場合は${googleBlock ? '、Googleアカウントでログインするか' : ''}接続キーを入力してください。</p>
     ${args.error ? `<div class="error">${escapeHtml(args.error)}</div>` : ''}
+    ${googleBlock}
     <label for="secret">接続キー</label>
     <!--
       type="password" + autocomplete="off" だとブラウザのパスワードマネージャが

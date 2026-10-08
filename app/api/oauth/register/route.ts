@@ -8,6 +8,7 @@
  *  認可画面での共有シークレット入力が担う）。
  */
 import { randomUUID } from 'node:crypto'
+import { isAcceptableRedirectUri } from '@/lib/mcp-oauth'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,7 +20,15 @@ export async function POST(req: Request) {
     // ボディ無しでも登録は通す
   }
 
-  const redirectUris = Array.isArray(body.redirect_uris) ? body.redirect_uris : []
+  const redirectUris = Array.isArray(body.redirect_uris) ? body.redirect_uris.map(String) : []
+  // 許可していない戻り先のクライアントは登録の時点で断る（認可画面でも同じ判定で弾く）
+  const rejected = redirectUris.filter((u) => !isAcceptableRedirectUri(u))
+  if (rejected.length > 0) {
+    return Response.json(
+      { error: 'invalid_redirect_uri', error_description: `許可されていないredirect_uriです: ${rejected.join(', ')}` },
+      { status: 400, headers: { 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' } }
+    )
+  }
 
   return Response.json(
     {
