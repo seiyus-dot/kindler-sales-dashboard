@@ -12,7 +12,7 @@ create table if not exists mcp_audit_log (
   user_request  text,                   -- 利用者の依頼内容（AIが申告したもの。原文と一致する保証はない）
   tool_name     text not null,
   args          jsonb,                  -- 引数の要約（メール本文などは文字数だけ残す）
-  result_summary text,                  -- 結果の先頭部分（メール本文を返す読み取り系は件数だけ）
+  result_summary text,                  -- 結果の先頭部分（メール本文・スニペットは伏せる）
   success       boolean not null,
   error_message text,
   duration_ms   integer,
