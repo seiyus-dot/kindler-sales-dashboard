@@ -63,6 +63,7 @@ const TOOL_LABELS: Record<string, string> = {
   mf_search_items: 'MF品目を検索',
   mf_create_item: 'MF品目を作成',
   mf_update_item: 'MF品目を更新',
+  sheet_import: 'スプレッドシートから案件・商談を反映',
 }
 
 export function toolLabel(tool: string): string {
