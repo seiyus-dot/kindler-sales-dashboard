@@ -239,7 +239,11 @@ function requireSheet_(spreadsheet, name) {
 
 /** 見出し行とデータ行を一度に読む。値は表示文字列ではなく元の型を保つ。 */
 function readTable_(sheet) {
-  const lastColumn = Math.max(sheet.getLastColumn(), SALES_SHEET_SYNC.DASHBOARD_ID_DEFAULT_COLUMN);
+  const requiredColumns = Math.max(
+    sheet.getLastColumn(),
+    SALES_SHEET_SYNC.DASHBOARD_ID_DEFAULT_COLUMN
+  );
+  const lastColumn = Math.min(requiredColumns, sheet.getMaxColumns());
   const lastRow = Math.max(sheet.getLastRow(), SALES_SHEET_SYNC.HEADER_ROW);
   const values = sheet.getRange(
     SALES_SHEET_SYNC.HEADER_ROW,
@@ -308,7 +312,8 @@ function buildRows_(table, fieldMap, requiredHeader, decorate) {
 
 function cellValue_(table, sheetRow, column) {
   const rowIndex = sheetRow - SALES_SHEET_SYNC.DATA_START_ROW;
-  return normalizeValue_((table.rows[rowIndex] || [])[column - 1]);
+  const value = (table.rows[rowIndex] || [])[column - 1];
+  return value === undefined ? '' : normalizeValue_(value);
 }
 
 function normalizeValue_(value) {
@@ -406,6 +411,7 @@ function writeCreatedDealIds_(dealsSheet, dashboardIdColumn, batchResults, heade
     writeDashboardIdHeader_(dealsSheet, dashboardIdColumn);
     headerWritten = true;
   }
+  ensureColumn_(dealsSheet, dashboardIdColumn);
   createdResults.forEach(function(result) {
     dealsSheet.getRange(Number(result.row), dashboardIdColumn).setValue(result.dashboard_id);
   });
@@ -414,8 +420,16 @@ function writeCreatedDealIds_(dealsSheet, dashboardIdColumn, batchResults, heade
 }
 
 function writeDashboardIdHeader_(dealsSheet, dashboardIdColumn) {
+  ensureColumn_(dealsSheet, dashboardIdColumn);
   dealsSheet.getRange(SALES_SHEET_SYNC.HEADER_ROW, dashboardIdColumn)
     .setValue(SALES_SHEET_SYNC.DASHBOARD_ID_HEADER);
+}
+
+function ensureColumn_(sheet, column) {
+  const maxColumns = sheet.getMaxColumns();
+  if (maxColumns < column) {
+    sheet.insertColumnsAfter(maxColumns, column - maxColumns);
+  }
 }
 
 /** 成功・失敗のどちらの実行結果も1行追記する。 */
