@@ -6,7 +6,7 @@ import { registerMfPartnerWriteTools } from '@/lib/mcp-mf-partner-tools'
 import { registerMfItemTools } from '@/lib/mcp-mf-item-tools'
 import { registerMfQuoteTools } from '@/lib/mcp-mf-quote-tools'
 import { registerGmailTools } from '@/lib/mcp-gmail-tools'
-import { withAuditLog } from '@/lib/mcp-audit'
+import { AUDIT_INSTRUCTIONS, withAuditLog } from '@/lib/mcp-audit'
 import { actorFromAccessToken, isUserActor, originFrom, resolveSharedSecretActor } from '@/lib/mcp-oauth'
 import { mcpUserAccess } from '@/lib/gmail-auth'
 
@@ -31,7 +31,7 @@ const fullHandler = createMcpHandler(
     registerMfQuoteTools(server, { allowWrite: ALLOW_MF_WRITE })
     registerGmailTools(server)
   },
-  {},
+  { instructions: AUDIT_INSTRUCTIONS },
   { basePath: '/api', verboseLogs: false }
 )
 
@@ -41,7 +41,7 @@ const memberHandler = createMcpHandler(
     registerMcpTools(server, { allowDelete: ALLOW_DELETE })
     registerGmailTools(server)
   },
-  {},
+  { instructions: AUDIT_INSTRUCTIONS },
   { basePath: '/api', verboseLogs: false }
 )
 

@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
 import { supabase, McpAuditLog } from '@/lib/supabase'
+import { MORE_MARKER, describeAction, formatValue, keyLabel } from '@/lib/mcp-log-format'
 
 // MCPツールの実行ログ（管理者専用。middleware.ts の adminOnlyPages と mcp_audit_log のRLSで二重に守る）
 // 同じ人・同じ依頼内容の連続した呼び出しを「1つの依頼」にまとめ、依頼 → AIが実行したこと の順に見せる。
@@ -33,6 +34,8 @@ const isWrite = (tool: string) => WRITE_PATTERN.test(tool)
 function clientLabel(ua: string | null): string {
   if (!ua) return '不明'
   const v = ua.toLowerCase()
+  if (v.startsWith('claude-code')) return 'Claude Code'
+  if (v.startsWith('claude-user')) return 'Claude（claude.ai）'
   if (v.includes('claude') || v.includes('anthropic')) return 'Claude'
   if (v.includes('openai') || v.includes('chatgpt')) return 'ChatGPT'
   return ua.split(/[\s/]/)[0] || '不明'
@@ -247,7 +250,10 @@ export default function McpLogsPage() {
                           <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded border ${cat.badge}`}>
                             <Icon size={11} />{cat.label}
                           </span>
-                          <code className={`text-xs ${isWrite(l.tool_name) ? 'font-bold text-navy' : 'text-gray-600'}`}>{l.tool_name}</code>
+                          <span className={`text-[13px] ${isWrite(l.tool_name) ? 'font-bold text-navy' : 'text-[#334155]'}`}>
+                            {describeAction(l.tool_name, l.args)}
+                          </span>
+                          <code className="text-[10px] text-gray-300 hidden sm:inline">{l.tool_name}</code>
                           {l.success ? (
                             <CheckCircle2 size={14} className="text-green-600" />
                           ) : (
@@ -258,10 +264,21 @@ export default function McpLogsPage() {
                           </span>
                         </button>
                         {expanded && (
-                          <div className="ml-5 mb-3 space-y-2">
-                            <Detail label="引数" value={JSON.stringify(l.args, null, 2)} />
-                            {l.error_message && <Detail label="エラー" value={l.error_message} tone="error" />}
-                            {l.result_summary && <Detail label="結果（先頭部分）" value={prettyJson(l.result_summary)} />}
+                          <div className="ml-5 mb-4 space-y-3">
+                            <Section label="AIが指定した内容">
+                              <KeyValues value={l.args} />
+                            </Section>
+                            {l.error_message && (
+                              <Section label="エラー">
+                                <p className="text-xs text-red-700 bg-red-50 rounded-lg px-3 py-2 whitespace-pre-wrap">{l.error_message}</p>
+                              </Section>
+                            )}
+                            {l.result_summary && (
+                              <Section label="結果">
+                                <ResultView text={l.result_summary} />
+                              </Section>
+                            )}
+                            <RawToggle log={l} />
                           </div>
                         )}
                       </li>
@@ -280,23 +297,107 @@ export default function McpLogsPage() {
   )
 }
 
-function prettyJson(text: string): string {
+type Json = unknown
+
+function parseJson(text: string): { ok: true; value: Json } | { ok: false } {
   try {
-    return JSON.stringify(JSON.parse(text), null, 2)
+    return { ok: true, value: JSON.parse(text) }
   } catch {
-    return text
+    return { ok: false }
   }
 }
 
-function Detail({ label, value, tone }: { label: string; value: string; tone?: 'error' }) {
+const isRecord = (v: Json): v is Record<string, Json> => typeof v === 'object' && v !== null && !Array.isArray(v)
+const moreCount = (v: Json): number | null => (isRecord(v) && typeof v[MORE_MARKER] === 'number' ? (v[MORE_MARKER] as number) : null)
+
+function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="text-[10px] font-bold tracking-wider text-gray-400 mb-1">{label}</p>
-      <pre
-        className={`text-[11px] leading-relaxed rounded-lg px-3 py-2 overflow-x-auto whitespace-pre-wrap break-all max-h-64 ${tone === 'error' ? 'bg-red-50 text-red-700' : 'bg-[#f4f6fb] text-[#334155]'}`}
-      >
-        {value}
-      </pre>
+      <p className="text-[10px] font-bold tracking-wider text-gray-400 mb-1.5">{label}</p>
+      {children}
+    </div>
+  )
+}
+
+/** 項目名と値の2列の表（入れ子のオブジェクトは字下げして続ける） */
+function KeyValues({ value }: { value: Json }) {
+  if (!isRecord(value) || Object.keys(value).length === 0) {
+    return <p className="text-xs text-gray-400">指定なし</p>
+  }
+  return (
+    <dl className="grid grid-cols-[minmax(7rem,auto)_1fr] text-xs border border-[#e0e6f0] rounded-lg overflow-hidden">
+      {Object.entries(value).map(([k, v]) => (
+        <div key={k} className="contents">
+          <dt className="bg-[#f7f9fd] text-gray-500 font-bold px-3 py-2 border-b border-[#eef1f7]">{keyLabel(k)}</dt>
+          <dd className="px-3 py-2 border-b border-[#eef1f7] text-[#1a2540] break-all">
+            {isRecord(v) && k !== 'filters' ? <KeyValues value={v} /> : Array.isArray(v) && v.some(isRecord) && k !== 'filters' ? <Rows rows={v} /> : formatValue(k, v)}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  )
+}
+
+/** オブジェクトの配列を表にする。列は登場順に最大7列（IDは後ろに回す） */
+function Rows({ rows }: { rows: Json[] }) {
+  const more = rows.map(moreCount).find((n) => n !== null) ?? null
+  const items = rows.filter((r) => isRecord(r) && moreCount(r) === null) as Record<string, Json>[]
+  if (items.length === 0) return <p className="text-xs text-gray-400">0件</p>
+  const keys = [...new Set(items.flatMap((r) => Object.keys(r)))]
+  const cols = [...keys.filter((k) => !/(^id$|_id$)/.test(k)), ...keys.filter((k) => /(^id$|_id$)/.test(k))].slice(0, 7)
+  return (
+    <div className="border border-[#e0e6f0] rounded-lg overflow-x-auto">
+      <table className="w-full text-xs">
+        <thead className="bg-[#f7f9fd]">
+          <tr>
+            {cols.map((c) => (
+              <th key={c} className="text-left font-bold text-gray-500 px-3 py-2 whitespace-nowrap">{keyLabel(c)}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((r, i) => (
+            <tr key={i} className="border-t border-[#eef1f7]">
+              {cols.map((c) => (
+                <td key={c} className={`px-3 py-2 align-top ${/(^id$|_id$)/.test(c) ? 'text-gray-300 font-mono text-[10px]' : 'text-[#1a2540]'}`}>
+                  {r[c] === undefined ? '' : isRecord(r[c]) || Array.isArray(r[c]) ? '（詳細あり）' : formatValue(c, r[c])}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="text-[11px] text-gray-400 px-3 py-1.5 border-t border-[#eef1f7] bg-[#fbfcfe]">
+        {items.length}件{more ? `を表示（ほか${more}件）` : ''}
+      </p>
+    </div>
+  )
+}
+
+function ResultView({ text }: { text: string }) {
+  const parsed = parseJson(text)
+  if (!parsed.ok) {
+    return <p className="text-xs text-[#334155] bg-[#f4f6fb] rounded-lg px-3 py-2 whitespace-pre-wrap break-all">{text}</p>
+  }
+  const v = parsed.value
+  if (Array.isArray(v)) return <Rows rows={v} />
+  if (isRecord(v)) return <KeyValues value={v} />
+  return <p className="text-xs text-[#334155]">{formatValue('', v)}</p>
+}
+
+/** 元のデータ（JSON）は必要なときだけ開く */
+function RawToggle({ log }: { log: McpAuditLog }) {
+  const [show, setShow] = useState(false)
+  return (
+    <div>
+      <button onClick={() => setShow((s) => !s)} className="text-[11px] text-gray-400 hover:text-navy underline underline-offset-2">
+        {show ? '元データを閉じる' : '元データを表示'}
+      </button>
+      {show && (
+        <pre className="mt-1.5 text-[11px] leading-relaxed rounded-lg px-3 py-2 overflow-x-auto whitespace-pre-wrap break-all max-h-64 bg-[#f4f6fb] text-[#334155]">
+          {JSON.stringify({ tool: log.tool_name, args: log.args, result: parseJson(log.result_summary ?? '').ok ? JSON.parse(log.result_summary!) : log.result_summary }, null, 2)}
+        </pre>
+      )}
     </div>
   )
 }

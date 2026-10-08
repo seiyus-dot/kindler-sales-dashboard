@@ -17,30 +17,42 @@ import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { mcpSupabaseAdmin } from './mcp-supabase-admin'
 import { actorFrom } from './mf-write-audit'
+import { MORE_MARKER } from './mcp-log-format'
 
 const MAX_STRING = 300
-const MAX_RESULT = 800
+const MAX_RESULT = 4000
+/** 結果に配列があるときに残す件数の候補（大きい順に試し、MAX_RESULTに収まる最初のものを使う） */
+const RESULT_ITEM_LIMITS = [5, 3, 1]
+
 const REQUEST_KEY = 'user_request'
 // 顧客とのメールの中身はログに残さない
 const REDACT_KEYS = new Set(['body', 'snippet'])
 
+// 任意項目にするとAIは書かずに済ませる（Claude・ChatGPTとも実測で空だった）ため必須にする
 const userRequestField = z
   .string()
   .max(2000)
-  .optional()
   .describe(
-    'このツールを呼ぶきっかけになった利用者の依頼を、利用者の言葉のまま書く（要約しない）。' +
-      '実行ログとして管理者が確認するために使う。毎回必ず指定すること。'
+    '必須。このツールを呼ぶきっかけになった利用者の直近の依頼を、利用者の言葉のまま書く（要約・言い換えしない）。' +
+      '実行ログとして管理者が確認するために使う。'
   )
 
-function summarize(value: unknown, key?: string): unknown {
+/** サーバー全体への指示（MCPのinitializeでクライアントに渡る） */
+export const AUDIT_INSTRUCTIONS =
+  'このサーバーのツールを呼ぶときは、必ず引数 user_request に、利用者の直近の依頼を利用者の言葉のまま入れること。' +
+  'すべての呼び出しは実行ログとして管理者が確認する。'
+
+function summarize(value: unknown, key?: string, maxItems = 20): unknown {
   if (typeof value === 'string') {
     if (key && REDACT_KEYS.has(key)) return `（${value.length}文字・内容は記録しない）`
     return value.length > MAX_STRING ? `${value.slice(0, MAX_STRING)}…` : value
   }
-  if (Array.isArray(value)) return value.slice(0, 20).map((v) => summarize(v))
+  if (Array.isArray(value)) {
+    const kept = value.slice(0, maxItems).map((v) => summarize(v, undefined, maxItems))
+    return value.length > maxItems ? [...kept, { [MORE_MARKER]: value.length - maxItems }] : kept
+  }
   if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, summarize(v, k)]))
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, summarize(v, k, maxItems)]))
   }
   return value
 }
@@ -51,17 +63,24 @@ function resultText(result: ToolResult): string {
   return result?.content?.find((c) => c.type === 'text')?.text ?? ''
 }
 
-/** 結果の先頭部分。JSONなら本文を伏せてから切り詰める */
+/**
+ * 結果の要約。JSONなら本文を伏せ、配列は先頭数件だけ残した「正しいJSON」のまま保存する
+ * （画面で表として描くため、文字数で途中から切らない）
+ */
 function summarizeResult(result: ToolResult): string | null {
   const text = resultText(result)
   if (!text) return null
-  let out = text
+  let parsed: unknown
   try {
-    out = JSON.stringify(summarize(JSON.parse(text)))
+    parsed = JSON.parse(text)
   } catch {
-    // JSONでなければそのまま
+    return text.length > MAX_RESULT ? `${text.slice(0, MAX_RESULT)}…` : text
   }
-  return out.length > MAX_RESULT ? `${out.slice(0, MAX_RESULT)}…` : out
+  for (const limit of RESULT_ITEM_LIMITS) {
+    const out = JSON.stringify(summarize(parsed, undefined, limit))
+    if (out.length <= MAX_RESULT) return out
+  }
+  return JSON.stringify({ [MORE_MARKER]: Array.isArray(parsed) ? parsed.length : 1 })
 }
 
 type Extra = Parameters<typeof actorFrom>[0] & {
