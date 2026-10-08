@@ -11,26 +11,58 @@ import NewsBell from '@/components/NewsBell'
 
 const NEWS_READ_KEY = 'kindler_news_read'
 
-const navItems = [
-  { href: '/dashboard',      label: 'ダッシュボード',    icon: LayoutDashboard },
-  { href: '/deals',          label: '法人案件',          icon: BriefcaseBusiness },
-  { href: '/meetings',       label: 'MTG記録',           icon: CalendarCheck },
-  { href: '/weekly',         label: '週次ログ',          icon: ClipboardList },
-  { href: '/mrr',            label: 'MRR推移',           icon: TrendingUp },
-  { href: '/members',        label: 'メンバー',          icon: Users },
-  { href: '/settings',       label: 'マスタ設定',        icon: Settings },
-  { href: '/knowledge',      label: '営業ナレッジ',      icon: BookOpen },
-  { href: '/aicamp',         label: 'AI CAMP',           icon: Tent },
-  { href: '/product-aicamp', label: 'Product AI CAMP',   icon: MonitorPlay },
-  { href: '/customers',      label: '顧客管理',          icon: Contact },
-  { href: '/invites',        label: '招待管理',          icon: UserPlus },
-  { href: '/mcp-logs',       label: 'MCP実行ログ',       icon: ScrollText },
-  { href: '/utage',          label: 'UTAGE',             icon: Zap },
-  { href: '/advisor',        label: 'AI顧問管理',        icon: GanttChartSquare },
-  { href: '/contracts',      label: '契約管理',          icon: FileSignature },
-  { href: '/invoices',       label: '請求書発行',        icon: Receipt },
-  { href: '/order-requests', label: '発注リスト',        icon: List },
-  { href: '/agency-report',  label: '広告レポート',      icon: BarChart3 },
+const GROUPS_OPEN_KEY = 'kindler_sidebar_groups'
+
+type NavItem = { href: string; label: string; icon: React.ElementType }
+
+// ダッシュボードはトグルせず常に一番上に出す
+const dashboardItem: NavItem = { href: '/dashboard', label: 'ダッシュボード', icon: LayoutDashboard }
+
+// ページを足したら、該当するグループの items に追加する
+const navGroups: { key: string; label: string; items: NavItem[]; withOrderForm?: boolean }[] = [
+  {
+    key: 'sales',
+    label: '営業',
+    items: [
+      { href: '/deals',     label: '法人案件',     icon: BriefcaseBusiness },
+      { href: '/meetings',  label: 'MTG記録',      icon: CalendarCheck },
+      { href: '/weekly',    label: '週次ログ',     icon: ClipboardList },
+      { href: '/mrr',       label: 'MRR推移',      icon: TrendingUp },
+      { href: '/members',   label: 'メンバー',     icon: Users },
+      { href: '/customers', label: '顧客管理',     icon: Contact },
+      { href: '/knowledge', label: '営業ナレッジ', icon: BookOpen },
+    ],
+  },
+  {
+    key: 'aicamp',
+    label: 'AI CAMP',
+    items: [
+      { href: '/aicamp',         label: 'AI CAMP',         icon: Tent },
+      { href: '/product-aicamp', label: 'Product AI CAMP', icon: MonitorPlay },
+      { href: '/utage',          label: 'UTAGE',           icon: Zap },
+      { href: '/agency-report',  label: '広告レポート',    icon: BarChart3 },
+    ],
+  },
+  {
+    key: 'contracts',
+    label: '契約・請求',
+    withOrderForm: true,
+    items: [
+      { href: '/advisor',        label: 'AI顧問管理', icon: GanttChartSquare },
+      { href: '/contracts',      label: '契約管理',   icon: FileSignature },
+      { href: '/invoices',       label: '請求書発行', icon: Receipt },
+      { href: '/order-requests', label: '発注リスト', icon: List },
+    ],
+  },
+  {
+    key: 'admin',
+    label: '管理',
+    items: [
+      { href: '/settings', label: 'マスタ設定',  icon: Settings },
+      { href: '/invites',  label: '招待管理',    icon: UserPlus },
+      { href: '/mcp-logs', label: 'MCP実行ログ', icon: ScrollText },
+    ],
+  },
 ]
 
 const orderFormSubItems = [
@@ -45,7 +77,7 @@ function NavLink({ href, label, icon: Icon, onClick, badge }: { href: string; la
     <Link
       href={href}
       onClick={onClick}
-      className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
+      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
         active ? 'bg-navy/10 text-navy font-semibold' : 'text-slate-500 hover:bg-navy/5 hover:text-navy'
       }`}
     >
@@ -69,7 +101,7 @@ function OrderFormNavItem({ items, onClick }: { items: typeof orderFormSubItems;
     <div>
       <button
         onClick={() => setOpen(o => !o)}
-        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
+        className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
           active ? 'bg-navy/10 text-navy font-semibold' : 'text-slate-500 hover:bg-navy/5 hover:text-navy'
         }`}
       >
@@ -97,6 +129,114 @@ function OrderFormNavItem({ items, onClick }: { items: typeof orderFormSubItems;
         </div>
       )}
     </div>
+  )
+}
+
+/** グループ見出し（押すと開閉）。中に今いるページがあるときは閉じられない */
+function NavGroup({
+  label,
+  open,
+  forcedOpen,
+  onToggle,
+  children,
+}: {
+  label: string
+  open: boolean
+  forcedOpen: boolean
+  onToggle: () => void
+  children: React.ReactNode
+}) {
+  const expanded = open || forcedOpen
+  return (
+    <div className="pt-2">
+      <button
+        onClick={onToggle}
+        disabled={forcedOpen}
+        aria-expanded={expanded}
+        className="w-full flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold tracking-wide text-slate-500 hover:bg-navy/5 hover:text-navy disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-slate-500 transition-colors"
+      >
+        <span className={`w-1 h-3 rounded-full ${forcedOpen ? 'bg-gold' : 'bg-slate-200'}`} />
+        <span className="flex-1 text-left">{label}</span>
+        {!forcedOpen && <ChevronDown size={13} className={`transition-transform ${expanded ? '' : '-rotate-90'}`} />}
+      </button>
+      {expanded && <div className="mt-0.5 space-y-0.5">{children}</div>}
+    </div>
+  )
+}
+
+function readOpenGroups(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(GROUPS_OPEN_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+
+function SidebarNav({
+  canSee,
+  isAdmin,
+  showNews,
+  unreadNews,
+  orderFormItems,
+  onNavigate,
+}: {
+  canSee: (href: string) => boolean
+  isAdmin: boolean
+  showNews: boolean
+  unreadNews: number
+  orderFormItems: typeof orderFormSubItems
+  onNavigate?: () => void
+}) {
+  const pathname = usePathname()
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
+
+  // 開閉状態はブラウザに保存（使えない環境では毎回閉じた状態から始めるだけ）
+  useEffect(() => {
+    setOpenGroups(readOpenGroups())
+  }, [])
+
+  function toggle(key: string) {
+    setOpenGroups((prev) => {
+      const next = { ...prev, [key]: !prev[key] }
+      try {
+        localStorage.setItem(GROUPS_OPEN_KEY, JSON.stringify(next))
+      } catch {
+        // 保存できなくても開閉自体はできる
+      }
+      return next
+    })
+  }
+
+  // 招待管理は admin だけ。それ以外は許可ページで判定
+  const visible = (item: NavItem) => (item.href === '/invites' ? isAdmin : canSee(item.href))
+
+  return (
+    <>
+      {canSee(dashboardItem.href) && <NavLink {...dashboardItem} onClick={onNavigate} />}
+      {showNews && <NavLink href="/news" label="お知らせ" icon={Bell} onClick={onNavigate} badge={unreadNews} />}
+      {navGroups.map((group) => {
+        const items = group.items.filter(visible)
+        const orderForm = group.withOrderForm ? orderFormItems : []
+        if (items.length === 0 && orderForm.length === 0) return null
+        const containsActive =
+          items.some((i) => pathname.startsWith(i.href)) || orderForm.some((i) => pathname.startsWith(i.href))
+        return (
+          <NavGroup
+            key={group.key}
+            label={group.label}
+            open={Boolean(openGroups[group.key])}
+            forcedOpen={containsActive}
+            onToggle={() => toggle(group.key)}
+          >
+            {items.map((item) => (
+              <NavLink key={item.href} {...item} onClick={onNavigate} />
+            ))}
+            {orderForm.length > 0 && <OrderFormNavItem items={orderForm} onClick={onNavigate} />}
+          </NavGroup>
+        )
+      })}
+    </>
   )
 }
 
@@ -131,9 +271,6 @@ export default function Sidebar() {
 
   const canSee = (href: string) => isAdmin || allowedPages.some(p => href.startsWith(p))
 
-  const visibleNavItems = navItems.filter(item =>
-    item.href === '/invites' ? isAdmin : canSee(item.href)
-  )
   const showNews = canSee('/news')
   const visibleOrderFormSubItems = orderFormSubItems.filter(item => canSee(item.href))
 
@@ -201,16 +338,15 @@ export default function Sidebar() {
                 <X size={20} />
               </button>
             </div>
-            <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
-              {visibleNavItems.map(item => (
-                <NavLink key={item.href} {...item} onClick={() => setOpen(false)} />
-              ))}
-              {showNews && (
-                <NavLink href="/news" label="お知らせ" icon={Bell} onClick={() => setOpen(false)} badge={unreadNews} />
-              )}
-              {visibleOrderFormSubItems.length > 0 && (
-                <OrderFormNavItem items={visibleOrderFormSubItems} onClick={() => setOpen(false)} />
-              )}
+            <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
+              <SidebarNav
+                canSee={canSee}
+                isAdmin={isAdmin}
+                showNews={showNews}
+                unreadNews={unreadNews}
+                orderFormItems={visibleOrderFormSubItems}
+                onNavigate={() => setOpen(false)}
+              />
             </nav>
             <div className="p-4 border-t border-slate-100">
               <button
@@ -236,12 +372,14 @@ export default function Sidebar() {
             </div>
           </div>
         </div>
-        <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
-          {visibleNavItems.map(item => (
-            <NavLink key={item.href} {...item} />
-          ))}
-          {showNews && <NavLink href="/news" label="お知らせ" icon={Bell} badge={unreadNews} />}
-          {visibleOrderFormSubItems.length > 0 && <OrderFormNavItem items={visibleOrderFormSubItems} />}
+        <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
+          <SidebarNav
+            canSee={canSee}
+            isAdmin={isAdmin}
+            showNews={showNews}
+            unreadNews={unreadNews}
+            orderFormItems={visibleOrderFormSubItems}
+          />
         </nav>
         <div className="p-4 border-t border-slate-100">
           <button
