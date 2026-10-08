@@ -14,6 +14,7 @@ import { gmailClientFor } from './gmail-auth'
 import { isUserActor } from './mcp-oauth'
 import { mcpSupabaseAdmin } from './mcp-supabase-admin'
 import { actorFrom } from './mf-write-audit'
+import { memberIdFor } from './mcp-member'
 
 type Extra = { authInfo?: { clientId?: string } } | undefined
 
@@ -201,17 +202,6 @@ async function draftMessage(
 
 function draftPreview(input: DraftInput, subject: string) {
   return { to: input.to, cc: input.cc ?? [], bcc: input.bcc ?? [], subject, body: input.body }
-}
-
-// ---------------------------------------------
-// 送信したメールを商談の活動ログ（deal_actions）に残す
-// 担当者は「権限表の名前（allowed_emails.name）＝メンバーマスタの名前（members.name）」で引き当てる
-// ---------------------------------------------
-async function memberIdFor(email: string): Promise<string | null> {
-  const { data: allowed } = await mcpSupabaseAdmin.from('allowed_emails').select('name').eq('email', email).maybeSingle()
-  if (!allowed?.name) return null
-  const { data: member } = await mcpSupabaseAdmin.from('members').select('id').eq('name', allowed.name).maybeSingle()
-  return member?.id ?? null
 }
 
 function todayJST(): string {

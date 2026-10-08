@@ -2,6 +2,8 @@ import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { mcpSupabaseAdmin } from './mcp-supabase-admin'
 import { MCP_TABLES, isKnownMcpTable } from './mcp-tables'
+import { memberIdFor } from './mcp-member'
+import { actorFrom } from './mf-write-audit'
 
 const FILTER_OPS = ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'like', 'ilike', 'in', 'is'] as const
 
@@ -50,10 +52,22 @@ function assertNoProtectedColumns(table: ReturnType<typeof requireKnownTable>, d
   }
 }
 
+/** 列のルール（選択肢）に合わない値を拒否する。AIが言い換えた値で画面の集計が崩れるのを防ぐ */
+function assertColumnValues(table: ReturnType<typeof requireKnownTable>, data: Record<string, unknown>) {
+  const rules = MCP_TABLES[table].columns ?? {}
+  for (const [col, value] of Object.entries(data)) {
+    const allowed = rules[col]?.values
+    if (!allowed || value === null) continue
+    if (!allowed.includes(String(value))) {
+      throw new Error(`列 ${col} に「${value}」は入れられません。次のいずれかを指定してください: ${allowed.join(' / ')}`)
+    }
+  }
+}
+
 export function registerMcpTools(server: McpServer, opts: { allowDelete: boolean }) {
   server.tool(
     'list_tables',
-    'このMCPサーバーからアクセスできるSupabaseテーブルの一覧と、それぞれの説明・可能な操作(select/insert/update/delete)を返す。他のツールを使う前にまずこれで対象テーブルを確認すること。',
+    'このMCPサーバーからアクセスできるSupabaseテーブルの一覧と、それぞれの説明・可能な操作(select/insert/update/delete)・列ごとのルール(columns: 選択肢valuesと注意note)を返す。他のツールを使う前にまずこれで対象テーブルを確認し、insert/updateでは columns のルールに従うこと。',
     {},
     async () => {
       const summary = Object.fromEntries(
@@ -68,6 +82,7 @@ export function registerMcpTools(server: McpServer, opts: { allowDelete: boolean
               delete: cfg.deletable && opts.allowDelete,
             },
             protected_columns: cfg.protectedColumns,
+            ...(cfg.columns ? { columns: cfg.columns } : {}),
           },
         ])
       )
@@ -123,14 +138,22 @@ export function registerMcpTools(server: McpServer, opts: { allowDelete: boolean
       table: z.string(),
       data: z.record(scalar).describe('列名 -> 値。文字列/数値/真偽値/nullのみ'),
     },
-    async ({ table, data }) => {
+    async ({ table, data }, extra) => {
       try {
         const t = requireKnownTable(table)
         const config = MCP_TABLES[t]
         if (!config.insertable) throw new Error(`テーブル "${t}" はINSERTが許可されていません`)
         assertNoProtectedColumns(t, data)
+        assertColumnValues(t, data)
 
-        const { data: inserted, error } = await mcpSupabaseAdmin.from(t).insert(data).select().single()
+        const row: Record<string, unknown> = { ...data }
+        const auto = config.autoMemberColumn
+        if (auto && (row[auto] === undefined || row[auto] === null)) {
+          const memberId = await memberIdFor(actorFrom(extra))
+          if (memberId) row[auto] = memberId
+        }
+
+        const { data: inserted, error } = await mcpSupabaseAdmin.from(t).insert(row).select().single()
         if (error) throw new Error(error.message)
         return textResult(inserted)
       } catch (e) {
@@ -154,6 +177,7 @@ export function registerMcpTools(server: McpServer, opts: { allowDelete: boolean
         if (!config.updatable) throw new Error(`テーブル "${t}" はUPDATEが許可されていません`)
         if (Object.keys(match).length === 0) throw new Error('matchは最低1列指定してください（全件更新を防ぐため）')
         assertNoProtectedColumns(t, data)
+        assertColumnValues(t, data)
 
         let query = mcpSupabaseAdmin.from(t).update(data)
         for (const [col, val] of Object.entries(match)) {

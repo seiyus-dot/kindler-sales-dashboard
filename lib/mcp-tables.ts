@@ -1,3 +1,16 @@
+import { ACTION_TYPES } from './supabase'
+
+/**
+ * 列ごとの書き方のルール。AIは列の意味や選択肢を知らないので、ここに書いたものを
+ * list_tables で渡し、insert/update時に values を機械的にチェックする。
+ */
+export type McpColumnRule = {
+  /** この列に入れてよい値（画面の選択肢・集計の前提）。これ以外は拒否する */
+  values?: readonly string[]
+  /** 書き方の注意（参照先テーブル・単位・形式など） */
+  note?: string
+}
+
 export type McpTableConfig = {
   description: string
   insertable: boolean
@@ -5,6 +18,9 @@ export type McpTableConfig = {
   deletable: boolean
   /** insert/update時にAI側から書き換えさせたくない列（id・created_at等） */
   protectedColumns: string[]
+  columns?: Record<string, McpColumnRule>
+  /** insert時に未指定なら、接続している本人のメンバーIDを入れる列 */
+  autoMemberColumn?: string
 }
 
 /**
@@ -35,11 +51,20 @@ export const MCP_TABLES: Record<string, McpTableConfig> = {
     protectedColumns: ['id', 'created_at', 'updated_at'],
   },
   deal_actions: {
-    description: '商談ごとの活動ログ（電話・商談・提案など）。deal_type は tob/toc。',
+    description: '商談ごとの活動ログ（電話・商談・提案など）。1回の活動につき1行INSERTする（修正・削除は不可）。',
     insertable: true,
     updatable: false,
     deletable: false,
     protectedColumns: ['id', 'created_at'],
+    columns: {
+      deal_id: { note: '必須。deal_type が tob なら deals_tob.id、toc なら deals_toc.id。先に query_rows で案件を探してIDを使う' },
+      deal_type: { values: ['tob', 'toc'], note: '必須。法人案件=tob / 個人案件=toc' },
+      action_type: { values: ACTION_TYPES, note: '必須。この中から最も近いものを選ぶ（メールは「電話・メール」、打ち合わせは「商談」）' },
+      action_date: { note: '活動日 YYYY-MM-DD。省略時は今日' },
+      member_id: { note: '担当者（members.id）。省略すると接続している本人が入る' },
+      notes: { note: '活動の内容メモ（自由記述）' },
+    },
+    autoMemberColumn: 'member_id',
   },
   weekly_logs: {
     description: '週次の受注実績サマリ。',
