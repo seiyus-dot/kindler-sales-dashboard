@@ -67,7 +67,7 @@ export async function middleware(request: NextRequest) {
     }
 
     // admin専用ページ（memberは問答無用でブロック）
-    const adminOnlyPages = ['/invites']
+    const adminOnlyPages = ['/invites', '/mcp-logs']
     if (role !== 'admin' && adminOnlyPages.some((p) => pathname.startsWith(p))) {
       return NextResponse.redirect(new URL('/aicamp', request.url))
     }

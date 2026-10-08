@@ -6,6 +6,7 @@ import { registerMfPartnerWriteTools } from '@/lib/mcp-mf-partner-tools'
 import { registerMfItemTools } from '@/lib/mcp-mf-item-tools'
 import { registerMfQuoteTools } from '@/lib/mcp-mf-quote-tools'
 import { registerGmailTools } from '@/lib/mcp-gmail-tools'
+import { withAuditLog } from '@/lib/mcp-audit'
 import { actorFromAccessToken, isUserActor, originFrom, resolveSharedSecretActor } from '@/lib/mcp-oauth'
 import { mcpUserAccess } from '@/lib/gmail-auth'
 
@@ -17,9 +18,11 @@ const ALLOW_MF_WRITE = process.env.MCP_ALLOW_MF_WRITE === 'true'
  * - full:   共有の接続キー（管理者が配布）と、Googleで接続した admin。CRM・MF請求・Gmailすべて
  * - member: Googleで接続した一般メンバー。CRM＋本人のGmailだけ（MFの請求・取引先データには触れない）
  * 一覧（tools/list）にも出さないよう、ハンドラごと分けている。
+ * どちらも全ツールの実行を mcp_audit_log に記録する（lib/mcp-audit.ts、管理者は /mcp-logs で閲覧）。
  */
 const fullHandler = createMcpHandler(
-  (server) => {
+  (rawServer) => {
+    const server = withAuditLog(rawServer)
     registerMcpTools(server, { allowDelete: ALLOW_DELETE })
     registerMfBillingTools(server)
     registerMfInvoiceWriteTools(server, { allowWrite: ALLOW_MF_WRITE })
@@ -33,7 +36,8 @@ const fullHandler = createMcpHandler(
 )
 
 const memberHandler = createMcpHandler(
-  (server) => {
+  (rawServer) => {
+    const server = withAuditLog(rawServer)
     registerMcpTools(server, { allowDelete: ALLOW_DELETE })
     registerGmailTools(server)
   },

@@ -51,6 +51,9 @@ begin
       execute format('create policy "authenticated write" on public.%I for insert with check (auth.uid() is not null)', t.relname);
       execute format('create policy "authenticated update" on public.%I for update using (auth.uid() is not null) with check (auth.uid() is not null)', t.relname);
       execute format('create policy "authenticated delete" on public.%I for delete using (auth.uid() is not null)', t.relname);
+    elsif t.relname = 'mcp_audit_log' then
+      -- MCP実行ログは管理者だけが閲覧（書き込みはService Roleのみ。schema_mcp_audit_log.sql）
+      execute format('create policy "admin read" on public.%I for select to authenticated using (public.is_admin_user())', t.relname);
     elsif t.relname = 'allowed_emails' then
       execute format('create policy "authenticated read" on public.%I for select to authenticated using (auth.uid() is not null)', t.relname);
       execute format('create policy "admin write" on public.%I for all to authenticated using (public.is_admin_user()) with check (public.is_admin_user())', t.relname);

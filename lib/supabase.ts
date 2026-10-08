@@ -126,6 +126,21 @@ export type DealAction = {
 
 export const ACTION_TYPES = ['初回接触', '電話・メール', '商談', '提案', '見積提出', 'クロージング', 'フォロー', 'その他'] as const
 
+// MCPツールの実行ログ（schema_mcp_audit_log.sql）。閲覧は管理者のみ
+export type McpAuditLog = {
+  id: string
+  actor: string
+  client: string | null
+  user_request: string | null
+  tool_name: string
+  args: Record<string, unknown> | null
+  result_summary: string | null
+  success: boolean
+  error_message: string | null
+  duration_ms: number | null
+  created_at: string
+}
+
 export type News = {
   id: string
   title: string
@@ -441,6 +456,7 @@ export type Client = {
   mf_partner_id: string | null
   cloudsign_send_email: string | null
   notes: string | null
+  company_id: string | null
   created_at: string
   updated_at: string
 }
