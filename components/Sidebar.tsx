@@ -78,10 +78,10 @@ function NavLink({ href, label, icon: Icon, onClick, badge }: { href: string; la
       href={href}
       onClick={onClick}
       className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-        active ? 'bg-navy/10 text-navy font-semibold' : 'text-slate-500 hover:bg-navy/5 hover:text-navy'
+        active ? 'bg-white/[0.12] text-white font-semibold' : 'text-white/70 hover:bg-white/[0.06] hover:text-white'
       }`}
     >
-      <Icon size={16} className={active ? 'text-navy' : 'text-slate-400'} />
+      <Icon size={16} className={active ? 'text-gold' : 'text-white/45'} />
       <span className="flex-1">{label}</span>
       {badge != null && badge > 0 && (
         <span className="bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center leading-none">
@@ -102,15 +102,15 @@ function OrderFormNavItem({ items, onClick }: { items: typeof orderFormSubItems;
       <button
         onClick={() => setOpen(o => !o)}
         className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-          active ? 'bg-navy/10 text-navy font-semibold' : 'text-slate-500 hover:bg-navy/5 hover:text-navy'
+          active ? 'bg-white/[0.12] text-white font-semibold' : 'text-white/70 hover:bg-white/[0.06] hover:text-white'
         }`}
       >
-        <FileText size={16} className={active ? 'text-navy' : 'text-slate-400'} />
+        <FileText size={16} className={active ? 'text-gold' : 'text-white/45'} />
         <span className="flex-1 text-left">発注フォーム</span>
         <ChevronDown size={14} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <div className="ml-7 mt-0.5 space-y-0.5">
+        <div className="ml-5 mt-0.5 pl-3 border-l border-white/10 space-y-0.5">
           {items.map(item => {
             const subActive = pathname.startsWith(item.href)
             return (
@@ -118,8 +118,8 @@ function OrderFormNavItem({ items, onClick }: { items: typeof orderFormSubItems;
                 key={item.href}
                 href={item.href}
                 onClick={onClick}
-                className={`block px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
-                  subActive ? 'bg-navy/10 text-navy font-semibold' : 'text-slate-500 hover:bg-navy/5 hover:text-navy'
+                className={`block px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  subActive ? 'bg-white/[0.12] text-white font-semibold' : 'text-white/60 hover:bg-white/[0.06] hover:text-white'
                 }`}
               >
                 {item.label}
@@ -153,13 +153,15 @@ function NavGroup({
         onClick={onToggle}
         disabled={forcedOpen}
         aria-expanded={expanded}
-        className="w-full flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold tracking-wide text-slate-500 hover:bg-navy/5 hover:text-navy disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-slate-500 transition-colors"
+        className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold tracking-wide transition-colors disabled:cursor-default ${
+          forcedOpen ? 'text-gold' : 'text-white/55 hover:bg-white/[0.06] hover:text-white'
+        }`}
       >
-        <span className={`w-1 h-3 rounded-full ${forcedOpen ? 'bg-gold' : 'bg-slate-200'}`} />
+        <ChevronDown size={13} className={`shrink-0 transition-transform ${expanded ? '' : '-rotate-90'}`} />
         <span className="flex-1 text-left">{label}</span>
-        {!forcedOpen && <ChevronDown size={13} className={`transition-transform ${expanded ? '' : '-rotate-90'}`} />}
       </button>
-      {expanded && <div className="mt-0.5 space-y-0.5">{children}</div>}
+      {/* 見出しの下に一段下げて並べ、縦のガイド線でグループの範囲を示す */}
+      {expanded && <div className="ml-[18px] mt-0.5 pl-2 border-l border-white/10 space-y-0.5">{children}</div>}
     </div>
   )
 }
@@ -325,16 +327,16 @@ export default function Sidebar() {
       {open && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
           <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
-          <aside className="relative w-64 bg-white h-full flex flex-col shadow-xl">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+          <aside className="relative w-64 bg-navy h-full flex flex-col shadow-xl">
+            <div className="p-5 border-b border-white/10 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-navy rounded-lg flex items-center justify-center text-white font-black text-sm">K</div>
+                <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-navy font-black text-sm">K</div>
                 <div>
-                  <div className="text-sm font-bold text-slate-900">KINDLER</div>
-                  <div className="text-xs text-slate-400">営業管理</div>
+                  <div className="text-sm font-bold text-white">KINDLER</div>
+                  <div className="text-xs text-white/55">営業管理</div>
                 </div>
               </div>
-              <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
+              <button onClick={() => setOpen(false)} className="text-white/55 hover:text-white transition-colors">
                 <X size={20} />
               </button>
             </div>
@@ -348,10 +350,10 @@ export default function Sidebar() {
                 onNavigate={() => setOpen(false)}
               />
             </nav>
-            <div className="p-4 border-t border-slate-100">
+            <div className="p-4 border-t border-white/10">
               <button
                 onClick={handleSignOut}
-                className="flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-xs text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+                className="flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-xs text-white/60 hover:bg-white/[0.06] hover:text-white transition-colors"
               >
                 <LogOut size={14} />
                 ログアウト
@@ -362,13 +364,13 @@ export default function Sidebar() {
       )}
 
       {/* デスクトップ サイドバー */}
-      <aside className="hidden lg:flex w-60 bg-white border-r border-slate-200 flex-col flex-shrink-0">
-        <div className="h-[68px] px-5 flex items-center border-b border-slate-100 flex-shrink-0">
+      <aside className="hidden lg:flex w-60 bg-navy flex-col flex-shrink-0">
+        <div className="h-[68px] px-5 flex items-center border-b border-white/10 flex-shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-navy rounded-lg flex items-center justify-center text-white font-black text-base">K</div>
+            <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-navy font-black text-base">K</div>
             <div>
-              <div className="text-base font-bold text-slate-900">KINDLER</div>
-              <div className="text-sm text-slate-400">営業管理</div>
+              <div className="text-base font-bold text-white">KINDLER</div>
+              <div className="text-sm text-white/55">営業管理</div>
             </div>
           </div>
         </div>
@@ -381,10 +383,10 @@ export default function Sidebar() {
             orderFormItems={visibleOrderFormSubItems}
           />
         </nav>
-        <div className="p-4 border-t border-slate-100">
+        <div className="p-4 border-t border-white/10">
           <button
             onClick={handleSignOut}
-            className="flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-xs text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+            className="flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-xs text-white/60 hover:bg-white/[0.06] hover:text-white transition-colors"
           >
             <LogOut size={14} />
             ログアウト
