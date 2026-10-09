@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, BriefcaseBusiness, ClipboardList, Settings, Users, Menu, X, BookOpen, Tent, UserPlus, Zap, GanttChartSquare, FileText, FileSignature, List, MonitorPlay, ChevronDown, Contact, TrendingUp, Bell, LogOut, CalendarCheck, Receipt, BarChart3, ScrollText
+import { LayoutDashboard, BriefcaseBusiness, ClipboardList, Settings, Users, Menu, X, BookOpen, Tent, UserPlus, Zap, GanttChartSquare, FileText, FileSignature, List, MonitorPlay, ChevronDown, Contact, TrendingUp, Bell, LogOut, CalendarCheck, Receipt, BarChart3, ScrollText, Link2
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
@@ -178,6 +178,7 @@ function readOpenGroups(): Record<string, boolean> {
 function SidebarNav({
   canSee,
   isAdmin,
+  allowedPages,
   showNews,
   unreadNews,
   orderFormItems,
@@ -185,6 +186,7 @@ function SidebarNav({
 }: {
   canSee: (href: string) => boolean
   isAdmin: boolean
+  allowedPages: string[]
   showNews: boolean
   unreadNews: number
   orderFormItems: typeof orderFormSubItems
@@ -238,6 +240,12 @@ function SidebarNav({
           </NavGroup>
         )
       })}
+      {/* 外部サービス連携は本人の設定なので、許可ページに関係なく社内メンバー全員に出す（代理店は除く） */}
+      {(isAdmin || allowedPages.some((p) => p !== '/agency-report')) && (
+        <div className="pt-3 mt-2 border-t border-white/10">
+          <NavLink href="/integrations" label="外部サービス連携" icon={Link2} onClick={onNavigate} />
+        </div>
+      )}
     </>
   )
 }
@@ -344,6 +352,7 @@ export default function Sidebar() {
               <SidebarNav
                 canSee={canSee}
                 isAdmin={isAdmin}
+                allowedPages={allowedPages}
                 showNews={showNews}
                 unreadNews={unreadNews}
                 orderFormItems={visibleOrderFormSubItems}
@@ -378,6 +387,7 @@ export default function Sidebar() {
           <SidebarNav
             canSee={canSee}
             isAdmin={isAdmin}
+            allowedPages={allowedPages}
             showNews={showNews}
             unreadNews={unreadNews}
             orderFormItems={visibleOrderFormSubItems}

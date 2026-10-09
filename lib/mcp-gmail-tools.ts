@@ -10,7 +10,7 @@
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { gmail_v1 } from 'googleapis'
-import { gmailClientFor } from './gmail-auth'
+import { INTEGRATIONS_URL, gmailClientFor } from './gmail-auth'
 import { isUserActor } from './mcp-oauth'
 import { mcpSupabaseAdmin } from './mcp-supabase-admin'
 import { actorFrom } from './mf-write-audit'
@@ -32,7 +32,7 @@ function messageOf(e: unknown): string {
   if (e instanceof Error) {
     // リフレッシュトークンが失効・取り消しされた場合（パスワード変更・連携解除など）
     if (e.message.includes('invalid_grant')) {
-      return 'Gmailの連携が切れています。MCPコネクタを一度切断し、「Googleアカウントで接続」でつなぎ直してください。'
+      return `Gmailの連携が切れています。ダッシュボードの連携ページ（${INTEGRATIONS_URL}）でGoogleの「許可する」を押してください。`
     }
     return e.message
   }

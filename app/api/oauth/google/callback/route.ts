@@ -1,10 +1,15 @@
 /**
- * Googleの同意画面からの戻り先。
+ * Googleの同意画面からの戻り先。2つの入口からここに戻ってくる（Google Cloudの戻り先URLを増やさないため）。
+ * - MCPの接続（/api/oauth/google/start）: 下記の流れでMCPクライアントへ認可コードを返す
+ * - 連携ページ（/api/integrations/google/start）: 権限を足して保存し、/integrations に戻す。
+ *   ダッシュボードにログイン中の本人と同じGoogleアカウントのときだけ保存する
+ *
+ * MCPの接続の流れ:
  * 本人確認（IDトークン検証）→ 権限表で社内メンバーか確認 → Gmailのリフレッシュトークンを暗号化保存
  * → actor=メールアドレスの認可コードを発行して MCPクライアントの redirect_uri へ戻す。
  */
 import { NextResponse } from 'next/server'
-import { issueAuthorizationCode, originFrom, verifyGoogleLoginState } from '@/lib/mcp-oauth'
+import { issueAuthorizationCode, originFrom, verifyGoogleLinkState, verifyGoogleLoginState } from '@/lib/mcp-oauth'
 import {
   GMAIL_SCOPES,
   googleOAuthClient,
@@ -37,8 +42,13 @@ function clearNonce(res: Response): Response {
 
 export async function GET(req: Request) {
   const url = new URL(req.url)
-  const loginState = verifyGoogleLoginState(url.searchParams.get('state') ?? '')
-  if (!loginState) return failPage('接続の有効期限が切れました。もう一度最初からやり直してください。')
+  const rawState = url.searchParams.get('state') ?? ''
+  const loginState = verifyGoogleLoginState(rawState)
+  const linkState = loginState ? null : verifyGoogleLinkState(rawState)
+  if (!loginState && !linkState) return failPage('接続の有効期限が切れました。もう一度最初からやり直してください。')
+  const nonce = loginState?.nonce ?? linkState!.nonce
+  const backToIntegrations = (query: string) =>
+    clearNonce(NextResponse.redirect(new URL(`/integrations?${query}`, originFrom(req)).toString(), 302))
 
   const cookieNonce = req.headers
     .get('cookie')
@@ -46,15 +56,16 @@ export async function GET(req: Request) {
     .map((c) => c.trim())
     .find((c) => c.startsWith(`${NONCE_COOKIE}=`))
     ?.slice(NONCE_COOKIE.length + 1)
-  if (!cookieNonce || cookieNonce !== loginState.nonce) {
+  if (!cookieNonce || cookieNonce !== nonce) {
     return failPage('接続を始めたブラウザと同じブラウザで操作してください。')
   }
 
   if (url.searchParams.get('error')) {
+    if (linkState) return backToIntegrations('error=denied')
     // 同意画面で「キャンセル」された場合はMCPクライアントにそのまま伝える
-    const back = new URL(loginState.redirectUri)
+    const back = new URL(loginState!.redirectUri)
     back.searchParams.set('error', 'access_denied')
-    if (loginState.state) back.searchParams.set('state', loginState.state)
+    if (loginState!.state) back.searchParams.set('state', loginState!.state)
     return clearNonce(NextResponse.redirect(back.toString(), 302))
   }
 
@@ -81,6 +92,13 @@ export async function GET(req: Request) {
     return failPage('Googleでの本人確認に失敗しました。もう一度お試しください。')
   }
 
+  // 連携ページから来た場合は、ログイン中の本人と同じGoogleアカウントでなければ保存しない
+  if (linkState && email !== linkState.email.toLowerCase()) {
+    return failPage(
+      `ダッシュボードにログイン中のアカウント（${linkState.email}）と違うGoogleアカウント（${email}）が選ばれました。同じアカウントを選んでやり直してください。`
+    )
+  }
+
   if (!(await mcpUserAccess(email))) {
     return failPage(`${email} は営業ダッシュボードの利用者として登録されていません。管理者に招待を依頼してください。`, 403)
   }
@@ -89,7 +107,7 @@ export async function GET(req: Request) {
   const granted = new Set((grantedScope ?? '').split(' '))
   const missing = GMAIL_SCOPES.filter((s) => s.startsWith('https://') && !granted.has(s))
   if (missing.length > 0) {
-    return failPage('Gmailへのアクセス許可がオフになっています。同意画面ですべての項目にチェックを入れて接続し直してください。')
+    return failPage('Googleの権限のうち、オフになっている項目があります。同意画面ですべての項目にチェックを入れてやり直してください。')
   }
   if (!refreshToken) {
     return failPage('Googleから連携情報を受け取れませんでした。もう一度お試しください。')
@@ -102,14 +120,17 @@ export async function GET(req: Request) {
     return failPage('連携情報の保存に失敗しました。管理者に連絡してください。', 500)
   }
 
+  if (linkState) return backToIntegrations('linked=google')
+
+  const login = loginState!
   const authCode = issueAuthorizationCode({
-    redirectUri: loginState.redirectUri,
-    codeChallenge: loginState.codeChallenge,
-    codeChallengeMethod: loginState.codeChallengeMethod,
+    redirectUri: login.redirectUri,
+    codeChallenge: login.codeChallenge,
+    codeChallengeMethod: login.codeChallengeMethod,
     actor: email,
   })
-  const back = new URL(loginState.redirectUri)
+  const back = new URL(login.redirectUri)
   back.searchParams.set('code', authCode)
-  if (loginState.state) back.searchParams.set('state', loginState.state)
+  if (login.state) back.searchParams.set('state', login.state)
   return clearNonce(NextResponse.redirect(back.toString(), 302))
 }

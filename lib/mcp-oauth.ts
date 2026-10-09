@@ -173,6 +173,21 @@ export function verifyGoogleLoginState(token: string): GoogleLoginState | null {
   }
 }
 
+// ---------------------------------------------
+// 連携ページ（/integrations）からGoogleの権限を足すときのstate。
+// MCPの接続とは別ルート。ダッシュボードにログインしている本人のメールを持ち回り、
+// 戻ってきたGoogleアカウントが同じ人かをコールバックで確かめる。
+// ---------------------------------------------
+export function issueGoogleLinkState(s: { email: string; nonce: string }): string {
+  return issue('glink', { em: s.email, n: s.nonce }, CODE_TTL_SEC)
+}
+
+export function verifyGoogleLinkState(token: string): { email: string; nonce: string } | null {
+  const body = verify('glink', token)
+  if (!body) return null
+  return { email: String(body.em ?? ''), nonce: String(body.n ?? '') }
+}
+
 /** Googleログインで接続したactor（＝メールアドレス）か。共有シークレットのラベルは@を含まない */
 export function isUserActor(actor: string): boolean {
   return actor.includes('@')

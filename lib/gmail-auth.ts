@@ -105,6 +105,9 @@ export async function hasGmailToken(email: string): Promise<boolean> {
 export class GmailNotConnectedError extends Error {}
 
 /** 本人のGmail APIクライアント。アクセストークンの更新はgoogleapisが自動で行う */
+/** 連携ページ。権限が足りないときはAIがこのURLを案内する */
+export const INTEGRATIONS_URL = `${process.env.APP_ORIGIN ?? 'https://kindler-sales.vercel.app'}/integrations`
+
 /** 本人のGoogle認証（リフレッシュトークン入り）。requiredScope を指定すると、その権限に同意済みかも確かめる */
 async function userAuthFor(email: string, requiredScope?: string) {
   const { data, error } = await mcpSupabaseAdmin
@@ -115,13 +118,13 @@ async function userAuthFor(email: string, requiredScope?: string) {
   if (error) throw new Error(error.message)
   if (!data) {
     throw new GmailNotConnectedError(
-      `${email} のGoogle連携がありません。MCPコネクタを一度切断し、「Googleアカウントで接続」でつなぎ直してください。`
+      `${email} のGoogle連携がありません。ダッシュボードの連携ページ（${INTEGRATIONS_URL}）でGoogleの「許可する」を押してください。`
     )
   }
   // スプレッドシートの権限を足す前に接続した人は、この権限を持っていない
   if (requiredScope && !String(data.scope ?? '').split(' ').includes(requiredScope)) {
     throw new GmailNotConnectedError(
-      'この操作に必要なGoogleの権限がまだありません。MCPコネクタを一度切断し、「Googleアカウントで接続」でつなぎ直してください（同意画面ですべての項目にチェック）。'
+      `この操作に必要なGoogleの権限がまだありません。ダッシュボードの連携ページ（${INTEGRATIONS_URL}）でGoogleの「許可する」を押し、同意画面ですべての項目にチェックを入れてください。コネクタのつなぎ直しは不要です。`
     )
   }
   const auth = googleOAuthClient()
@@ -136,4 +139,35 @@ export async function gmailClientFor(email: string) {
 /** 本人の権限で動く Google Sheets クライアント */
 export async function sheetsClientFor(email: string) {
   return google.sheets({ version: 'v4', auth: await userAuthFor(email, SHEETS_SCOPE) })
+}
+
+/** 連携ページ用：本人のGoogle連携の状態（トークンの中身は返さない） */
+export async function googleLinkStatus(email: string) {
+  const { data, error } = await mcpSupabaseAdmin
+    .from('gmail_tokens')
+    .select('scope, updated_at')
+    .eq('email', email)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  const granted = new Set(String(data?.scope ?? '').split(' ').filter(Boolean))
+  return {
+    connected: Boolean(data),
+    updated_at: data?.updated_at ?? null,
+    scopes: GMAIL_SCOPES.filter((s) => s.startsWith('https://')).map((s) => ({ scope: s, granted: granted.has(s) })),
+  }
+}
+
+/** 連携ページ用：本人のGoogle連携を解除する（Google側の許可も取り消し、保存していた鍵を消す） */
+export async function unlinkGoogle(email: string) {
+  const { data } = await mcpSupabaseAdmin.from('gmail_tokens').select('refresh_token_enc').eq('email', email).maybeSingle()
+  if (data) {
+    try {
+      await googleOAuthClient().revokeToken(decrypt(data.refresh_token_enc))
+    } catch (e) {
+      // すでに取り消し済みなどでも、こちらの保存分は消す
+      console.error('[gmail-auth] revoke failed:', e instanceof Error ? e.message : e)
+    }
+  }
+  const { error } = await mcpSupabaseAdmin.from('gmail_tokens').delete().eq('email', email)
+  if (error) throw new Error(error.message)
 }

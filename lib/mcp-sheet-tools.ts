@@ -7,7 +7,7 @@
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { sheets_v4 } from 'googleapis'
-import { sheetsClientFor } from './gmail-auth'
+import { INTEGRATIONS_URL, sheetsClientFor } from './gmail-auth'
 import { isUserActor } from './mcp-oauth'
 import { mcpSupabaseAdmin } from './mcp-supabase-admin'
 import { actorFrom } from './mf-write-audit'
@@ -92,14 +92,14 @@ function errorResult(message: string) {
 function messageOf(e: unknown): string {
   const message = e instanceof Error ? e.message : String(e)
   if (/invalid_grant/i.test(message)) {
-    return 'Googleの連携が切れています。MCPコネクタを一度切断し、「Googleアカウントで接続」でつなぎ直してください。'
+    return `Googleの連携が切れています。ダッシュボードの連携ページ（${INTEGRATIONS_URL}）でGoogleの「許可する」を押してください。`
   }
   if (
     /insufficient(?:_| )?(?:permission|scope)|permission denied|does not have permission|authentication scopes|forbidden|\b403\b/i.test(
       message
     )
   ) {
-    return 'Googleスプレッドシートの権限を確認できませんでした。対象シートへのアクセス権を確認し、MCPコネクタを一度切断して「Googleアカウントで接続」でつなぎ直してください。'
+    return `Googleスプレッドシートを操作できませんでした。シート「KINDLER 営業行動管理」の編集権限があるか確認し、ダッシュボードの連携ページ（${INTEGRATIONS_URL}）でGoogleの「許可する」を押し直してください。`
   }
   return message
 }

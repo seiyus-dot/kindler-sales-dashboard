@@ -72,8 +72,11 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL('/aicamp', request.url))
     }
 
+    // 外部サービス連携（本人の連携だけを扱う）は、社内メンバーなら許可ページに関係なく開ける。代理店は不可
+    const isIntegrations = pathname.startsWith('/integrations')
+
     // 代理店アカウントは admin 扱いにしない（レポートページだけ）
-    if (role !== 'admin' || access?.agencyId) {
+    if ((role !== 'admin' || access?.agencyId) && !(isIntegrations && !access?.agencyId)) {
       const rawPages = request.cookies.get('user_allowed_pages')?.value
       const allowedPages: string[] = access ? pagesFor(access) : rawPages ? JSON.parse(rawPages) : ['/aicamp']
 
