@@ -64,6 +64,11 @@ const TOOL_LABELS: Record<string, string> = {
   mf_create_item: 'MF品目を作成',
   mf_update_item: 'MF品目を更新',
   sheet_import: 'スプレッドシートから案件・商談を反映',
+  sheet_list_tabs: '営業行動管理シートのタブ一覧を確認',
+  sheet_read_tab: '営業行動管理シートを読む',
+  sheet_upsert_deal: '営業行動管理シートの案件を追加・更新',
+  sheet_add_meeting: '営業行動管理シートに商談を記録',
+  sheet_add_activity: '営業行動管理シートに行動実績を記録',
 }
 
 export function toolLabel(tool: string): string {

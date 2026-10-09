@@ -25,7 +25,7 @@ export const STAGE_TO_STATUS: Record<string, string> = {
 /**
  * シートの案件タイプ → ダッシュボードのサービス（deals_tob.service）。
  * ダッシュボードは「AI研修」「AI顧問」などの商材名で持っているので、そろえられるものだけそろえる。
- * 開発・複合はダッシュボードに対応する商材が無いので、更新では既存のサービスを上書きしない（新規登録のときだけ入れる）。
+ * 商品名は提案以降にダッシュボードで決めるものなので、入れるのは新規登録のときだけ（更新では触らない）。
  */
 const KIND_TO_SERVICE: Record<string, string> = { 研修: 'AI研修', AI顧問: 'AI顧問' }
 
@@ -102,9 +102,15 @@ export function yenToMan(v: unknown): number | null {
 }
 
 function kindToService(kind: string | null, isNew: boolean): string | null {
-  if (!kind) return null
-  return KIND_TO_SERVICE[kind] ?? (isNew ? kind : null)
+  if (!kind || !isNew) return null
+  return KIND_TO_SERVICE[kind] ?? kind
 }
+
+/**
+ * ダッシュボード側でこのステータスまで進んだ案件は、シートからは更新しない。
+ * リード〜商談はシート、提案以降はダッシュボード（将来はMCP）が正、という分担。
+ */
+export const DASHBOARD_OWNED_STATUSES = ['提案済', '見積提出', '交渉中', '受注', '失注', '契約中']
 
 export type DealFields = Record<string, string | number | null>
 

@@ -6,6 +6,7 @@ import { registerMfPartnerWriteTools } from '@/lib/mcp-mf-partner-tools'
 import { registerMfItemTools } from '@/lib/mcp-mf-item-tools'
 import { registerMfQuoteTools } from '@/lib/mcp-mf-quote-tools'
 import { registerGmailTools } from '@/lib/mcp-gmail-tools'
+import { registerSheetTools } from '@/lib/mcp-sheet-tools'
 import { AUDIT_INSTRUCTIONS, withAuditLog } from '@/lib/mcp-audit'
 import { actorFromAccessToken, isUserActor, originFrom, resolveSharedSecretActor } from '@/lib/mcp-oauth'
 import { mcpUserAccess } from '@/lib/gmail-auth'
@@ -16,7 +17,7 @@ const ALLOW_MF_WRITE = process.env.MCP_ALLOW_MF_WRITE === 'true'
 /**
  * 接続者によってツールの範囲を分ける。
  * - full:   共有の接続キー（管理者が配布）と、Googleで接続した admin。CRM・MF請求・Gmailすべて
- * - member: Googleで接続した一般メンバー。CRM＋本人のGmailだけ（MFの請求・取引先データには触れない）
+ * - member: Googleで接続した一般メンバー。CRM＋本人のGmail＋営業行動管理シートだけ（MFの請求・取引先データには触れない）
  * 一覧（tools/list）にも出さないよう、ハンドラごと分けている。
  * どちらも全ツールの実行を mcp_audit_log に記録する（lib/mcp-audit.ts、管理者は /mcp-logs で閲覧）。
  */
@@ -30,6 +31,7 @@ const fullHandler = createMcpHandler(
     registerMfItemTools(server, { allowWrite: ALLOW_MF_WRITE })
     registerMfQuoteTools(server, { allowWrite: ALLOW_MF_WRITE })
     registerGmailTools(server)
+    registerSheetTools(server)
   },
   { instructions: AUDIT_INSTRUCTIONS },
   { basePath: '/api', verboseLogs: false }
@@ -40,6 +42,7 @@ const memberHandler = createMcpHandler(
     const server = withAuditLog(rawServer)
     registerMcpTools(server, { allowDelete: ALLOW_DELETE })
     registerGmailTools(server)
+    registerSheetTools(server)
   },
   { instructions: AUDIT_INSTRUCTIONS },
   { basePath: '/api', verboseLogs: false }

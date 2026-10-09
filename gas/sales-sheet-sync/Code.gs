@@ -388,6 +388,7 @@ function summarizeResults_(dealResults, meetingResults) {
     deals: {
       created: count(dealResults, 'created'),
       updated: count(dealResults, 'updated'),
+      locked: count(dealResults, 'locked'),
       error: count(dealResults, 'error'),
     },
     meetings: {
@@ -436,15 +437,26 @@ function ensureColumn_(sheet, column) {
 function appendRunLog_(spreadsheet, summary) {
   let logSheet = spreadsheet.getSheetByName(SALES_SHEET_SYNC.LOG_SHEET);
   if (!logSheet) logSheet = spreadsheet.insertSheet(SALES_SHEET_SYNC.LOG_SHEET);
+  const lockedHeader = '案件 ダッシュボード管理';
+  let lockedColumn;
   if (logSheet.getLastRow() === 0) {
     logSheet.appendRow([
       '実行日時',
       '案件 新規', '案件 更新', '案件 エラー',
       '商談 新規', '商談 登録済み', '商談 スキップ', '商談 エラー',
       'エラー内容',
+      lockedHeader,
     ]);
+    lockedColumn = 10;
+  } else {
+    const lastColumn = Math.max(logSheet.getLastColumn(), 1);
+    const headers = logSheet.getRange(1, 1, 1, lastColumn).getValues()[0]
+      .map(function(value) { return cleanString_(value); });
+    const lockedIndex = headers.indexOf(lockedHeader);
+    lockedColumn = lockedIndex >= 0 ? lockedIndex + 1 : lastColumn + 1;
+    if (lockedIndex < 0) logSheet.getRange(1, lockedColumn).setValue(lockedHeader);
   }
-  logSheet.appendRow([
+  const logRow = [
     new Date(),
     summary.deals.created,
     summary.deals.updated,
@@ -454,7 +466,10 @@ function appendRunLog_(spreadsheet, summary) {
     summary.meetings.skipped,
     summary.meetings.error,
     summary.errors.slice(0, 10).join('\n'),
-  ]);
+  ];
+  while (logRow.length < lockedColumn) logRow.push('');
+  logRow[lockedColumn - 1] = summary.deals.locked;
+  logSheet.appendRow(logRow);
 }
 
 function formatSummary_(summary) {
@@ -462,7 +477,7 @@ function formatSummary_(summary) {
     'ダッシュボードへの反映が完了しました。',
     '',
     '案件：新規 ' + summary.deals.created + '件 / 更新 ' + summary.deals.updated +
-      '件 / エラー ' + summary.deals.error + '件',
+      '件 / ダッシュボード管理 ' + summary.deals.locked + '件 / エラー ' + summary.deals.error + '件',
     '商談：新規 ' + summary.meetings.created + '件 / 登録済み ' + summary.meetings.exists +
       '件 / スキップ ' + summary.meetings.skipped + '件 / エラー ' + summary.meetings.error + '件',
   ].join('\n');

@@ -14,12 +14,16 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:
 import { google } from 'googleapis'
 import { mcpSupabaseAdmin } from './mcp-supabase-admin'
 
+export const SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets'
+
 export const GMAIL_SCOPES = [
   'openid',
   'email',
   'https://www.googleapis.com/auth/gmail.readonly',
   // 下書きの作成・更新と、下書きの送信（drafts.send）に必要。任意のメールを直接送る gmail.send は要求しない
   'https://www.googleapis.com/auth/gmail.compose',
+  // 営業行動管理シートの読み書き（lib/mcp-sheet-tools.ts）。本人がシートに持っている権限の範囲でしか動かない
+  SHEETS_SCOPE,
 ]
 
 /** Googleログインを始めたブラウザと戻ってきたブラウザが同じかを確かめるcookie */
@@ -101,19 +105,35 @@ export async function hasGmailToken(email: string): Promise<boolean> {
 export class GmailNotConnectedError extends Error {}
 
 /** 本人のGmail APIクライアント。アクセストークンの更新はgoogleapisが自動で行う */
-export async function gmailClientFor(email: string) {
+/** 本人のGoogle認証（リフレッシュトークン入り）。requiredScope を指定すると、その権限に同意済みかも確かめる */
+async function userAuthFor(email: string, requiredScope?: string) {
   const { data, error } = await mcpSupabaseAdmin
     .from('gmail_tokens')
-    .select('refresh_token_enc')
+    .select('refresh_token_enc, scope')
     .eq('email', email)
     .maybeSingle()
   if (error) throw new Error(error.message)
   if (!data) {
     throw new GmailNotConnectedError(
-      `${email} のGmailは未連携です。MCPコネクタを一度切断し、「Googleアカウントで接続」でつなぎ直してください。`
+      `${email} のGoogle連携がありません。MCPコネクタを一度切断し、「Googleアカウントで接続」でつなぎ直してください。`
+    )
+  }
+  // スプレッドシートの権限を足す前に接続した人は、この権限を持っていない
+  if (requiredScope && !String(data.scope ?? '').split(' ').includes(requiredScope)) {
+    throw new GmailNotConnectedError(
+      'この操作に必要なGoogleの権限がまだありません。MCPコネクタを一度切断し、「Googleアカウントで接続」でつなぎ直してください（同意画面ですべての項目にチェック）。'
     )
   }
   const auth = googleOAuthClient()
   auth.setCredentials({ refresh_token: decrypt(data.refresh_token_enc) })
-  return google.gmail({ version: 'v1', auth })
+  return auth
+}
+
+export async function gmailClientFor(email: string) {
+  return google.gmail({ version: 'v1', auth: await userAuthFor(email) })
+}
+
+/** 本人の権限で動く Google Sheets クライアント */
+export async function sheetsClientFor(email: string) {
+  return google.sheets({ version: 'v4', auth: await userAuthFor(email, SHEETS_SCOPE) })
 }

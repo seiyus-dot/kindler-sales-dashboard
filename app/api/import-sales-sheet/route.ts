@@ -4,7 +4,8 @@
  * - 認証は専用の鍵 SHEET_IMPORT_TOKEN（Bearer）だけ。ログインセッションやService Roleキーは
  *   GAS側に持たせない。この鍵で書けるのは「法人案件」と「商談の活動ログ」だけ。
  * - 案件: ダッシュボードIDがあれば更新、なければ新規登録してIDを返す（GASがシートに書き戻す）。
- *   更新ではシートが空欄の項目とメモは触らない。
+ *   更新ではシートが空欄の項目・メモ・商品名は触らない。ダッシュボード側で提案済み以降に
+ *   進んだ案件は更新しない（action=locked。提案以降はダッシュボードが正）。
  * - 商談: 商談IDの目印がすでに活動ログにあれば何もしない（何度送っても二重登録しない）。
  * - 1回の呼び出しごとに mcp_audit_log に1行残す（/mcp-logs で見られる）。
  *
@@ -13,6 +14,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import {
+  DASHBOARD_OWNED_STATUSES,
   type SheetDealRow,
   type SheetMeetingRow,
   clean,
@@ -44,7 +46,12 @@ function admin() {
   })
 }
 
-type DealResult = { row: number; dashboard_id?: string; action: 'created' | 'updated' | 'error'; error?: string }
+type DealResult = {
+  row: number
+  dashboard_id?: string
+  action: 'created' | 'updated' | 'locked' | 'error'
+  error?: string
+}
 type MeetingResult = { row: number; action: 'created' | 'exists' | 'skipped' | 'error'; error?: string }
 
 export async function POST(req: Request) {
@@ -80,9 +87,16 @@ export async function POST(req: Request) {
       if (error) throw new Error(error)
 
       if (id) {
-        const { data, error: e } = await db.from('deals_tob').update(fields).eq('id', id).select('id')
+        const { data: current, error: e0 } = await db.from('deals_tob').select('status').eq('id', id).maybeSingle()
+        if (e0) throw new Error(e0.message)
+        if (!current) throw new Error('このダッシュボードIDの案件が見つかりません（削除された可能性）')
+        // 提案以降はダッシュボードが正。シートの古い値で戻さない
+        if (current.status && DASHBOARD_OWNED_STATUSES.includes(current.status)) {
+          dealResults.push({ row: r.row, dashboard_id: id, action: 'locked' })
+          continue
+        }
+        const { error: e } = await db.from('deals_tob').update(fields).eq('id', id)
         if (e) throw new Error(e.message)
-        if (!data || data.length === 0) throw new Error('このダッシュボードIDの案件が見つかりません（削除された可能性）')
         dealResults.push({ row: r.row, dashboard_id: id, action: 'updated' })
       } else {
         const { data, error: e } = await db.from('deals_tob').insert(fields).select('id').single()
@@ -140,7 +154,12 @@ export async function POST(req: Request) {
 
   const count = <T extends { action: string }>(rs: T[], a: string) => rs.filter((x) => x.action === a).length
   const summary = {
-    deals: { created: count(dealResults, 'created'), updated: count(dealResults, 'updated'), error: count(dealResults, 'error') },
+    deals: {
+      created: count(dealResults, 'created'),
+      updated: count(dealResults, 'updated'),
+      locked: count(dealResults, 'locked'), // 提案以降でダッシュボード管理になったため更新しなかった件数
+      error: count(dealResults, 'error'),
+    },
     meetings: {
       created: count(meetingResults, 'created'),
       exists: count(meetingResults, 'exists'),
