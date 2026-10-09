@@ -9,8 +9,8 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { sheets_v4 } from 'googleapis'
 import { INTEGRATIONS_URL, sheetsClientFor } from './gmail-auth'
 import { isUserActor } from './mcp-oauth'
-import { mcpSupabaseAdmin } from './mcp-supabase-admin'
 import { actorFrom } from './mf-write-audit'
+import { memberNameFor } from './mcp-member'
 
 type Extra = { authInfo?: { clientId?: string } } | undefined
 type CellValue = string | number | boolean | null
@@ -233,19 +233,13 @@ function nowJST(): string {
   return `${part('year')}/${part('month')}/${part('day')} ${part('hour')}:${part('minute')}`
 }
 
-async function memberNameFor(actor: string): Promise<string | null> {
-  const { data, error } = await mcpSupabaseAdmin
-    .from('allowed_emails')
-    .select('name')
-    .eq('email', actor)
-    .maybeSingle()
-  if (error) throw new Error(`本人の担当名を取得できませんでした: ${error.message}`)
-  return clean(data?.name) || null
-}
-
 async function resolvedMember(actor: string, supplied?: string): Promise<string> {
   const member = clean(supplied) || (await memberNameFor(actor))
-  if (!member) throw new Error('担当を指定してください（接続中のメールアドレスから本人のメンバー名を取得できませんでした）')
+  if (!member) {
+    throw new Error(
+      '担当を指定してください（接続中のアカウントの名前から、メンバーマスタの担当者を特定できませんでした。管理者に招待管理の名前の確認を依頼してください）'
+    )
+  }
   return member
 }
 
