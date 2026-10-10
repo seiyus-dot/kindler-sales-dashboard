@@ -6,13 +6,14 @@ import { registerMfPartnerWriteTools } from '@/lib/mcp-mf-partner-tools'
 import { registerMfItemTools } from '@/lib/mcp-mf-item-tools'
 import { registerMfQuoteTools } from '@/lib/mcp-mf-quote-tools'
 import { registerGmailTools } from '@/lib/mcp-gmail-tools'
-import { registerSheetTools } from '@/lib/mcp-sheet-tools'
+import { SHEET_INSTRUCTIONS, registerSheetTools } from '@/lib/mcp-sheet-tools'
 import { AUDIT_INSTRUCTIONS, withAuditLog } from '@/lib/mcp-audit'
 import { actorFromAccessToken, isUserActor, originFrom, resolveSharedSecretActor } from '@/lib/mcp-oauth'
 import { mcpUserAccess } from '@/lib/gmail-auth'
 
 const ALLOW_DELETE = process.env.MCP_ALLOW_DELETE === 'true'
 const ALLOW_MF_WRITE = process.env.MCP_ALLOW_MF_WRITE === 'true'
+const INSTRUCTIONS = `${AUDIT_INSTRUCTIONS}\n${SHEET_INSTRUCTIONS}`
 
 /**
  * 接続者によってツールの範囲を分ける。
@@ -33,7 +34,7 @@ const fullHandler = createMcpHandler(
     registerGmailTools(server)
     registerSheetTools(server)
   },
-  { instructions: AUDIT_INSTRUCTIONS },
+  { instructions: INSTRUCTIONS },
   { basePath: '/api', verboseLogs: false }
 )
 
@@ -44,7 +45,7 @@ const memberHandler = createMcpHandler(
     registerGmailTools(server)
     registerSheetTools(server)
   },
-  { instructions: AUDIT_INSTRUCTIONS },
+  { instructions: INSTRUCTIONS },
   { basePath: '/api', verboseLogs: false }
 )
 

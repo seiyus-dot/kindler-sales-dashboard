@@ -19,6 +19,19 @@ type Row = CellValue[]
 const SPREADSHEET_ID = '1gq7HSWpFtpbLNF4H-wemnopzl79ZTCDWIhBfXVBvN24'
 const DATA_START_ROW = 3
 const SETTINGS_TAB = '設定'
+const AI_LOG_TAB = 'AI入力ログ'
+
+/** 商談報告を流すSlackチャンネル（#商談報告部屋） */
+const SLACK_REPORT_CHANNEL = '#商談報告部屋（チャンネルID: C0C0DQJDHFA）'
+
+/**
+ * サーバー全体への指示（MCPのinitializeでクライアントに渡る）。
+ * SEAMなど他のMCPが同じ会話につながっていると、AIがSlack投稿をそちらで試して
+ * 「Slackと接続されていない」と止まることがあるため、投稿経路をここで明示する。
+ */
+export const SHEET_INSTRUCTIONS =
+  `商談報告のSlack投稿は、AIクライアント自身のSlackコネクタ（ChatGPTのSlackアプリ／ClaudeのSlackコネクタ）で${SLACK_REPORT_CHANNEL}へ行うこと。` +
+  'SEAMなど他のMCPでSlackの接続確認や投稿の代行をしない。投稿で得たURLは sheet_add_meeting の slack_url に入れる。'
 
 const DEAL_HEADERS = {
   company_name: '会社名',
@@ -133,12 +146,26 @@ function columnName(index: number): string {
   return result
 }
 
-function headerRowFor(tab: string): number {
-  return tab === SETTINGS_TAB ? 1 : 2
-}
-
 function rowHasValue(row: Row | undefined): boolean {
   return Boolean(row?.some((value) => clean(value) !== ''))
+}
+
+function filledCount(row: Row | undefined): number {
+  return (row ?? []).filter((value) => clean(value) !== '').length
+}
+
+/**
+ * 見出し行。通常は2行目（設定タブは1行目）。
+ * 「AI入力ログ」「AI入力設定」のように2行目も説明文（結合セル＝値は1つ）で見出しが3行目にあるタブは、
+ * 先頭5行から値が3つ以上ある最初の行を見出しとみなす。
+ */
+function headerRowFor(tab: string, rows: Row[] = []): number {
+  const fallback = tab === SETTINGS_TAB ? 1 : 2
+  if (!rows.length || filledCount(rows[fallback - 1]) >= 2) return fallback
+  for (let row = 1; row <= Math.min(5, rows.length); row += 1) {
+    if (filledCount(rows[row - 1]) >= 3) return row
+  }
+  return fallback
 }
 
 function headerMap(headers: Row, tab: string, allowDuplicates = false): Map<string, number> {
@@ -179,7 +206,7 @@ async function readTab(sheets: sheets_v4.Sheets, tab: string, render: 'FORMATTED
 }
 
 function tableFromRows(tab: string, rows: Row[], allowDuplicateHeaders = false) {
-  const headerRow = headerRowFor(tab)
+  const headerRow = headerRowFor(tab, rows)
   const sourceHeaders = rows[headerRow - 1] ?? []
   const columns = headerMap(sourceHeaders, tab, allowDuplicateHeaders)
   const headers = allowDuplicateHeaders
@@ -354,6 +381,57 @@ async function insertRow(
   await writeCells(sheets, tab, sheetRow, writes)
 }
 
+type AiLogEntry = {
+  mode: '日次営業入力' | '商談報告' | '案件更新'
+  operation: '新規登録' | '更新'
+  tab: string
+  recordId: string
+  writes: CellWrite[]
+  before?: Row
+  tool: string
+}
+
+/**
+ * 「AI入力ログ」タブへ、書き込み1回につき1行を追記する（ChatGPT側の手入力ログと同じ列に合わせる）。
+ * ログの失敗で本処理を失敗扱いにしないよう、エラーは文字列で返して呼び出し側で結果に添える。
+ */
+async function appendAiLog(sheets: sheets_v4.Sheets, actor: string, entry: AiLogEntry): Promise<string | null> {
+  try {
+    const rows = await readTab(sheets, AI_LOG_TAB)
+    const { headerRow, columns } = tableFromRows(AI_LOG_TAB, rows)
+    const timeColumn = requireColumn(columns, '日時', AI_LOG_TAB)
+    let sheetRow = headerRow + 1
+    while (clean(rows[sheetRow - 1]?.[timeColumn]) !== '') sheetRow += 1
+
+    const now = nowJST()
+    const items = entry.writes.map((w) => w.header)
+    const before = entry.before
+      ? entry.writes.map((w) => `${w.header}: ${clean(entry.before?.[w.column]) || '（空）'}`).join(' / ')
+      : ''
+    const after = entry.writes.map((w) => `${w.header}: ${clean(w.value)}`).join(' / ')
+    const values: Record<string, CellValue> = {
+      日時: now,
+      操作者: (await memberNameFor(actor)) ?? actor,
+      入力モード: entry.mode,
+      操作種別: entry.operation,
+      対象タブ: entry.tab,
+      レコードID: entry.recordId,
+      対象項目: items.join('・'),
+      変更前: before,
+      変更後: after,
+      実行ID: `MCP-${now.replace(/\D/g, '')}-${entry.tool}`,
+      備考: `kindler-sales MCP（${entry.tool}）経由で自動記録`,
+    }
+    const writes = Object.entries(values)
+      .filter(([header]) => columns.has(header))
+      .map(([header, value]) => ({ column: columns.get(header)!, value, header }))
+    await writeCells(sheets, AI_LOG_TAB, sheetRow, writes)
+    return null
+  } catch (e) {
+    return `「${AI_LOG_TAB}」タブへの記録に失敗しました: ${messageOf(e)}`
+  }
+}
+
 function knownColumns<T extends Record<string, string>>(columns: Map<string, number>, headers: T): Set<number> {
   return new Set(
     Object.values(headers)
@@ -398,7 +476,7 @@ const optionalCount = z.number().int().min(0).optional()
 export function registerSheetTools(server: McpServer) {
   server.tool(
     'sheet_list_tabs',
-    '固定のGoogleスプレッドシート「KINDLER 営業行動管理」を、接続中の本人のGoogle権限で確認し、全タブ名・各タブの見出し・データ行数を返す。通常タブは2行目、設定タブだけは1行目を見出しとして扱う。どのタブを読むべきか判断するときに最初に使う。',
+    '固定のGoogleスプレッドシート「KINDLER 営業行動管理」を、接続中の本人のGoogle権限で確認し、全タブ名・各タブの見出し・データ行数を返す。通常タブは2行目、設定タブだけは1行目を見出しとして扱う（2行目も説明文のタブは、値が3つ以上ある最初の行を見出しとみなす）。どのタブを読むべきか判断するときに最初に使う。',
     {},
     async (_input, extra) => {
       try {
@@ -414,8 +492,7 @@ export function registerSheetTools(server: McpServer) {
             .map(async (sheet) => {
               const tab = sheet.properties?.title ?? ''
               const rows = await readTab(sheets, tab)
-              const headerRow = headerRowFor(tab)
-              const { headers } = tableFromRows(tab, rows, true)
+              const { headerRow, headers } = tableFromRows(tab, rows, true)
               return {
                 tab,
                 header_row: headerRow,
@@ -433,7 +510,7 @@ export function registerSheetTools(server: McpServer) {
 
   server.tool(
     'sheet_read_tab',
-    '固定のGoogleスプレッドシート「KINDLER 営業行動管理」の指定タブを、接続中の本人のGoogle権限で読み取る。通常は2行目（設定タブは1行目）の見出しをキーにしたオブジェクトと実際のシート行番号を返す。filterは「列名: 部分一致文字列」をAND条件で適用する。空行は除外する。見出しが空の説明用タブは、表示値の2次元配列として返す。',
+    '固定のGoogleスプレッドシート「KINDLER 営業行動管理」の指定タブを、接続中の本人のGoogle権限で読み取る。通常は2行目（設定タブは1行目、AI入力ログのように2行目も説明文のタブは3行目）の見出しをキーにしたオブジェクトと実際のシート行番号を返す。filterは「列名: 部分一致文字列」をAND条件で適用する。空行は除外する。見出しが空の説明用タブは、表示値の2次元配列として返す。',
     {
       tab: z.string().trim().min(1).describe('読み取るタブ名。sheet_list_tabsで確認できる'),
       offset: z.number().int().min(0).optional().describe('条件に一致した行のうち読み飛ばす件数。既定0'),
@@ -557,10 +634,20 @@ export function registerSheetTools(server: McpServer) {
         const sheetRow = existing?.sheetRow ?? firstEmptyKeyRow(rows, companyColumn)
         if (creating) await insertRow(sheets, tab, sheetRow, writes, knownColumns(columns, DEAL_HEADERS))
         else await writeCells(sheets, tab, sheetRow, writes)
+        const logError = await appendAiLog(sheets, actor, {
+          mode: '案件更新',
+          operation: creating ? '新規登録' : '更新',
+          tab,
+          recordId: clean(input.company_name),
+          writes,
+          before: existing?.row,
+          tool: 'sheet_upsert_deal',
+        })
         return textResult({
           row: sheetRow,
           action: creating ? 'created' : 'updated',
           written_columns: writes.map((write) => write.header),
+          ...(logError ? { log_warning: logError } : {}),
         })
       } catch (e) {
         return errorResult(messageOf(e))
@@ -585,7 +672,11 @@ export function registerSheetTools(server: McpServer) {
       next_action: z.string().optional().describe('次のアクション'),
       due_date: optionalDate.describe('期限。YYYY-MM-DD形式'),
       improvement: z.string().optional().describe('今回の改善点'),
-      slack_url: z.string().url().optional().describe('関連するSlack URL'),
+      slack_url: z
+        .string()
+        .url()
+        .optional()
+        .describe(`商談報告のSlack投稿URL。AIクライアント自身のSlackコネクタで${SLACK_REPORT_CHANNEL}へ投稿して得たURLを入れる（SEAMなど他のMCP経由で投稿しない）`),
     },
     async (input, extra) => {
       try {
@@ -633,7 +724,15 @@ export function registerSheetTools(server: McpServer) {
         const writes = buildWrites(tab, columns, MEETING_HEADERS, values)
         const sheetRow = firstEmptyKeyRow(rows, idColumn)
         await insertRow(sheets, tab, sheetRow, writes, knownColumns(columns, MEETING_HEADERS))
-        return textResult({ meeting_id: meetingId, row: sheetRow })
+        const logError = await appendAiLog(sheets, actor, {
+          mode: '商談報告',
+          operation: '新規登録',
+          tab,
+          recordId: meetingId,
+          writes,
+          tool: 'sheet_add_meeting',
+        })
+        return textResult({ meeting_id: meetingId, row: sheetRow, ...(logError ? { log_warning: logError } : {}) })
       } catch (e) {
         return errorResult(messageOf(e))
       }
@@ -721,11 +820,21 @@ export function registerSheetTools(server: McpServer) {
         const sheetRow = existing?.sheetRow ?? firstEmptyKeyRow(rows, dateColumn)
         if (existing) await writeCells(sheets, tab, sheetRow, writes)
         else await insertRow(sheets, tab, sheetRow, writes, knownColumns(columns, ACTIVITY_HEADERS))
+        const logError = await appendAiLog(sheets, actor, {
+          mode: '日次営業入力',
+          operation: existing ? '更新' : '新規登録',
+          tab,
+          recordId: `${sheetDate}-${member}`,
+          writes,
+          before: existing?.row,
+          tool: 'sheet_add_activity',
+        })
         return textResult({
           row: sheetRow,
           action: existing ? 'updated' : 'created',
           mode,
           written_columns: writes.map((write) => write.header),
+          ...(logError ? { log_warning: logError } : {}),
         })
       } catch (e) {
         return errorResult(messageOf(e))
